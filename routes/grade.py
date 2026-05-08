@@ -12,7 +12,7 @@ router = APIRouter()
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 IMAGE_DIR = DATA_DIR / "Images"
-
+IMAGE_DIR.mkdir(parents=True, exist_ok=True)
 
 @router.post("/upload")
 async def upload_board(file: UploadFile = File(...)):
