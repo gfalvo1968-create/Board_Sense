@@ -53,7 +53,7 @@ class BoardAI:
 
             "jackpot": knowledge["jackpot"],
 
-            "recommendation": knowledge["recommendation"],
+            "recommendation": recommendation,
 
             "pay_dirt_ready": knowledge["pay_dirt_ready"],
 
