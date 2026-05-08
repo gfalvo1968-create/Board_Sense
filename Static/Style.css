@@ -1,1 +1,149 @@
+body {
+    margin: 0;
+    background: #020602;
+    color: #39ff14;
+    font-family: Arial, sans-serif;
+}
 
+.hero {
+    text-align: center;
+    padding: 80px 20px 50px;
+}
+
+.radar {
+    width: 220px;
+    height: 220px;
+    border: 5px solid #39ff14;
+    border-radius: 50%;
+    margin: 0 auto 35px;
+    position: relative;
+    box-shadow: 0 0 35px #39ff14;
+}
+
+.radar-line {
+    width: 4px;
+    height: 100px;
+    background: #39ff14;
+    position: absolute;
+    left: 50%;
+    top: 20px;
+    transform-origin: bottom;
+    animation: spin 2s linear infinite;
+    box-shadow: 0 0 20px #39ff14;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.hero h1,
+.control-room h2 {
+    font-size: 42px;
+    letter-spacing: 2px;
+    text-shadow: 0 0 18px #39ff14;
+}
+
+.control-room {
+    padding: 25px;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 28px;
+}
+
+.card {
+    border: 1px solid #1fa814;
+    border-radius: 22px;
+    padding: 28px;
+    background: #090f09;
+    box-shadow: 0 0 18px rgba(57, 255, 20, 0.18);
+}
+
+.card h3 {
+    font-size: 26px;
+}
+
+.wide {
+    grid-column: span 2;
+}
+
+button {
+    margin-top: 14px;
+    padding: 14px 25px;
+    border-radius: 14px;
+    border: 2px solid #39ff14;
+    background: #39ff14;
+    color: #000;
+    font-weight: 900;
+    cursor: pointer;
+    box-shadow: 0 0 22px #39ff14;
+}
+
+button:hover {
+    transform: scale(1.03);
+}
+
+.status-box {
+    margin-top: 18px;
+    padding: 18px;
+    border: 1px solid #1fa814;
+    border-radius: 16px;
+    background: #050905;
+    font-size: 20px;
+    line-height: 1.5;
+}
+
+.preview-image {
+    margin-top: 18px;
+    max-width: 100%;
+    border-radius: 18px;
+    border: 1px solid #39ff14;
+}
+
+.signal-row,
+.history-entry {
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(57, 255, 20, 0.25);
+}
+
+.sponsor-card {
+    border-color: #00b7ff;
+    box-shadow: 0 0 24px rgba(0, 183, 255, 0.35);
+}
+
+.sponsor-card h4 {
+    font-size: 24px;
+    color: #00b7ff;
+}
+
+.sponsor-card a {
+    color: #00b7ff;
+    font-weight: bold;
+}
+
+.jackpot-mode {
+    animation: jackpotFlash 0.2s alternate 10;
+}
+
+@keyframes jackpotFlash {
+    from {
+        background: #020602;
+    }
+    to {
+        background: #003b16;
+    }
+}
+
+@media (max-width: 700px) {
+    .wide {
+        grid-column: span 1;
+    }
+
+    .hero h1,
+    .control-room h2 {
+        font-size: 32px;
+    }
+}
