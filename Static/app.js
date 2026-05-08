@@ -85,7 +85,14 @@ async function analyzeBoard() {
             body: formData
         });
 
-        const data = await response.json();
+        const raw = await response.text();
+
+let data;
+try {
+    data = JSON.parse(raw);
+} catch (e) {
+    throw new Error(raw);
+}
 
         if (!response.ok) {
             setText(uploadStatus, "Upload failed: " + (data.detail || "Unknown error"));
