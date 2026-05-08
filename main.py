@@ -18,7 +18,6 @@ STATIC_DIR = BASE_DIR / "Static"
 DATA_DIR = BASE_DIR / "data"
 IMAGE_DIR = DATA_DIR / "Images"
 
-IMAGE_DIR.mkdir(parents=True, exist_ok=True)
 
 # -----------------------------
 # STATIC FILES
