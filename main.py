@@ -24,7 +24,7 @@ IMAGE_DIR.mkdir(parents=True, exist_ok=True)
 # STATIC FILES
 # -----------------------------
 app.mount("/Static", StaticFiles(directory=STATIC_DIR), name="Static")
-
+app.include_router(grade_router)
 
 # -----------------------------
 # FRONTEND
