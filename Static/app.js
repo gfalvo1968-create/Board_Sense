@@ -136,3 +136,53 @@ if (fileInput) {
 if (analyzeBtn) {
     analyzeBtn.addEventListener("click", analyzeBoard);
 }
+function updateSignals(signals) {
+
+    const signalMap = {
+        "gold fingers": false,
+        "large ic chips": false,
+        "server grade": false,
+        "telecom board": false,
+        "power board": false,
+        "heavy components": false
+    };
+
+    signals.forEach(signal => {
+        const lower = signal.toLowerCase();
+
+        if (lower.includes("gold")) {
+            signalMap["gold fingers"] = true;
+        }
+
+        if (lower.includes("ic")) {
+            signalMap["large ic chips"] = true;
+        }
+
+        if (lower.includes("server")) {
+            signalMap["server grade"] = true;
+        }
+
+        if (lower.includes("telecom")) {
+            signalMap["telecom board"] = true;
+        }
+
+        if (lower.includes("power")) {
+            signalMap["power board"] = true;
+        }
+
+        if (lower.includes("heavy")) {
+            signalMap["heavy components"] = true;
+        }
+    });
+
+    document.querySelectorAll(".signal-item").forEach(item => {
+
+        const label = item.dataset.signal;
+
+        if (signalMap[label]) {
+            item.innerHTML = `${label} 🟢 DETECTED`;
+        } else {
+            item.innerHTML = `${label} 🔴 NONE`;
+        }
+    });
+}
