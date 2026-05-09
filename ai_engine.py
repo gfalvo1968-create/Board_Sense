@@ -51,9 +51,17 @@ if confidence < 0.60 or grade == "JUNK":
         return {
             "model": self.model_name,
 
-            "grade": grade,
+            grade = knowledge["grade"]
+recommendation = knowledge["recommendation"]
 
-            "confidence": confidence,
+if confidence < 0.60 or grade == "JUNK":
+    grade = "UNKNOWN"
+    recommendation = "Manual review required. Possible processor, chip, or specialty recovery item."
+
+return {
+    "model": self.model_name,
+    "grade": grade,
+    "confidence": confidence,
 
             "signals": knowledge["signals"],
 
