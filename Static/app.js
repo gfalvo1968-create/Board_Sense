@@ -136,16 +136,6 @@ if (fileInput) {
 if (analyzeBtn) {
     analyzeBtn.addEventListener("click", analyzeBoard);
 }
-function updateSignals(signals) {
-
-    const signalMap = {
-        "gold fingers": false,
-        "large ic chips": false,
-        "server grade": false,
-        "telecom board": false,
-        "power board": false,
-        "heavy components": false
-    };
 
     signals.forEach(signal => {
         const lower = signal.toLowerCase();
