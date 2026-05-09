@@ -50,6 +50,52 @@ def analyze_board_knowledge(filename: str):
 
     name = filename.lower()
     
+    def analyze_board_knowledge(filename: str):
+    features = detect_board_features(filename)
+
+    name = filename.lower()
+
+    if "ram" in name or "memory" in name or "dimm" in name or "sodimm" in name:
+        return {
+            "grade": "MEDIUM",
+            "score": 45,
+            "jackpot": False,
+            "recommendation": "Memory module detected. Gold fingers and recoverable IC chips present.",
+            "pay_dirt_ready": False,
+            "features": ["memory module", "gold fingers", "ic chips"],
+            "signals": {
+                "gold_fingers": "green",
+                "large_ic_chips": "green",
+                "server_grade": "orange",
+                "telecom_board": "red",
+                "power_board": "red",
+                "heavy_components": "red"
+            }
+        }
+
+    score = 0def analyze_board_knowledge(filename: str):
+    features = detect_board_features(filename)
+
+    name = filename.lower()
+
+    if "ram" in name or "memory" in name or "dimm" in name or "sodimm" in name:
+        return {
+            "grade": "MEDIUM",
+            "score": 45,
+            "jackpot": False,
+            "recommendation": "Memory module detected. Gold fingers and recoverable IC chips present.",
+            "pay_dirt_ready": False,
+            "features": ["memory module", "gold fingers", "ic chips"],
+            "signals": {
+                "gold_fingers": "green",
+                "large_ic_chips": "green",
+                "server_grade": "orange",
+                "telecom_board": "red",
+                "power_board": "red",
+                "heavy_components": "red"
+            }
+        }
+
     score = 0
 
     if features["gold_fingers"]:
