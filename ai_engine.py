@@ -46,6 +46,22 @@ recommendation = knowledge["recommendation"]
 if confidence < 0.60 or grade == "JUNK":
     grade = "UNKNOWN"
     recommendation = "Manual review required. Possible processor, chip, or specialty recovery item."
+
+return {
+    "model": self.model_name,
+    "grade": grade,
+    "confidence": confidence,
+    "signals": knowledge["signals"],
+    "score": knowledge["score"],
+    "jackpot": knowledge["jackpot"],
+    "recommendation": recommendation,
+    "pay_dirt_ready": knowledge["pay_dirt_ready"],
+    "features": knowledge["features"]
+}
+
+if confidence < 0.60 or grade == "JUNK":
+    grade = "UNKNOWN"
+    recommendation = "Manual review required. Possible processor, chip, or specialty recovery item."
         
         
         return {
@@ -58,23 +74,7 @@ if confidence < 0.60 or grade == "JUNK":
     grade = "UNKNOWN"
     recommendation = "Manual review required. Possible processor, chip, or specialty recovery item."
 
-return {
-    "model": self.model_name,
-    "grade": grade,
-    "confidence": confidence,
 
-            "signals": knowledge["signals"],
-
-            "score": knowledge["score"],
-
-            "jackpot": knowledge["jackpot"],
-
-            "recommendation": recommendation,
-
-            "pay_dirt_ready": knowledge["pay_dirt_ready"],
-
-            "features": knowledge["features"]
-        }
 
 
 # -----------------------------
