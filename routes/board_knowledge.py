@@ -1,13 +1,3 @@
-# routes/board_knowledge.py
-
-def signal_level(score: int):
-    if score >= 3:
-        return "green"
-    if score >= 1:
-        return "orange"
-    return "red"
-
-
 def detect_board_features(filename: str):
     name = filename.lower()
 
@@ -19,13 +9,21 @@ def detect_board_features(filename: str):
         "power_board": False,
         "low_value_board": False,
         "heavy_components": False,
+        "memory_module": False,
+        "processor": False,
     }
+
+    if "ram" in name or "memory" in name or "dimm" in name or "sodimm" in name:
+        features["memory_module"] = True
+        features["gold_fingers"] = True
+        features["large_ic_chips"] = True
+
+    if "cpu" in name or "processor" in name or "chip" in name or "bga" in name:
+        features["processor"] = True
+        features["large_ic_chips"] = True
 
     if "gold" in name or "finger" in name or "edge" in name:
         features["gold_fingers"] = True
-
-    if "chip" in name or "ic" in name or "cpu" in name or "bga" in name:
-        features["large_ic_chips"] = True
 
     if "server" in name or "telecom" in name or "network" in name:
         features["server_grade"] = True
@@ -36,65 +34,28 @@ def detect_board_features(filename: str):
     if "power" in name or "supply" in name or "transformer" in name:
         features["power_board"] = True
 
-    if "junk" in name or "low" in name or "brown" in name:
-        features["low_value_board"] = True
-
     if "heavy" in name or "heat" in name or "sink" in name:
         features["heavy_components"] = True
+
+    if "junk" in name or "low" in name or "brown" in name:
+        features["low_value_board"] = True
 
     return features
 
 
+def make_signals(features):
+    return {
+        "gold_fingers": "green" if features["gold_fingers"] else "red",
+        "large_ic_chips": "green" if features["large_ic_chips"] else "red",
+        "server_grade": "orange" if features["server_grade"] else "red",
+        "telecom_board": "green" if features["telecom_board"] else "red",
+        "power_board": "orange" if features["power_board"] else "red",
+        "heavy_components": "orange" if features["heavy_components"] else "red",
+    }
+
+
 def analyze_board_knowledge(filename: str):
     features = detect_board_features(filename)
-
-    name = filename.lower()
-    
-    def analyze_board_knowledge(filename: str):
-    features = detect_board_features(filename)
-
-    name = filename.lower()
-
-    if "ram" in name or "memory" in name or "dimm" in name or "sodimm" in name:
-        return {
-            "grade": "MEDIUM",
-            "score": 45,
-            "jackpot": False,
-            "recommendation": "Memory module detected. Gold fingers and recoverable IC chips present.",
-            "pay_dirt_ready": False,
-            "features": ["memory module", "gold fingers", "ic chips"],
-            "signals": {
-                "gold_fingers": "green",
-                "large_ic_chips": "green",
-                "server_grade": "orange",
-                "telecom_board": "red",
-                "power_board": "red",
-                "heavy_components": "red"
-            }
-        }
-
-    score = 0def analyze_board_knowledge(filename: str):
-    features = detect_board_features(filename)
-
-    name = filename.lower()
-
-    if "ram" in name or "memory" in name or "dimm" in name or "sodimm" in name:
-        return {
-            "grade": "MEDIUM",
-            "score": 45,
-            "jackpot": False,
-            "recommendation": "Memory module detected. Gold fingers and recoverable IC chips present.",
-            "pay_dirt_ready": False,
-            "features": ["memory module", "gold fingers", "ic chips"],
-            "signals": {
-                "gold_fingers": "green",
-                "large_ic_chips": "green",
-                "server_grade": "orange",
-                "telecom_board": "red",
-                "power_board": "red",
-                "heavy_components": "red"
-            }
-        }
 
     score = 0
 
@@ -110,52 +71,60 @@ def analyze_board_knowledge(filename: str):
     if features["telecom_board"]:
         score += 2
 
+    if features["power_board"]:
+        score += 1
+
     if features["heavy_components"]:
         score += 1
 
-    if features["power_board"]:
-        score -= 1
+    if features["memory_module"]:
+        score += 4
+
+    if features["processor"]:
+        score += 5
 
     if features["low_value_board"]:
-        score -= 2
+        score -= 3
 
-    signals = {
-        "gold_fingers": signal_level(3 if features["gold_fingers"] else 0),
-        "large_ic_chips": signal_level(3 if features["large_ic_chips"] else 0),
-        "server_grade": signal_level(3 if features["server_grade"] else 0),
-        "telecom_board": signal_level(3 if features["telecom_board"] else 0),
-        "power_board": signal_level(1 if features["power_board"] else 0),
-        "heavy_components": signal_level(1 if features["heavy_components"] else 0),
-    }
+    jackpot = False
+    pay_dirt_ready = False
 
-    jackpot = (
-        signals["gold_fingers"] == "green"
-        and signals["large_ic_chips"] == "green"
-        and not features["low_value_board"]
-    )
-
-    if jackpot:
+    if features["processor"]:
         grade = "HIGH"
-        recommendation = "JACKPOT — this board should be reviewed in Pay_Dirt for recovery."
-    elif score >= 5:
-        grade = "HIGH"
-        recommendation = "Strong board. Sort as high grade or review for recovery."
-    elif score >= 3:
+        recommendation = "Processor or specialty chip detected. Manual review recommended before scrapping."
+        pay_dirt_ready = True
+
+    elif features["memory_module"]:
         grade = "MEDIUM"
-        recommendation = "Medium board. Inspect chips, fingers, and connectors before selling."
-    elif score >= 1:
+        recommendation = "Memory module detected. Gold fingers and recoverable IC chips present."
+
+    elif score >= 8:
+        grade = "HIGH"
+        recommendation = "High-value board signals detected. Separate for better recovery value."
+        pay_dirt_ready = True
+
+    elif score >= 5:
+        grade = "MEDIUM"
+        recommendation = "Mid-grade board. Worth separating from low-grade scrap."
+
+    elif score >= 2:
         grade = "LOW"
-        recommendation = "Low signal board. Useful for training or low-grade scrap."
+        recommendation = "Low-grade board. Some recoverable components may be present."
+
     else:
         grade = "JUNK"
         recommendation = "Weak signal board. Scrap only unless visual inspection says otherwise."
 
+    if score >= 10:
+        jackpot = True
+        pay_dirt_ready = True
+
     return {
-        "features": features,
-        "signals": signals,
-        "score": score,
         "grade": grade,
+        "score": score,
         "jackpot": jackpot,
         "recommendation": recommendation,
-        "pay_dirt_ready": jackpot or grade == "HIGH",
+        "pay_dirt_ready": pay_dirt_ready,
+        "features": features,
+        "signals": make_signals(features),
     }
