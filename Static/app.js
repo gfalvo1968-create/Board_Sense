@@ -137,7 +137,24 @@ if (analyzeBtn) {
     analyzeBtn.addEventListener("click", analyzeBoard);
 }
 
-    signals.forEach(signal => {
+   if (fileInput) {
+    fileInput.addEventListener("change", function () {
+        const file = fileInput.files[0];
+
+        if (!file) {
+            setText(uploadStatus, "Waiting for board image...");
+            return;
+        }
+
+        setText(uploadStatus, "Selected: " + file.name);
+
+        if (previewImage) {
+            previewImage.src = URL.createObjectURL(file);
+            previewImage.style.display = "block";
+        }
+    });
+}
+     signals.forEach(signal => {
         const lower = signal.toLowerCase();
 
         if (lower.includes("gold")) {
