@@ -51,7 +51,7 @@ if confidence < 0.60 or grade == "JUNK":
         return {
             "model": self.model_name,
 
-            "grade": knowledge["grade"],
+            "grade": grade,
 
             "confidence": confidence,
 
