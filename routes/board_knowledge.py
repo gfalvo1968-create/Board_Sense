@@ -48,6 +48,8 @@ def detect_board_features(filename: str):
 def analyze_board_knowledge(filename: str):
     features = detect_board_features(filename)
 
+    name = filename.lower()
+    
     score = 0
 
     if features["gold_fingers"]:
