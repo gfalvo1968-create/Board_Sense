@@ -176,7 +176,7 @@ def make_signals(features):
 
 def analyze_board_knowledge(filename: str):
     features = detect_board_features(filename)
-
+    visual = detect_visual_features(filename)
     score = 0
 
     if features["gold_fingers"]:
