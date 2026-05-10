@@ -11,6 +11,8 @@ def detect_board_features(filename: str):
         "heavy_components": False,
         "memory_module": False,
         "processor": False,
+        "ceramic_cpu": False,
+        "motherboard": False,
     }
 
     if "ram" in name or "memory" in name or "dimm" in name or "sodimm" in name:
@@ -22,19 +24,32 @@ def detect_board_features(filename: str):
         features["processor"] = True
         features["large_ic_chips"] = True
 
+    if "ceramic" in name or "goldcap" in name or "gold_cap" in name:
+        features["ceramic_cpu"] = True
+        features["processor"] = True
+        features["large_ic_chips"] = True
+
     if "gold" in name or "finger" in name or "edge" in name:
         features["gold_fingers"] = True
 
-    if "server" in name or "telecom" in name or "network" in name:
+    if "server" in name or "backplane" in name or "raid" in name:
         features["server_grade"] = True
+        features["large_ic_chips"] = True
 
-    if "telecom" in name or "phone" in name:
+    if "telecom" in name or "network" in name or "router" in name or "switch" in name:
         features["telecom_board"] = True
+        features["server_grade"] = True
+        features["large_ic_chips"] = True
 
-    if "power" in name or "supply" in name or "transformer" in name:
+    if "motherboard" in name or "mainboard" in name or "pc_board" in name:
+        features["motherboard"] = True
+        features["large_ic_chips"] = True
+
+    if "power" in name or "supply" in name or "psu" in name or "transformer" in name:
         features["power_board"] = True
+        features["heavy_components"] = True
 
-    if "heavy" in name or "heat" in name or "sink" in name:
+    if "heavy" in name or "heat" in name or "sink" in name or "heatsink" in name:
         features["heavy_components"] = True
 
     if "junk" in name or "low" in name or "brown" in name:
@@ -47,7 +62,7 @@ def make_signals(features):
     return {
         "gold_fingers": "green" if features["gold_fingers"] else "red",
         "large_ic_chips": "green" if features["large_ic_chips"] else "red",
-        "server_grade": "orange" if features["server_grade"] else "red",
+        "server_grade": "green" if features["server_grade"] else "red",
         "telecom_board": "green" if features["telecom_board"] else "red",
         "power_board": "orange" if features["power_board"] else "red",
         "heavy_components": "orange" if features["heavy_components"] else "red",
@@ -66,9 +81,12 @@ def analyze_board_knowledge(filename: str):
         score += 3
 
     if features["server_grade"]:
-        score += 2
+        score += 3
 
     if features["telecom_board"]:
+        score += 3
+
+    if features["motherboard"]:
         score += 2
 
     if features["power_board"]:
@@ -83,20 +101,39 @@ def analyze_board_knowledge(filename: str):
     if features["processor"]:
         score += 5
 
+    if features["ceramic_cpu"]:
+        score += 5
+
     if features["low_value_board"]:
-        score -= 3
+        score -= 4
 
     jackpot = False
     pay_dirt_ready = False
 
-    if features["processor"]:
+    if features["ceramic_cpu"]:
+        grade = "HIGH"
+        recommendation = "Ceramic or gold-cap CPU signal detected. High-priority manual review for precious metal recovery."
+        pay_dirt_ready = True
+
+    elif features["processor"]:
         grade = "HIGH"
         recommendation = "Processor or specialty chip detected. Manual review recommended before scrapping."
+        pay_dirt_ready = True
+
+    elif features["telecom_board"]:
+        grade = "HIGH"
+        recommendation = "Telecom/network board signal detected. Strong IC and recovery potential."
+        pay_dirt_ready = True
+
+    elif features["server_grade"]:
+        grade = "HIGH"
+        recommendation = "Server-grade board signal detected. Separate from mixed boards."
         pay_dirt_ready = True
 
     elif features["memory_module"]:
         grade = "MEDIUM"
         recommendation = "Memory module detected. Gold fingers and recoverable IC chips present."
+        pay_dirt_ready = True
 
     elif score >= 8:
         grade = "HIGH"
