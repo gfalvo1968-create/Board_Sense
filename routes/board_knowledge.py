@@ -165,7 +165,13 @@ def detect_visual_features(image_path: str):
 
 def make_signals(features):
     return {
-        "gold_fingers": "green" if features["gold_fingers"] else "red",
+        "gold_fingers": (
+    "green"
+    if features["gold_fingers"] and visual["gold_like"]
+    else "orange"
+    if features["gold_fingers"]
+    else "red"
+),
         "large_ic_chips": "green" if features["large_ic_chips"] else "red",
         "server_grade": "green" if features["server_grade"] else "red",
         "telecom_board": "green" if features["telecom_board"] else "red",
