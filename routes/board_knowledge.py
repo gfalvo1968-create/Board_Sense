@@ -1,3 +1,7 @@
+import cv2
+import numpy as np
+from PIL import Image
+
 def detect_board_features(filename: str):
     name = filename.lower()
 
