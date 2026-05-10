@@ -104,6 +104,64 @@ def detect_board_features(filename: str):
 
     return features
 
+def detect_visual_features(image_path: str):
+    visual = {
+        "gold_like": False,
+        "dark_board": False,
+        "dense_components": False,
+        "large_chip": False
+    }
+
+    try:
+        image = cv2.imread(image_path)
+
+        if image is None:
+            return visual
+
+        height, width = image.shape[:2]
+
+        # Convert to HSV
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+        # GOLD COLOR RANGE
+        lower_gold = np.array([15, 80, 80])
+        upper_gold = np.array([40, 255, 255])
+
+        gold_mask = cv2.inRange(hsv, lower_gold, upper_gold)
+        gold_pixels = cv2.countNonZero(gold_mask)
+
+        if gold_pixels > 500:
+            visual["gold_like"] = True
+
+        # DARK BOARD CHECK
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+        avg_brightness = np.mean(gray)
+
+        if avg_brightness < 90:
+            visual["dark_board"] = True
+
+        # EDGE DENSITY
+        edges = cv2.Canny(gray, 100, 200)
+        edge_pixels = cv2.countNonZero(edges)
+
+        if edge_pixels > 15000:
+            visual["dense_components"] = True
+
+        # LARGE CENTER CHIP DETECTION
+        center = gray[
+            height//3:2*height//3,
+            width//3:2*width//3
+        ]
+
+        if np.mean(center) < 100:
+            visual["large_chip"] = True
+
+    except Exception as e:
+        print("Visual detection error:", e)
+
+    return visual
+
 
 def make_signals(features):
     return {
