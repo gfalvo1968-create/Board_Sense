@@ -12,47 +12,90 @@ def detect_board_features(filename: str):
         "memory_module": False,
         "processor": False,
         "ceramic_cpu": False,
+        "gold_cap_cpu": False,
         "motherboard": False,
+        "pci_card": False,
+        "gpu_card": False,
+        "fiber_card": False,
+        "military_grade": False,
+        "daughterboard": False,
+        "inverter_board": False,
     }
 
-    if "ram" in name or "memory" in name or "dimm" in name or "sodimm" in name:
+    if any(word in name for word in ["ram", "memory", "dimm", "sodimm"]):
         features["memory_module"] = True
         features["gold_fingers"] = True
         features["large_ic_chips"] = True
 
-    if "cpu" in name or "processor" in name or "chip" in name or "bga" in name:
+    if any(word in name for word in ["cpu", "processor", "bga", "chip"]):
         features["processor"] = True
         features["large_ic_chips"] = True
 
-    if "ceramic" in name or "goldcap" in name or "gold_cap" in name:
+    if any(word in name for word in ["ceramic", "ceramic_cpu"]):
         features["ceramic_cpu"] = True
         features["processor"] = True
         features["large_ic_chips"] = True
 
-    if "gold" in name or "finger" in name or "edge" in name:
+    if any(word in name for word in ["goldcap", "gold_cap", "gold cpu", "gold_cpu"]):
+        features["gold_cap_cpu"] = True
+        features["processor"] = True
+        features["ceramic_cpu"] = True
+        features["large_ic_chips"] = True
+
+    if any(word in name for word in ["gold", "finger", "fingers", "edge", "connector"]):
         features["gold_fingers"] = True
 
-    if "server" in name or "backplane" in name or "raid" in name:
+    if any(word in name for word in ["server", "backplane", "raid", "sas", "scsi"]):
         features["server_grade"] = True
         features["large_ic_chips"] = True
 
-    if "telecom" in name or "network" in name or "router" in name or "switch" in name:
+    if any(word in name for word in ["telecom", "network", "router", "switch", "marconi", "cisco", "juniper"]):
         features["telecom_board"] = True
         features["server_grade"] = True
         features["large_ic_chips"] = True
 
-    if "motherboard" in name or "mainboard" in name or "pc_board" in name:
+    if any(word in name for word in ["fiber", "optical", "sfp", "gbic"]):
+        features["fiber_card"] = True
+        features["telecom_board"] = True
+        features["server_grade"] = True
+
+    if any(word in name for word in ["motherboard", "mainboard", "pc_board"]):
         features["motherboard"] = True
         features["large_ic_chips"] = True
 
-    if "power" in name or "supply" in name or "psu" in name or "transformer" in name:
+    if any(word in name for word in ["pci", "pcie", "expansion", "soundcard", "nic"]):
+        features["pci_card"] = True
+        features["gold_fingers"] = True
+        features["large_ic_chips"] = True
+
+    if any(word in name for word in ["gpu", "graphics", "video_card"]):
+        features["gpu_card"] = True
+        features["pci_card"] = True
+        features["gold_fingers"] = True
+        features["large_ic_chips"] = True
+
+    if any(word in name for word in ["power", "supply", "psu", "transformer"]):
         features["power_board"] = True
         features["heavy_components"] = True
 
-    if "heavy" in name or "heat" in name or "sink" in name or "heatsink" in name:
+    if any(word in name for word in ["heavy", "heat", "sink", "heatsink"]):
         features["heavy_components"] = True
 
-    if "junk" in name or "low" in name or "brown" in name:
+    if any(word in name for word in ["military", "aerospace", "avionics", "defense"]):
+        features["military_grade"] = True
+        features["gold_fingers"] = True
+        features["large_ic_chips"] = True
+
+    if any(word in name for word in ["daughter", "daughterboard", "module"]):
+        features["daughterboard"] = True
+        features["large_ic_chips"] = True
+
+    if any(word in name for word in ["inverter", "solar", "ev", "drive_board"]):
+        features["inverter_board"] = True
+        features["power_board"] = True
+        features["heavy_components"] = True
+
+    if any(word in name for word in ["junk", "low", "brown", "tv_board"]):
         features["low_value_board"] = True
 
     return features
@@ -76,48 +119,72 @@ def analyze_board_knowledge(filename: str):
 
     if features["gold_fingers"]:
         score += 3
-
     if features["large_ic_chips"]:
         score += 3
-
     if features["server_grade"]:
-        score += 3
-
+        score += 4
     if features["telecom_board"]:
-        score += 3
-
-    if features["motherboard"]:
-        score += 2
-
+        score += 5
     if features["power_board"]:
         score += 1
-
     if features["heavy_components"]:
         score += 1
-
     if features["memory_module"]:
-        score += 4
-
+        score += 5
     if features["processor"]:
-        score += 5
-
+        score += 7
     if features["ceramic_cpu"]:
+        score += 10
+    if features["gold_cap_cpu"]:
+        score += 12
+    if features["motherboard"]:
+        score += 4
+    if features["pci_card"]:
         score += 5
-
+    if features["gpu_card"]:
+        score += 7
+    if features["fiber_card"]:
+        score += 6
+    if features["military_grade"]:
+        score += 10
+    if features["daughterboard"]:
+        score += 4
+    if features["inverter_board"]:
+        score += 5
     if features["low_value_board"]:
-        score -= 4
+        score -= 5
 
     jackpot = False
     pay_dirt_ready = False
 
-    if features["ceramic_cpu"]:
+    if features["gold_cap_cpu"]:
         grade = "HIGH"
-        recommendation = "Ceramic or gold-cap CPU signal detected. High-priority manual review for precious metal recovery."
+        recommendation = "Gold-cap CPU signal detected. High-priority precious metal recovery review."
+        pay_dirt_ready = True
+
+    elif features["ceramic_cpu"]:
+        grade = "HIGH"
+        recommendation = "Ceramic CPU signal detected. High-priority manual review for precious metal recovery."
+        pay_dirt_ready = True
+
+    elif features["military_grade"]:
+        grade = "HIGH"
+        recommendation = "Military/aerospace board signal detected. Separate immediately for specialty recovery review."
         pay_dirt_ready = True
 
     elif features["processor"]:
         grade = "HIGH"
         recommendation = "Processor or specialty chip detected. Manual review recommended before scrapping."
+        pay_dirt_ready = True
+
+    elif features["gpu_card"]:
+        grade = "HIGH"
+        recommendation = "GPU or graphics card signal detected. Gold fingers and IC recovery potential."
+        pay_dirt_ready = True
+
+    elif features["fiber_card"]:
+        grade = "HIGH"
+        recommendation = "Fiber/network card signal detected. Strong telecom recovery potential."
         pay_dirt_ready = True
 
     elif features["telecom_board"]:
@@ -135,7 +202,23 @@ def analyze_board_knowledge(filename: str):
         recommendation = "Memory module detected. Gold fingers and recoverable IC chips present."
         pay_dirt_ready = True
 
-    elif score >= 8:
+    elif features["pci_card"]:
+        grade = "MEDIUM"
+        recommendation = "PCI/expansion card detected. Gold fingers and IC chips may add recovery value."
+
+    elif features["motherboard"]:
+        grade = "MEDIUM"
+        recommendation = "Motherboard detected. Mid-grade recovery item. Sort separately from low-grade scrap."
+
+    elif features["inverter_board"]:
+        grade = "MEDIUM"
+        recommendation = "Inverter or power electronics board detected. Check for copper, aluminum heat sinks, and heavy components."
+
+    elif features["power_board"]:
+        grade = "LOW"
+        recommendation = "Power board detected. Recover copper, aluminum heat sinks, and transformers if labor is worth it."
+
+    elif score >= 10:
         grade = "HIGH"
         recommendation = "High-value board signals detected. Separate for better recovery value."
         pay_dirt_ready = True
@@ -152,7 +235,7 @@ def analyze_board_knowledge(filename: str):
         grade = "JUNK"
         recommendation = "Weak signal board. Scrap only unless visual inspection says otherwise."
 
-    if score >= 10:
+    if score >= 12:
         jackpot = True
         pay_dirt_ready = True
 
