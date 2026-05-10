@@ -224,6 +224,19 @@ def analyze_board_knowledge(filename: str):
         recommendation = "Gold-cap CPU signal detected. High-priority precious metal recovery review."
         pay_dirt_ready = True
 
+        # VISUAL AI SCORING
+    if visual["gold_like"]:
+       score += 5
+
+    if visual["dense_components"]:
+       score += 3
+
+    if visual["large_chip"]:
+       score += 4
+
+    if visual["dark_board"]:
+       score += 2
+    
     elif features["ceramic_cpu"]:
         grade = "HIGH"
         recommendation = "Ceramic CPU signal detected. High-priority manual review for precious metal recovery."
