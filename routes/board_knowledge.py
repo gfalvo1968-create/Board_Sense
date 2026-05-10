@@ -172,7 +172,13 @@ def make_signals(features):
     if features["gold_fingers"]
     else "red"
 ),
-        "large_ic_chips": "green" if features["large_ic_chips"] else "red",
+        "large_ic_chips": (
+    "green"
+    if features["large_ic_chips"] and visual["dense_components"]
+    else "orange"
+    if features["large_ic_chips"]
+    else "red"
+),
         "server_grade": "green" if features["server_grade"] else "red",
         "telecom_board": "green" if features["telecom_board"] else "red",
         "power_board": "orange" if features["power_board"] else "red",
