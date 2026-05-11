@@ -356,7 +356,7 @@ def analyze_board_knowledge(filename: str):
         jackpot = True
         pay_dirt_ready = True
 
-      return {
+        return {
         "grade": grade,
         "score": score,
         return {
