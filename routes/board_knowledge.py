@@ -182,7 +182,7 @@ def make_signals(features):
 ),
          "service_grade": (
     "green"
-    if fetures[”servise_grade”] and visual[”service_grade”]
+    if fetures[”service_grade”] and visual[”service_grade”]
     else “orange”
     if features [”service_grade"]
     else "red"
