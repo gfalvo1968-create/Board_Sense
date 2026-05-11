@@ -196,8 +196,20 @@ def make_signals(features, visual):
 
 
 def analyze_board_knowledge(image_path: str):
-    features = detect_board_features(filename)
-    visual = detect_visual_features(filename)
+    features = detect_board_features(image_path)
+    visual = detect_visual_features(image_path)
+
+lower_name = image_path.lower()
+
+if "motherboard" in lower_name or "board" in lower_name:
+    features["motherboard"] = True
+
+if visual["dense_components"]:
+    features["large_ic_chips"] = True
+
+if visual["dark_board"]:
+    features["server_grade"] = True
+    
 
     score = 0
 
