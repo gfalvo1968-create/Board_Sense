@@ -257,6 +257,8 @@ def analyze_board_knowledge(filename: str):
     jackpot = False
     pay_dirt_ready = False
 
+    confidence = min(confidence, 0.99)
+    
     if features["gold_cap_cpu"]:
         grade = "HIGH"
         recommendation = "Gold-cap CPU signal detected. High-priority precious metal recovery review."
@@ -276,7 +278,6 @@ def analyze_board_knowledge(filename: str):
     if visual["dark_board"]:
        score += 20
     
-    confidence = min(confidence, 0.99)
 
     elif features["ceramic_cpu"]:
         grade = "HIGH"
