@@ -275,8 +275,7 @@ def analyze_board_knowledge(filename: str):
 
     if visual["dark_board"]:
        score += 20
-    
-     confidence = min(confidence, 0.99)
+    confidence = min(confidence, 0.99)
 
     elif features["ceramic_cpu"]:
         grade = "HIGH"
