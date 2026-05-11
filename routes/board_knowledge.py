@@ -201,14 +201,14 @@ def analyze_board_knowledge(image_path: str):
 
 lower_name = image_path.lower()
 
-if "motherboard" in lower_name or "board" in lower_name:
-    features["motherboard"] = True
+   if "motherboard" in lower_name or "board" in lower_name:
+       features["motherboard"] = True
 
-if visual["dense_components"]:
-    features["large_ic_chips"] = True
+   if visual["dense_components"]:
+       features["large_ic_chips"] = True
 
-if visual["dark_board"]:
-    features["server_grade"] = True
+   if visual["dark_board"]:
+       features["server_grade"] = True
     
 
     score = 0
