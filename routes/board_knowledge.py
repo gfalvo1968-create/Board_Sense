@@ -276,7 +276,8 @@ def analyze_board_knowledge(filename: str):
        score += 20
     
      confidence = min(confidence, 0.99)
-   
+     "confidence": round(confidence, 2),
+
     elif features["ceramic_cpu"]:
         grade = "HIGH"
         recommendation = "Ceramic CPU signal detected. High-priority manual review for precious metal recovery."
