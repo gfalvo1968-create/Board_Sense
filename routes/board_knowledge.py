@@ -345,22 +345,22 @@ lower_name = image_path.lower()
         grade = "LOW"
         recommendation = "Power board detected. Recover copper, aluminum heat sinks, and transformers if labor is worth it."
 
-    elif score >= 10:
-        grade = "HIGH"
-        recommendation = "High-value board signals detected. Separate for better recovery value."
-        pay_dirt_ready = True
+    if score >= 10:
+    grade = "HIGH"
+    recommendation = "High-value board signals detected. Separate for better recovery value."
+    pay_dirt_ready = True
 
-    elif score >= 5:
-        grade = "MEDIUM"
-        recommendation = "Mid-grade board. Worth separating from low-grade scrap."
+elif score >= 5:
+    grade = "MEDIUM"
+    recommendation = "Mid-grade board. Worth separating from low-grade scrap."
 
-    elif score >= 2:
-        grade = "LOW"
-        recommendation = "Low-grade board. Some recoverable components may be present."
+elif score >= 2:
+    grade = "LOW"
+    recommendation = "Low-grade board. Some recoverable components may be present."
 
-    else:
-        grade = "UNKNOWN"
-        recommendation = "Manual review required. Possible processor, chip, or specialty recovery item."
+else:
+    grade = "UNKNOWN"
+    recommendation = "Manual review required. Possible processor, chip, or specialty recovery item."
 
     if score >= 12:
         jackpot = True
