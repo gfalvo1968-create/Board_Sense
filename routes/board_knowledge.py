@@ -262,17 +262,18 @@ def analyze_board_knowledge(filename: str):
         pay_dirt_ready = True
 
         # VISUAL AI SCORING
+    confidence = 0.50
     if visual["gold_like"]:
-       score += 5
+       score += 10
 
     if visual["dense_components"]:
-       score += 3
+       score += 10
 
     if visual["large_chip"]:
-       score += 4
+       score += 15
 
     if visual["dark_board"]:
-       score += 2
+       score += 20
     
     elif features["ceramic_cpu"]:
         grade = "HIGH"
