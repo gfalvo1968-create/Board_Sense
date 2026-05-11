@@ -277,7 +277,6 @@ def analyze_board_knowledge(filename: str):
        score += 20
     
      confidence = min(confidence, 0.99)
-     "confidence": round(confidence, 2),
 
     elif features["ceramic_cpu"]:
         grade = "HIGH"
@@ -359,6 +358,16 @@ def analyze_board_knowledge(filename: str):
     return {
         "grade": grade,
         "score": score,
+        return {
+    "grade": grade,
+    "score": score,
+    "confidence": round(confidence, 2),
+    "jackpot": jackpot,
+    "recommendation": recommendation,
+    "pay_dirt_ready": pay_dirt_ready,
+    "features": features,
+    "signals": make_signals(features),
+}
         "jackpot": jackpot,
         "recommendation": recommendation,
         "pay_dirt_ready": pay_dirt_ready,
