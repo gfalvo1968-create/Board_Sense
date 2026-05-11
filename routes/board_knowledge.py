@@ -180,30 +180,30 @@ def make_signals(features):
     if features["large_ic_chips"]
     else "red"
 ),
-         "service_grade": (
+         "server_grade": (
     "green"
-    if fetures[”service_grade”] and visual[”service_grade”]
-    else “orange”
-    if features [”service_grade"]
+    if features["server_grade"] and visual["dense_components"]
+    else "orange"
+    if features["server_grade"]
     else "red"
 ),
          "telecom_board": (
     "green"
-    if features["telecom_geade"] and visual["telecom_grade"]
+    if features["telecom_geade"] and visual["dense_components"]
     else "orange"
     if features["telecom_grade"]
     else "red"
 ),
          "power_board": (
     "green"
-    if features["power_board"] and visual["power_boaed"]
+    if features["power_board"] and visual["dence_components"]
     else "orange"
     if features["power_board"]
     else "red"
  ),
         "heavy_components": (
     "green"
-    if features["heavy_components"]and visual["heavy_components"]
+    if features["heavy_components"]and visual["dence_cmponents"]
     else "orange"
     if features["heavy_components"]
     else "red"
