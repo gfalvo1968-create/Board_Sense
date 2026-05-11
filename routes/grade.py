@@ -28,7 +28,7 @@ async def upload_board(file: UploadFile = File(...)):
     with file_path.open("wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    ai_result = board_ai.predict_board(safe_name)
+    ai_result = board_ai.predict_board(str(file_path))
 
     return {
         "status": "success",
