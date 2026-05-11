@@ -334,7 +334,7 @@ def analyze_board_knowledge(image_path: str):
     elif features["power_board"]:
         grade = "LOW"
         recommendation = "Power board detected. Recover copper, aluminum heat sinks, and transformers if labor is worth it."
-    elif score >= 10:
+    elif score >= 14:
         grade = "HIGH"
         recommendation = "High-value board signals detected. Separate for better recovery value."
         pay_dirt_ready = True
@@ -345,7 +345,7 @@ def analyze_board_knowledge(image_path: str):
         grade = "LOW"
         recommendation = "Low-grade board. Some recoverable components may be present."
 
-    if score >= 12:
+    if score >= 18:
         jackpot = True
         pay_dirt_ready = True
 
