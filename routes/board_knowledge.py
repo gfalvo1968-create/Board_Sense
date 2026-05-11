@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from PIL import Image
+
 
 def detect_board_features(filename: str):
     name = filename.lower()
@@ -31,7 +31,7 @@ def detect_board_features(filename: str):
         features["gold_fingers"] = True
         features["large_ic_chips"] = True
 
-    if any(word in name for word in ["cpu", "processor", "bga", "chip"]):
+    if any(word in name for word in ["cpu", "processor", "procesor", "proccessor", "bga", "chip"]):
         features["processor"] = True
         features["large_ic_chips"] = True
 
@@ -42,8 +42,8 @@ def detect_board_features(filename: str):
 
     if any(word in name for word in ["goldcap", "gold_cap", "gold cpu", "gold_cpu"]):
         features["gold_cap_cpu"] = True
-        features["processor"] = True
         features["ceramic_cpu"] = True
+        features["processor"] = True
         features["large_ic_chips"] = True
 
     if any(word in name for word in ["gold", "finger", "fingers", "edge", "connector"]):
@@ -104,12 +104,13 @@ def detect_board_features(filename: str):
 
     return features
 
+
 def detect_visual_features(image_path: str):
     visual = {
         "gold_like": False,
         "dark_board": False,
         "dense_components": False,
-        "large_chip": False
+        "large_chip": False,
     }
 
     try:
@@ -119,42 +120,34 @@ def detect_visual_features(image_path: str):
             return visual
 
         height, width = image.shape[:2]
-
-        # Convert to HSV
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
-        # GOLD COLOR RANGE
-        lower_gold = np.array([15, 80, 80])
-        upper_gold = np.array([40, 255, 255])
-
+        lower_gold = np.array([15, 70, 70])
+        upper_gold = np.array([45, 255, 255])
         gold_mask = cv2.inRange(hsv, lower_gold, upper_gold)
         gold_pixels = cv2.countNonZero(gold_mask)
 
         if gold_pixels > 500:
             visual["gold_like"] = True
 
-        # DARK BOARD CHECK
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
         avg_brightness = np.mean(gray)
 
-        if avg_brightness < 90:
+        if avg_brightness < 95:
             visual["dark_board"] = True
 
-        # EDGE DENSITY
-        edges = cv2.Canny(gray, 100, 200)
+        edges = cv2.Canny(gray, 80, 180)
         edge_pixels = cv2.countNonZero(edges)
 
-        if edge_pixels > 15000:
+        if edge_pixels > 12000:
             visual["dense_components"] = True
 
-        # LARGE CENTER CHIP DETECTION
         center = gray[
-            height//3:2*height//3,
-            width//3:2*width//3
+            height // 3 : 2 * height // 3,
+            width // 3 : 2 * width // 3
         ]
 
-        if np.mean(center) < 100:
+        if np.mean(center) < 105:
             visual["large_chip"] = True
 
     except Exception as e:
@@ -163,58 +156,49 @@ def detect_visual_features(image_path: str):
     return visual
 
 
-def make_signals(features):
+def make_signals(features, visual):
     return {
-       
         "gold_fingers": (
-    "green"
-    if features["gold_fingers"] and visual["gold_like"]
-    else "orange"
-    if features["gold_fingers"]
-    else "red"
-),
+            "green"
+            if features["gold_fingers"] or visual["gold_like"]
+            else "red"
+        ),
         "large_ic_chips": (
-    "green"
-    if features["large_ic_chips"] and visual["dense_components"]
-    else "orange"
-    if features["large_ic_chips"]
-    else "red"
-),
-         "server_grade": (
-    "green"
-    if features["server_grade"] and visual["dense_components"]
-    else "orange"
-    if features["server_grade"]
-    else "red"
-),
-         "telecom_board": (
-    "green"
-    if features["telecom_geade"] and visual["dense_components"]
-    else "orange"
-    if features["telecom_grade"]
-    else "red"
-),
-         "power_board": (
-    "green"
-    if features["power_board"] and visual["dence_components"]
-    else "orange"
-    if features["power_board"]
-    else "red"
- ),
+            "green"
+            if features["large_ic_chips"] or visual["dense_components"] or visual["large_chip"]
+            else "red"
+        ),
+        "server_grade": (
+            "green"
+            if features["server_grade"] and (visual["dense_components"] or visual["dark_board"])
+            else "orange"
+            if features["server_grade"]
+            else "red"
+        ),
+        "telecom_board": (
+            "green"
+            if features["telecom_board"] and (visual["dense_components"] or visual["dark_board"])
+            else "orange"
+            if features["telecom_board"]
+            else "red"
+        ),
+        "power_board": (
+            "orange"
+            if features["power_board"] or features["inverter_board"]
+            else "red"
+        ),
         "heavy_components": (
-    "green"
-    if features["heavy_components"]and visual["dence_cmponents"]
-    else "orange"
-    if features["heavy_components"]
-    else "red"
- ),
-    
+            "orange"
+            if features["heavy_components"]
+            else "red"
+        ),
     }
 
 
 def analyze_board_knowledge(filename: str):
     features = detect_board_features(filename)
     visual = detect_visual_features(filename)
+
     score = 0
 
     if features["gold_fingers"]:
@@ -254,30 +238,44 @@ def analyze_board_knowledge(filename: str):
     if features["low_value_board"]:
         score -= 5
 
+    if visual["gold_like"]:
+        score += 5
+    if visual["dense_components"]:
+        score += 3
+    if visual["large_chip"]:
+        score += 4
+    if visual["dark_board"]:
+        score += 2
+
     jackpot = False
     pay_dirt_ready = False
+    confidence = 0.50
+
+    if visual["gold_like"]:
+        confidence += 0.10
+    if visual["dense_components"]:
+        confidence += 0.10
+    if visual["large_chip"]:
+        confidence += 0.10
+    if visual["dark_board"]:
+        confidence += 0.05
+    if features["telecom_board"]:
+        confidence += 0.10
+    if features["server_grade"]:
+        confidence += 0.10
+    if features["processor"]:
+        confidence += 0.15
+    if features["ceramic_cpu"]:
+        confidence += 0.20
+    if features["gold_cap_cpu"]:
+        confidence += 0.20
 
     confidence = min(confidence, 0.99)
-    
+
     if features["gold_cap_cpu"]:
         grade = "HIGH"
         recommendation = "Gold-cap CPU signal detected. High-priority precious metal recovery review."
         pay_dirt_ready = True
-
-        # VISUAL AI SCORING
-    confidence = 0.50
-    if visual["gold_like"]:
-       score += 10
-
-    if visual["dense_components"]:
-       score += 10
-
-    if visual["large_chip"]:
-       score += 15
-
-    if visual["dark_board"]:
-       score += 20
-    
 
     elif features["ceramic_cpu"]:
         grade = "HIGH"
@@ -349,29 +347,21 @@ def analyze_board_knowledge(filename: str):
         recommendation = "Low-grade board. Some recoverable components may be present."
 
     else:
-        grade = "JUNK"
-        recommendation = "Weak signal board. Scrap only unless visual inspection says otherwise."
+        grade = "UNKNOWN"
+        recommendation = "Manual review required. Possible processor, chip, or specialty recovery item."
 
     if score >= 12:
         jackpot = True
         pay_dirt_ready = True
 
-        return {
+    return {
         "grade": grade,
         "score": score,
-        return {
-    "grade": grade,
-    "score": score,
-    "confidence": round(confidence, 2),
-    "jackpot": jackpot,
-    "recommendation": recommendation,
-    "pay_dirt_ready": pay_dirt_ready,
-    "features": features,
-    "signals": make_signals(features),
-}
+        "confidence": round(confidence, 2),
         "jackpot": jackpot,
         "recommendation": recommendation,
         "pay_dirt_ready": pay_dirt_ready,
         "features": features,
-        "signals": make_signals(features),
+        "visual": visual,
+        "signals": make_signals(features, visual),
     }
