@@ -250,13 +250,13 @@ def analyze_board_knowledge(image_path: str):
         score -= 5
 
     if visual["gold_like"]:
-        score += 5
-    if visual["dense_components"]:
-        score += 3
-    if visual["large_chip"]:
-        score += 4
-    if visual["dark_board"]:
         score += 2
+    if visual["dense_components"]:
+        score += 2
+    if visual["large_chip"]:
+        score += 2
+    if visual["dark_board"]:
+        score += 1
 
     jackpot = False
     pay_dirt_ready = False
