@@ -345,7 +345,7 @@ lower_name = image_path.lower()
         grade = "LOW"
         recommendation = "Power board detected. Recover copper, aluminum heat sinks, and transformers if labor is worth it."
 
-    if score >= 10:
+        if score >= 10:
         grade = "HIGH"
         recommendation = "High-value board signals detected. Separate for better recovery value."
         pay_dirt_ready = True
