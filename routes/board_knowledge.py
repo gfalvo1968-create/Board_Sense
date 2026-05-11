@@ -195,7 +195,7 @@ def make_signals(features, visual):
     }
 
 
-def analyze_board_knowledge(filename: str):
+def analyze_board_knowledge(image_path: str):
     features = detect_board_features(filename)
     visual = detect_visual_features(filename)
 
