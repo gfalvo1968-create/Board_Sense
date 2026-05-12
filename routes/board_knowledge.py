@@ -132,8 +132,8 @@ def detect_visual_features(image_path: str):
         green_mask = cv2.inRange(hsv, lower_green, upper_green)
         green_pixels = cv2.countNonZero(green_mask)
 
-if green_pixels > 5000:
-   visual["green_board"] = True
+        if green_pixels > 5000:
+           visual["green_board"] = True
         
         lower_gold = np.array([15, 70, 70])
         upper_gold = np.array([45, 255, 255])
