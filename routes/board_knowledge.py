@@ -234,6 +234,8 @@ def analyze_board_knowledge(image_path: str):
         score += 3
     if features["large_ic_chips"]:
         score += 3
+    if visual["green_board"] and features["gold_fingers"]:
+        score += 4
     if features["server_grade"]:
         score += 4
     if features["telecom_board"]:
