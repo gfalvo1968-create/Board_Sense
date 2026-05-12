@@ -126,11 +126,11 @@ def detect_visual_features(image_path: str):
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
         # GREEN PCB RANGE
-lower_green = np.array([35, 40, 40])
-upper_green = np.array([90, 255, 255])
+        lower_green = np.array([35, 40, 40])
+        upper_green = np.array([90, 255, 255])
 
-green_mask = cv2.inRange(hsv, lower_green, upper_green)
-green_pixels = cv2.countNonZero(green_mask)
+        green_mask = cv2.inRange(hsv, lower_green, upper_green)
+        green_pixels = cv2.countNonZero(green_mask)
 
 if green_pixels > 5000:
    visual["green_board"] = True
