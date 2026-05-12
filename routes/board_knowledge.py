@@ -111,6 +111,9 @@ def detect_visual_features(image_path: str):
         "dark_board": False,
         "dense_components": False,
         "large_chip": False,
+ visual["green_board"] = False
+ visual["gold_edge"] = False
+    
     }
 
     try:
