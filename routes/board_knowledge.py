@@ -279,10 +279,12 @@ def analyze_board_knowledge(image_path: str):
         score += 1
     if visual["green_board"]:
         score += 2
+    if visual["green_board"]:
+        score += 1
     
-    jackpot = False
-    pay_dirt_ready = False
-    confidence = 0.50
+       jackpot = False
+       pay_dirt_ready = False
+       confidence = 0.50
 
     if visual["gold_like"]:
         confidence += 0.10
