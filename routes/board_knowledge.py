@@ -181,6 +181,11 @@ def make_signals(features, visual):
             if features["large_ic_chips"] or visual["dense_components"] or visual["large_chip"]
             else "red"
         ),
+        "green_board": (
+            "green"
+            if visual["green_board"]
+            else "red"
+        ),
         "server_grade": (
             "green"
             if features["server_grade"] and (visual["dense_components"] or visual["dark_board"])
