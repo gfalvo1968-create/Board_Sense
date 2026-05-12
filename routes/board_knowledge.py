@@ -284,9 +284,9 @@ def analyze_board_knowledge(image_path: str):
     if visual["green_board"]:
         score += 1
 
-jackpot = False
-pay_dirt_ready = False
-confidence = 0.50
+        jackpot = False
+    pay_dirt_ready = False
+    confidence = 0.50
 
     if visual["gold_like"]:
         confidence += 0.10
@@ -306,7 +306,7 @@ confidence = 0.50
         confidence += 0.20
     if features["gold_cap_cpu"]:
         confidence += 0.20
-    
+
     confidence = min(confidence, 0.99)
 
     grade = "UNKNOWN"
