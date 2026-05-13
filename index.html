@@ -57,23 +57,25 @@
                 </div>
             </div>
 
-            <h2>IRM Core</h2>
+            <div class="card">
+    <h3>IRM Core</h3>
 
-                <input type="text" id="sourceName" placeholder="Customer Name">
+    <input type="text" id="sourceName" placeholder="Customer Name">
 
-                <input type="text" id="sourcePhone" placeholder="Phone Number">
+    <input type="text" id="sourcePhone" placeholder="Phone Number">
 
-                <input type="text" id="sourceMaterial" placeholder="Material Type">
+    <input type="text" id="sourceMaterial" placeholder="Material Type">
 
-                <textarea id="sourceNotes" placeholder="Notes"></textarea>
+    <textarea id="sourceNotes" placeholder="Notes"></textarea>
 
-                <button onclick="saveSource()">
-                         SAVE SOURCE
-                </button>
+    <button onclick="saveSource()" type="button">
+        SAVE SOURCE
+    </button>
 
-                <div id="irmStatus">
-                         Waiting for source input...
-             </div>
+    <div id="irmStatus" class="status-box">
+        Waiting for source input...
+    </div>
+</div>
 
             <div class="card wide">
                 <h3>Recent Scans</h3>
