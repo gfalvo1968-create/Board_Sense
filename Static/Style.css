@@ -146,4 +146,23 @@ button:hover {
     .control-room h2 {
         font-size: 32px;
     }
+#sourceName,
+#sourcePhone,
+#sourceMaterial,
+#sourceNotes {
+    display: block;
+    width: 100%;
+    max-width: 360px;
+    margin: 10px 0;
+    padding: 10px;
+    border-radius: 8px;
+}
+
+#sourceNotes {
+    min-height: 80px;
+}
+
+#irmStatus {
+    margin-top: 15px;
+ }
 }
