@@ -24,6 +24,7 @@ IMAGE_DIR = DATA_DIR / "Images"
 # -----------------------------
 app.mount("/Static", StaticFiles(directory=STATIC_DIR), name="Static")
 app.include_router(grade_router)
+app.include_router(irm_router)
 
 # -----------------------------
 # FRONTEND
