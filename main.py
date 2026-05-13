@@ -8,7 +8,7 @@ import uvicorn
 from ecosystem import get_ecosystem
 from signal_engine import evaluate_signals
 from routes.grade import router as grade_router
-
+from routes.irm_core import router as irm_router
 
 app = FastAPI(title="Board Sense")
 
