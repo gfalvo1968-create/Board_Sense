@@ -57,17 +57,23 @@
                 </div>
             </div>
 
-            <div class="card">
-                <h3>AI Training</h3>
+            <h2>IRM Core</h2>
 
-                <button id="trainBtn" type="button">
-                    TRAIN MODEL
+                <input type="text" id="sourceName" placeholder="Customer Name">
+
+                <input type="text" id="sourcePhone" placeholder="Phone Number">
+
+                <input type="text" id="sourceMaterial" placeholder="Material Type">
+
+                <textarea id="sourceNotes" placeholder="Notes"></textarea>
+
+                <button onclick="saveSource()">
+                         SAVE SOURCE
                 </button>
 
-                <div id="trainingBox" class="status-box">
-                    Waiting for training...
-                </div>
-            </div>
+                <div id="irmStatus">
+                         Waiting for source input...
+             </div>
 
             <div class="card wide">
                 <h3>Recent Scans</h3>
