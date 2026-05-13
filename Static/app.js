@@ -176,6 +176,27 @@ if (analyzeBtn) {
         result.message;
 }
     
+    async function saveSource() {
+    const payload = {
+        name: document.getElementById("sourceName").value,
+        phone: document.getElementById("sourcePhone").value,
+        material: document.getElementById("sourceMaterial").value,
+        notes: document.getElementById("sourceNotes").value
+    };
+
+    const response = await fetch("/irm/save-source", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
     });
+
+    const result = await response.json();
+
+    document.getElementById("irmStatus").innerHTML =
+        result.message;
 }
+
+window.saveSource = saveSource;
     
