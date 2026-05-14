@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,115 +11,135 @@
 
 <body>
 
-    <section class="hero">
-        <div class="radar">
-            <div class="radar-line"></div>
+<section class="hero">
+    <div class="radar">
+        <div class="radar-line"></div>
+    </div>
+
+    <h1>BOARD SENSE</h1>
+    <p>AI Powered Scrap Intelligence</p>
+</section>
+
+<main class="control-room">
+
+    <h2>BOARD SENSE CONTROL ROOM</h2>
+
+    <section class="grid">
+
+        <!-- Upload Card -->
+        <div class="card">
+
+            <h3>Upload Board</h3>
+
+            <input id="fileInput" type="file" accept="image/*">
+
+            <button id="analyzeBtn" type="button">
+                ANALYZE BOARD
+            </button>
+
+            <div id="uploadStatus" class="status-box">
+                Waiting for board image...
+            </div>
+
+            <img id="previewImage"
+                 class="preview-image"
+                 style="display:none;">
+
         </div>
 
-        <h1>BOARD SENSE</h1>
-        <p>AI Powered Scrap Intelligence</p>
+        <!-- Prediction Card -->
+        <div class="card">
+
+            <h3>Last AI Prediction</h3>
+
+            <div id="predictionBox" class="status-box">
+                No prediction yet
+            </div>
+
+        </div>
+
+        <!-- Signals Card -->
+        <div class="card">
+
+            <h3>Board Signal Lights</h3>
+
+            <div id="signalBox" class="status-box">
+                No signal scan yet
+            </div>
+
+        </div>
+
+        <!-- IRM Core -->
+        <div class="card">
+
+            <h3>IRM Core</h3>
+
+            <input id="sourceName"
+                   type="text"
+                   placeholder="Customer Name">
+
+            <input id="sourcePhone"
+                   type="text"
+                   placeholder="Phone Number">
+
+            <input id="sourceMaterial"
+                   type="text"
+                   placeholder="Material Type">
+
+            <textarea id="sourceNotes"
+                      placeholder="Notes"></textarea>
+
+            <button id="saveSourceBtn" type="button">
+                SAVE SOURCE
+            </button>
+
+            <div id="irmStatus" class="status-box">
+                Waiting for source input...
+            </div>
+
+        </div>
+
+        <!-- Recent Scans -->
+        <div class="card wide">
+
+            <h3>Recent Scans</h3>
+
+            <div id="historyBox" class="status-box">
+                No scans yet
+            </div>
+
+        </div>
+
+        <!-- Sponsor -->
+        <div class="card wide sponsor-card">
+
+            <h3>Radar Sponsor</h3>
+
+            <h4>Cades Coin & Jewelry</h4>
+
+            <p>
+                Jim Dennis has been serving the Exeter community
+                from the same location for over 50 years.
+            </p>
+
+            <p>
+                1187 Wyoming Ave, Exeter, PA 18643
+                <br>
+                570-762-1298
+            </p>
+
+            <p>
+                Featuring Parker Lane Financial Group
+                through Jim’s grandson.
+            </p>
+
+        </div>
+
     </section>
 
-    <main class="control-room">
+</main>
 
-        <h2>BOARD SENSE CONTROL ROOM</h2>
-
-        <section class="grid">
-
-            <div class="card">
-                <h3>Upload Board</h3>
-
-                <input id="fileInput" type="file" accept="image/*">
-
-                <button id="analyzeBtn" type="button">
-                         ANALYZE BOARD
-                </button>
-                    
-               
-                    
-                
-
-                <div id="uploadStatus" class="status-box">
-                    Waiting for board image...
-                </div>
-
-                <img id="previewImage" class="preview-image" style="display:none;">
-            </div>
-
-            <div class="card">
-                <h3>Last AI Prediction</h3>
-
-                <div id="predictionBox" class="status-box">
-                    No prediction yet
-                </div>
-            </div>
-
-            <div class="card">
-                <h3>Board Signal Lights</h3>
-
-                <div id="signalBox" class="status-box">
-                    No signal scan yet
-                </div>
-            </div>
-
-    <div class="card">
-    <h3>IRM Core</h3>
-
-    <input id="sourceName" type="text" placeholder="Customer Name">
-    <input id="sourcePhone" type="text" placeholder="Phone Number">
-    <input id="sourceMaterial" type="text" placeholder="Material Type">
-    <textarea id="sourceNotes" placeholder="Notes"></textarea>
-
-    <button id="saveSourceBtn" type="button">
-        SAVE SOURCE
-    </button>
-
-    <div id="irmStatus" class="status-box">
-        Waiting for source input...
-    </div>
-</div>
-
-            <div class="card wide">
-                <h3>Recent Scans</h3>
-
-                <div id="historyBox" class="status-box">
-                    No scans yet
-                </div>
-            </div>
-
-            <div class="card wide sponsor-card">
-                <h3>Radar Sponsor</h3>
-
-                <h4>Cades Coin & Jewelry</h4>
-
-                <p>
-                    Jim Dennis has been serving the Exeter community from the same location
-                    for over 50 years.
-                </p>
-
-                <p>
-                    1187 Wyoming Ave, Exeter, PA 18643
-                    <br>
-                    570-762-1298
-                </p>
-
-                <p>
-                    Featuring Parker Lane Financial Group through Jim’s grandson.
-                </p>
-
-                <a
-                    href="https://www.google.com/maps/search/?api=1&query=Cades+Coin+and+Jewelry+1187+Wyoming+Ave+Exeter+PA+18643"
-                    target="_blank"
-                >
-                    Open Sponsor Map
-                </a>
-            </div>
-
-        </section>
-
-    </main>
-
-    <<script src="/Static/app.js?v=irm-clean-1"></script>
+<script src="/Static/app.js?v=clean1"></script>
 
 </body>
 </html>
