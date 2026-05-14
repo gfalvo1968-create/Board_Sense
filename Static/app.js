@@ -80,16 +80,19 @@ async function analyzeBoard() {
             body: formData
         });
 
-        const result = await response.json();
+        const data = result.ai_result || result;
 
-        setText(
-            predictionBox,
-            `
-            <strong>Grade:</strong> ${result.grade}<br>
-            <strong>Score:</strong> ${result.score}<br>
-            <strong>Recommendation:</strong> ${result.recommendation}
-            `
-        );
+setText(
+    predictionBox,
+    `
+    <strong>Grade:</strong> ${data.grade || data.ai_grade || "UNKNOWN"}<br>
+    <strong>Confidence:</strong> ${data.confidence || "N/A"}<br>
+    <strong>Score:</strong> ${data.score || 0}<br>
+    <strong>Recommendation:</strong> ${data.recommendation || "Manual review required."}
+    `
+);
+
+renderSignals(data.signals || result.signals || {});
 
         renderSignals(result.signals || {});
 
