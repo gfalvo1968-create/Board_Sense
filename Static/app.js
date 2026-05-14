@@ -1,163 +1,117 @@
-const fileInput = document.getElementById("fileInput");
 const analyzeBtn = document.getElementById("analyzeBtn");
-const previewImage = document.getElementById("previewImage");
+const fileInput = document.getElementById("fileInput");
+
 const uploadStatus = document.getElementById("uploadStatus");
 const predictionBox = document.getElementById("predictionBox");
 const signalBox = document.getElementById("signalBox");
 const historyBox = document.getElementById("historyBox");
 
-function setText(el, text) {
-    if (el) {
-        el.innerHTML = text;
+const previewImage = document.getElementById("previewImage");
+
+const saveSourceBtn = document.getElementById("saveSourceBtn");
+const irmStatus = document.getElementById("irmStatus");
+
+
+function setText(element, text) {
+    if (element) {
+        element.innerHTML = text;
     }
 }
 
-function lightEmoji(color) {
-    if (color === "green") return "🟢";
-    if (color === "orange") return "🟠";
-    return "🔴";
+
+function addHistory(text) {
+    if (!historyBox) return;
+
+    const item = document.createElement("div");
+    item.className = "history-item";
+    item.innerHTML = text;
+
+    historyBox.prepend(item);
 }
+
 
 function renderSignals(signals) {
-    if (!signals) {
-        setText(signalBox, "No signal scan yet");
-        return;
-    }
+
+    if (!signalBox) return;
 
     let html = "";
 
-    for (const [name, color] of Object.entries(signals)) {
+    for (const key in signals) {
+
+        const active = signals[key];
+
+        const color = active ? "lime" : "red";
+
         html += `
-            <div class="signal-row">
-                <strong>${name.replaceAll("_", " ")}</strong>
-                <span>${lightEmoji(color)} ${color.toUpperCase()}</span>
+            <div style="margin-bottom:10px;">
+                <span style="color:${color};">
+                    ●
+                </span>
+                ${key}
             </div>
         `;
     }
 
-    setText(signalBox, html);
+    signalBox.innerHTML = html;
 }
 
-function renderPrediction(data) {
-    setText(predictionBox, `
-        <strong>Grade:</strong> ${data.ai_grade}<br>
-        <strong>Confidence:</strong> ${data.confidence}<br>
-        <strong>Score:</strong> ${data.score}<br>
-        <strong>Recommendation:</strong> ${data.recommendation}<br>
-        <strong>Pay_Dirt Ready:</strong> ${data.pay_dirt_ready ? "YES" : "NO"}
-    `);
-}
-
-function addHistory(data) {
-    if (!historyBox) return;
-
-    const entry = `
-        <div class="history-entry">
-            <strong>${data.filename}</strong><br>
-            Grade: ${data.ai_grade}<br>
-            Score: ${data.score}
-        </div>
-    `;
-
-    if (historyBox.innerHTML.includes("No scans yet")) {
-        historyBox.innerHTML = "";
-    }
-
-    historyBox.innerHTML = entry + historyBox.innerHTML;
-}
 
 async function analyzeBoard() {
-    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-        setText(uploadStatus, "Choose a board image first.");
-        return;
-    }
 
     const file = fileInput.files[0];
 
-    setText(uploadStatus, "Sending board to AI engine...");
+    if (!file) {
+        setText(uploadStatus, "Please select a board image.");
+        return;
+    }
+
+    setText(uploadStatus, "Analyzing board...");
+
+    previewImage.src = URL.createObjectURL(file);
+    previewImage.style.display = "block";
 
     const formData = new FormData();
     formData.append("file", file);
 
     try {
-        const response = await fetch("/upload", {
+
+        const response = await fetch("/grade/analyze", {
             method: "POST",
             body: formData
         });
 
-        const raw = await response.text();
+        const result = await response.json();
 
-let data;
-try {
-    data = JSON.parse(raw);
-} catch (e) {
-    throw new Error(raw);
-}
+        setText(
+            predictionBox,
+            `
+            <strong>Grade:</strong> ${result.grade}<br>
+            <strong>Score:</strong> ${result.score}<br>
+            <strong>Recommendation:</strong> ${result.recommendation}
+            `
+        );
 
-        if (!response.ok) {
-            setText(uploadStatus, "Upload failed: " + (data.detail || "Unknown error"));
-            return;
-        }
+        renderSignals(result.signals || {});
+
+        addHistory(
+            `
+            ${result.grade} | Score ${result.score}
+            `
+        );
 
         setText(uploadStatus, "Board analyzed successfully.");
 
-        renderPrediction(data);
-        renderSignals(data.signals);
-        addHistory(data);
+    } catch (error) {
 
-        if (data.jackpot) {
-            setText(uploadStatus, "💥 JACKPOT — send this one to Pay_Dirt.");
-            document.body.classList.add("jackpot-mode");
-            setTimeout(() => {
-                document.body.classList.remove("jackpot-mode");
-            }, 2500);
-        }
+        setText(uploadStatus, "Analyze failed.");
 
-    } catch (err) {
-        setText(uploadStatus, "Upload error: " + err);
     }
 }
 
-if (fileInput) {
-    fileInput.addEventListener("change", function () {
-        const file = fileInput.files[0];
 
-        if (!file) return;
+async function saveSource() {
 
-        setText(uploadStatus, "Selected: " + file.name);
-
-        if (previewImage) {
-            previewImage.src = URL.createObjectURL(file);
-            previewImage.style.display = "block";
-        }
-    });
-}
-
-if (analyzeBtn) {
-    analyzeBtn.addEventListener("click", analyzeBoard);
-}
-
-   if (fileInput) {
-    fileInput.addEventListener("change", function () {
-        const file = fileInput.files[0];
-
-        if (!file) {
-            setText(uploadStatus, "Waiting for board image...");
-            return;
-        }
-
-        setText(uploadStatus, "Selected: " + file.name);
-
-        if (previewImage) {
-            previewImage.src = URL.createObjectURL(file);
-            previewImage.style.display = "block";
-        }
-   
-    
-    async function saveSource() {
-    const statusBox = document.getElementById("irmStatus");
-
-    statusBox.innerHTML = "Saving source...";
+    setText(irmStatus, "Saving source...");
 
     const payload = {
         name: document.getElementById("sourceName").value,
@@ -167,6 +121,7 @@ if (analyzeBtn) {
     };
 
     try {
+
         const response = await fetch("/irm/save-source", {
             method: "POST",
             headers: {
@@ -177,16 +132,25 @@ if (analyzeBtn) {
 
         const result = await response.json();
 
-        statusBox.innerHTML = result.message || "Source saved.";
+        setText(
+            irmStatus,
+            result.message || "Source saved."
+        );
+
     } catch (error) {
-        statusBox.innerHTML = "Error saving source.";
+
+        setText(
+            irmStatus,
+            "Source save failed."
+        );
     }
 }
 
-document.addEventListener("DOMContentLoaded", function () {
-    const saveBtn = document.getElementById("saveSourceBtn");
 
-    if (saveBtn) {
-        saveBtn.addEventListener("click", saveSource);
-    }
-});
+if (analyzeBtn) {
+    analyzeBtn.addEventListener("click", analyzeBoard);
+}
+
+if (saveSourceBtn) {
+    saveSourceBtn.addEventListener("click", saveSource);
+}
