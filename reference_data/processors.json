@@ -142,3 +142,195 @@
     "notes": "Includes Pentium II and similar slot-based processors."
   }
 ]
+[
+  {
+    "category": "Ceramic Gold Cap CPU",
+    "grade": "HIGH",
+    "aliases": [
+      "gold cap cpu",
+      "ceramic processor",
+      "older ceramic cpu"
+    ],
+    "visual_traits": [
+      "gold top",
+      "ceramic body",
+      "gold pins",
+      "square shape"
+    ],
+    "material_signals": [
+      "high gold recovery",
+      "gold plated pins",
+      "gold cap"
+    ],
+    "common_examples": [
+      "486",
+      "pentium pro",
+      "amd k5",
+      "intel i960"
+    ],
+    "acceptable_damage": [
+      "slightly bent pins"
+    ],
+    "critical_damage": [
+      "missing large sections",
+      "heavy corrosion"
+    ],
+    "value_rank": 10,
+    "sorting_advice": "Keep separated from all modern CPUs.",
+    "notes": "One of the most valuable processor categories."
+  },
+
+  {
+    "category": "Ceramic CPU No Gold Cap",
+    "grade": "MEDIUM HIGH",
+    "aliases": [
+      "silver cap cpu",
+      "plain ceramic processor"
+    ],
+    "visual_traits": [
+      "ceramic body",
+      "silver top",
+      "gold pins"
+    ],
+    "material_signals": [
+      "moderate gold recovery"
+    ],
+    "common_examples": [
+      "older intel ceramic chips"
+    ],
+    "acceptable_damage": [
+      "minor bent pins"
+    ],
+    "critical_damage": [
+      "cracked ceramic"
+    ],
+    "value_rank": 7,
+    "sorting_advice": "Separate from gold cap CPUs.",
+    "notes": "Still valuable but lower than gold cap processors."
+  },
+
+  {
+    "category": "Double Gold Cap CPU",
+    "grade": "PREMIUM",
+    "aliases": [
+      "double cap cpu",
+      "double gold processor"
+    ],
+    "visual_traits": [
+      "gold top",
+      "gold bottom",
+      "ceramic body"
+    ],
+    "material_signals": [
+      "very high gold recovery"
+    ],
+    "common_examples": [
+      "amd k5 double cap"
+    ],
+    "acceptable_damage": [
+      "light pin bends"
+    ],
+    "critical_damage": [
+      "broken ceramic",
+      "severe corrosion"
+    ],
+    "value_rank": 11,
+    "sorting_advice": "Top-tier processor category. Store separately.",
+    "notes": "Extremely desirable scrap processor."
+  },
+
+  {
+    "category": "Slot Processor",
+    "grade": "MEDIUM",
+    "aliases": [
+      "slot cpu",
+      "slot processor card"
+    ],
+    "visual_traits": [
+      "card style processor",
+      "gold finger edge",
+      "plastic shell possible"
+    ],
+    "material_signals": [
+      "gold fingers",
+      "mixed recovery"
+    ],
+    "common_examples": [
+      "pentium ii",
+      "slot 1 cpu"
+    ],
+    "acceptable_damage": [
+      "missing cover"
+    ],
+    "critical_damage": [
+      "broken pcb"
+    ],
+    "value_rank": 5,
+    "sorting_advice": "Separate finger cards from bare processors.",
+    "notes": "Contains recoverable gold fingers."
+  },
+
+  {
+    "category": "Modern Fiber CPU",
+    "grade": "LOW",
+    "aliases": [
+      "fiber cpu",
+      "green cpu",
+      "modern processor"
+    ],
+    "visual_traits": [
+      "green substrate",
+      "small gold pads",
+      "modern heat spreader"
+    ],
+    "material_signals": [
+      "lower gold recovery"
+    ],
+    "common_examples": [
+      "core i5",
+      "core i7",
+      "ryzen"
+    ],
+    "acceptable_damage": [
+      "scratched heat spreader"
+    ],
+    "critical_damage": [
+      "cracked substrate",
+      "burn marks"
+    ],
+    "value_rank": 3,
+    "sorting_advice": "Bulk separately from ceramic CPUs.",
+    "notes": "Lower scrap value but may hold resale value."
+  },
+
+  {
+    "category": "Laptop CPU",
+    "grade": "LOW MEDIUM",
+    "aliases": [
+      "mobile cpu",
+      "notebook processor"
+    ],
+    "visual_traits": [
+      "small size",
+      "compact substrate",
+      "low profile"
+    ],
+    "material_signals": [
+      "light gold plating"
+    ],
+    "common_examples": [
+      "mobile pentium",
+      "mobile intel",
+      "laptop amd"
+    ],
+    "acceptable_damage": [
+      "minor scratches"
+    ],
+    "critical_damage": [
+      "broken corners"
+    ],
+    "value_rank": 4,
+    "sorting_advice": "Sort separately from desktop CPUs.",
+    "notes": "Usually lower weight and lower recovery."
+  }
+]
