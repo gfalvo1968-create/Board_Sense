@@ -1,1 +1,96 @@
-
+[
+  {
+    "category": "Junk Power Board",
+    "grade": "LOW",
+    "aliases": ["junk board", "cheap power board", "low value pcb"],
+    "visual_traits": [
+      "large capacitors",
+      "transformers",
+      "few IC chips",
+      "small board",
+      "wire connectors"
+    ],
+    "negative_value_signals": [
+      "no gold fingers",
+      "low chip density",
+      "power regulation components"
+    ],
+    "value_rank": 1,
+    "sorting_advice": "Recover copper or transformers only if labor is justified.",
+    "notes": "Often falsely identified as valuable because large black components resemble IC chips."
+  },
+  {
+    "category": "Consumer Appliance Board",
+    "grade": "LOW",
+    "aliases": ["washer board", "dryer board", "microwave board", "appliance pcb"],
+    "visual_traits": [
+      "relays",
+      "wire plugs",
+      "small IC count",
+      "green or tan pcb"
+    ],
+    "negative_value_signals": [
+      "consumer layout",
+      "few gold contacts",
+      "light circuitry"
+    ],
+    "value_rank": 2,
+    "sorting_advice": "Bulk separately from telecom or motherboard categories.",
+    "notes": "Common source of false high-grade detection."
+  },
+  {
+    "category": "Low Density Consumer Board",
+    "grade": "LOW",
+    "aliases": ["cheap consumer board", "basic pcb", "toy electronics board"],
+    "visual_traits": [
+      "few components",
+      "small ICs",
+      "minimal traces",
+      "light board weight"
+    ],
+    "negative_value_signals": [
+      "low precious metal content",
+      "minimal gold plating"
+    ],
+    "value_rank": 1,
+    "sorting_advice": "Generally unsuitable for advanced recovery work.",
+    "notes": "Often worth more as bulk shred or copper recovery."
+  },
+  {
+    "category": "Damaged Burned Board",
+    "grade": "JUNK",
+    "aliases": ["burned pcb", "fried board", "corroded electronics"],
+    "visual_traits": [
+      "burn marks",
+      "corrosion",
+      "missing components",
+      "broken pcb"
+    ],
+    "negative_value_signals": [
+      "damaged circuitry",
+      "destroyed contacts"
+    ],
+    "value_rank": 0,
+    "sorting_advice": "Recover only basic metals if economically viable.",
+    "notes": "Damage greatly reduces recovery value."
+  },
+  {
+    "category": "Low Value Control Board",
+    "grade": "LOW",
+    "aliases": ["control pcb", "relay board", "small controller"],
+    "visual_traits": [
+      "terminal blocks",
+      "few integrated circuits",
+      "large capacitors",
+      "small board"
+    ],
+    "negative_value_signals": [
+      "few IC chips",
+      "no edge fingers",
+      "no processor architecture"
+    ],
+    "value_rank": 1,
+    "sorting_advice": "Do not route to premium categories unless manually verified.",
+    "notes": "Used to help prevent junk boards from being mistaken for telecom or server boards."
+  }
+]
