@@ -297,7 +297,7 @@ def analyze_board_knowledge(image_path: str):
     if visual["dark_board"]:
         score += 1   
         
-     # Junk board penalty logic
+         # Junk board penalty logic
     if features["power_board"] and not features["gold_fingers"]:
         score -= 4
 
@@ -308,13 +308,13 @@ def analyze_board_knowledge(image_path: str):
         score -= 3
 
     if features["power_board"] and features["heavy_components"]:
-         score -= 2  
-        
-       
-        score = max(score, 0)
-        jackpot = False
-        pay_dirt_ready = False
-        confidence = 0.50
+        score -= 2
+
+    score = max(score, 0)
+
+    jackpot = False
+    pay_dirt_ready = False
+    confidence = 0.50
 
     if visual["gold_like"]:
         confidence += 0.10
