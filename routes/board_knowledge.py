@@ -173,9 +173,9 @@ def make_signals(features, visual):
     return {
         "gold_fingers": (
             "green"
-            if features["gold_fingers"] or visual["gold_like"]
+            if features["gold_fingers"]
             else "red"
-        ),
+       ),
         "large_ic_chips": (
             "green"
             if features["large_ic_chips"] or visual["dense_components"] or visual["large_chip"]
