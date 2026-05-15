@@ -1,1 +1,211 @@
+[
+  {
+    "category": "High Grade Motherboard",
+    "grade": "HIGH",
+    "aliases": [
+      "high grade board",
+      "high grade motherboard",
+      "large socket motherboard"
+    ],
+    "visual_traits": [
+      "large cpu socket",
+      "green board",
+      "older motherboard",
+      "dense traces",
+      "many expansion slots"
+    ],
+    "material_signals": [
+      "higher gold content",
+      "older chipset materials",
+      "gold plated contacts"
+    ],
+    "common_examples": [
+      "386",
+      "486",
+      "pentium",
+      "server boards"
+    ],
+    "acceptable_damage": [
+      "missing heatsink",
+      "minor board scratches"
+    ],
+    "critical_damage": [
+      "heavy corrosion",
+      "burned board",
+      "broken socket"
+    ],
+    "value_rank": 9,
+    "sorting_advice": "Separate from mixed and low-grade boards immediately.",
+    "notes": "Often found in older desktop and industrial systems."
+  },
 
+  {
+    "category": "Medium Grade Motherboard",
+    "grade": "MEDIUM",
+    "aliases": [
+      "mid grade motherboard",
+      "green motherboard"
+    ],
+    "visual_traits": [
+      "green board",
+      "smaller socket",
+      "moderate component density",
+      "consumer desktop layout"
+    ],
+    "material_signals": [
+      "moderate gold recovery",
+      "standard motherboard metals"
+    ],
+    "common_examples": [
+      "socket 478",
+      "pentium 4",
+      "athlon"
+    ],
+    "acceptable_damage": [
+      "missing ram",
+      "missing heatsink"
+    ],
+    "critical_damage": [
+      "severe cracking",
+      "burn marks"
+    ],
+    "value_rank": 6,
+    "sorting_advice": "Keep separated from low-grade and junk boards.",
+    "notes": "Common office and household computer motherboards."
+  },
+
+  {
+    "category": "Low Grade Motherboard",
+    "grade": "LOW",
+    "aliases": [
+      "low grade board",
+      "small socket board"
+    ],
+    "visual_traits": [
+      "small cpu socket",
+      "non-green board possible",
+      "low component density",
+      "modern budget layout"
+    ],
+    "material_signals": [
+      "lower precious metal recovery"
+    ],
+    "common_examples": [
+      "modern office computers",
+      "budget desktops"
+    ],
+    "acceptable_damage": [
+      "missing battery",
+      "missing fan"
+    ],
+    "critical_damage": [
+      "water damage",
+      "heavy corrosion"
+    ],
+    "value_rank": 3,
+    "sorting_advice": "Combine into bulk low-grade motherboard category.",
+    "notes": "Usually lower value recovery boards."
+  },
+
+  {
+    "category": "Small Socket Server Motherboard",
+    "grade": "MEDIUM HIGH",
+    "aliases": [
+      "small server board",
+      "dual socket server board"
+    ],
+    "visual_traits": [
+      "multiple cpu sockets",
+      "green motherboard",
+      "server layout",
+      "large memory capacity"
+    ],
+    "material_signals": [
+      "higher gold traces",
+      "server-grade materials"
+    ],
+    "common_examples": [
+      "socket 478 server",
+      "socket 754",
+      "socket 775"
+    ],
+    "acceptable_damage": [
+      "missing ram",
+      "missing cpu"
+    ],
+    "critical_damage": [
+      "severe corrosion",
+      "broken board layers"
+    ],
+    "value_rank": 7,
+    "sorting_advice": "Keep separate from consumer motherboards.",
+    "notes": "Server boards often contain higher quality materials."
+  },
+
+  {
+    "category": "Large Socket Server Motherboard",
+    "grade": "VERY HIGH",
+    "aliases": [
+      "large server board",
+      "enterprise motherboard",
+      "multi socket board"
+    ],
+    "visual_traits": [
+      "very large cpu sockets",
+      "multiple processor sockets",
+      "heavy board",
+      "dense circuitry",
+      "industrial layout"
+    ],
+    "material_signals": [
+      "high precious metal recovery",
+      "gold plated contacts",
+      "high layer count"
+    ],
+    "common_examples": [
+      "socket 370",
+      "older enterprise servers",
+      "industrial systems"
+    ],
+    "acceptable_damage": [
+      "missing heatsinks"
+    ],
+    "critical_damage": [
+      "heavy physical damage",
+      "burned areas"
+    ],
+    "value_rank": 10,
+    "sorting_advice": "Premium motherboard category. Store separately.",
+    "notes": "One of the highest-value motherboard classes."
+  },
+
+  {
+    "category": "Mixed Computer Motherboards",
+    "grade": "MIXED",
+    "aliases": [
+      "mixed boards",
+      "bulk motherboards"
+    ],
+    "visual_traits": [
+      "unsorted motherboard load",
+      "mixed colors",
+      "varied socket sizes"
+    ],
+    "material_signals": [
+      "mixed recovery values"
+    ],
+    "common_examples": [
+      "bulk scrap loads",
+      "gaylord motherboard lots"
+    ],
+    "acceptable_damage": [
+      "mixed conditions"
+    ],
+    "critical_damage": [
+      "extreme contamination"
+    ],
+    "value_rank": 5,
+    "sorting_advice": "Sort further when possible for better returns.",
+    "notes": "Used when detailed sorting is not practical."
+  }
+]
