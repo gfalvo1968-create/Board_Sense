@@ -1,1 +1,91 @@
+[
+  {
+    "grade": "VERY HIGH",
+    "score_range": [22, 30],
+    "typical_features": [
+      "gold fingers",
+      "server layout",
+      "large IC chips",
+      "multiple processors",
+      "dense circuitry",
+      "telecom architecture"
+    ],
+    "recovery_signals": [
+      "high precious metal potential",
+      "high gold contact density"
+    ],
+    "recommended_action": "Separate immediately and store securely.",
+    "pay_dirt_ready": true,
+    "notes": "Premium-grade boards and processors."
+  },
 
+  {
+    "grade": "HIGH",
+    "score_range": [16, 21],
+    "typical_features": [
+      "gold fingers",
+      "dense chip layout",
+      "older motherboard",
+      "industrial board",
+      "server RAM"
+    ],
+    "recovery_signals": [
+      "moderate to high precious metal recovery"
+    ],
+    "recommended_action": "Separate from mixed board loads.",
+    "pay_dirt_ready": true,
+    "notes": "Strong recovery potential."
+  },
+
+  {
+    "grade": "MEDIUM",
+    "score_range": [9, 15],
+    "typical_features": [
+      "standard motherboard",
+      "consumer electronics",
+      "moderate chip density",
+      "green board"
+    ],
+    "recovery_signals": [
+      "moderate recovery value"
+    ],
+    "recommended_action": "Sort into medium-grade categories.",
+    "pay_dirt_ready": false,
+    "notes": "Average recovery category."
+  },
+
+  {
+    "grade": "LOW",
+    "score_range": [0, 8],
+    "typical_features": [
+      "power supply board",
+      "heavy capacitors",
+      "few IC chips",
+      "damaged board",
+      "small board"
+    ],
+    "recovery_signals": [
+      "limited precious metal recovery"
+    ],
+    "recommended_action": "Recover copper, aluminum, transformers, or bulk shred value.",
+    "pay_dirt_ready": false,
+    "notes": "Low-value or mixed recovery material."
+  },
+
+  {
+    "grade": "JUNK",
+    "score_range": [-10, -1],
+    "typical_features": [
+      "severe corrosion",
+      "burn damage",
+      "broken board",
+      "missing major components"
+    ],
+    "recovery_signals": [
+      "minimal recovery value"
+    ],
+    "recommended_action": "Process only for basic material recovery.",
+    "pay_dirt_ready": false,
+    "notes": "Generally unsuitable for precious metal recovery."
+  }
+]
