@@ -313,8 +313,8 @@ def analyze_board_knowledge(image_path: str):
        
         score = max(score, 0)
         jackpot = False
-    pay_dirt_ready = False
-    confidence = 0.50
+       pay_dirt_ready = False
+       confidence = 0.50
 
     if visual["gold_like"]:
         confidence += 0.10
