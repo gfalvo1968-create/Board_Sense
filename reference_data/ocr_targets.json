@@ -1,1 +1,58 @@
-
+[
+  {
+    "target_type": "CPU Markings",
+    "examples": ["Intel", "AMD", "Cyrix", "Pentium", "i486", "386", "286", "Xeon", "Opteron"],
+    "meaning": "Processor family or manufacturer identification",
+    "value_effect": "Can identify collector or high-value processor categories.",
+    "recommended_action": "Use OCR result to cross-check processor reference data."
+  },
+  {
+    "target_type": "Motherboard Socket Labels",
+    "examples": ["Socket 7", "Socket 370", "Socket 478", "LGA775", "PGA", "Slot 1"],
+    "meaning": "Motherboard generation and CPU compatibility",
+    "value_effect": "Older sockets may increase board grading confidence.",
+    "recommended_action": "Use socket text to improve motherboard grade."
+  },
+  {
+    "target_type": "Server / Telecom Brand Names",
+    "examples": ["Cisco", "Juniper", "Nortel", "Lucent", "Marconi", "Avaya", "HP", "Dell", "IBM"],
+    "meaning": "Enterprise or telecom hardware clue",
+    "value_effect": "May increase telecom/server confidence.",
+    "recommended_action": "Route to manual review if paired with dense IC layout."
+  },
+  {
+    "target_type": "Memory Labels",
+    "examples": ["ECC", "Registered", "DDR", "DDR2", "DDR3", "DDR4", "SODIMM"],
+    "meaning": "RAM type and possible server memory identification",
+    "value_effect": "Server/ECC RAM may receive higher confidence.",
+    "recommended_action": "Cross-check against RAM reference data."
+  },
+  {
+    "target_type": "Board Part Numbers",
+    "examples": ["P/N", "FRU", "REV", "ASSY", "PCB", "MODEL"],
+    "meaning": "Searchable board identity marker",
+    "value_effect": "Useful for web matching and future Board Lens lookup.",
+    "recommended_action": "Store OCR text for future matching."
+  },
+  {
+    "target_type": "Gold / Plating Clues",
+    "examples": ["Au", "gold", "ENIG", "plated"],
+    "meaning": "Possible gold plating or finish clue",
+    "value_effect": "Can support gold-contact confidence but should not override visual evidence alone.",
+    "recommended_action": "Confirm with visual gold finger or connector detection."
+  },
+  {
+    "target_type": "Rare Earth / Magnet Clues",
+    "examples": ["NdFeB", "neodymium", "rare earth", "magnet"],
+    "meaning": "Rare earth material clue",
+    "value_effect": "May trigger specialty material signal.",
+    "recommended_action": "Route to rare earth recovery review."
+  },
+  {
+    "target_type": "Tantalum Clues",
+    "examples": ["Ta", "tantalum", "Kemet", "AVX"],
+    "meaning": "Possible tantalum capacitor clue",
+    "value_effect": "May trigger specialty capacitor recovery signal.",
+    "recommended_action": "Check board for tantalum capacitors and batch quantity."
+  }
+]
