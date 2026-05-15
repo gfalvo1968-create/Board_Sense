@@ -1,1 +1,58 @@
-
+[
+  {
+    "rule": "Gold fingers increase recovery value",
+    "applies_to": ["ram", "pci cards", "server cards", "telecom cards", "slot processors"],
+    "positive_signals": ["full gold edge", "clean plated contacts", "untrimmed fingers"],
+    "negative_signals": ["trimmed fingers", "broken edge", "heavy corrosion"],
+    "action": "Separate from mixed boards.",
+    "notes": "Full fingers are better than trimmed or damaged fingers."
+  },
+  {
+    "rule": "Power components do not equal high precious metal value",
+    "applies_to": ["power boards", "control boards", "appliance boards"],
+    "positive_signals": ["copper coils", "transformers", "aluminum heat sinks"],
+    "negative_signals": ["few IC chips", "no gold fingers", "large capacitors"],
+    "action": "Recover copper, aluminum, transformers, or wire only if labor is worth it.",
+    "notes": "Large components can fool visual AI into overgrading."
+  },
+  {
+    "rule": "Ceramic processors require priority separation",
+    "applies_to": ["ceramic cpu", "gold cap cpu", "double gold cap cpu"],
+    "positive_signals": ["ceramic body", "gold cap", "gold pins"],
+    "negative_signals": ["missing pins", "broken ceramic", "heavy corrosion"],
+    "action": "Separate immediately and store securely.",
+    "notes": "Processor damage affects grade but does not always eliminate value."
+  },
+  {
+    "rule": "Server and telecom logic boards should be manually reviewed",
+    "applies_to": ["server boards", "telecom boards", "fiber cards", "raid cards"],
+    "positive_signals": ["dense IC layout", "gold connectors", "fiber ports", "multi-layer PCB"],
+    "negative_signals": ["power-only layout", "few chips", "no edge connectors"],
+    "action": "Separate from mixed boards and review before selling.",
+    "notes": "These boards often carry better recovery value than common consumer boards."
+  },
+  {
+    "rule": "Green board alone is not enough for high grade",
+    "applies_to": ["motherboards", "control boards", "consumer electronics"],
+    "positive_signals": ["green PCB plus gold fingers", "green PCB plus dense IC layout", "green PCB plus CPU socket"],
+    "negative_signals": ["green PCB with only relays", "green PCB with few chips", "green PCB with power components only"],
+    "action": "Use supporting signals before upgrading grade.",
+    "notes": "Board color is only one clue, not proof of value."
+  },
+  {
+    "rule": "RAM should be identified by shape and fingers",
+    "applies_to": ["desktop RAM", "server RAM", "laptop RAM"],
+    "positive_signals": ["long narrow board", "notch in contact edge", "repeating memory chips", "gold fingers"],
+    "negative_signals": ["broken fingers", "missing chips", "heavy corrosion"],
+    "action": "Sort RAM separately from mixed boards.",
+    "notes": "Server RAM may grade above common desktop RAM."
+  },
+  {
+    "rule": "Low density boards should not route to Pay Dirt",
+    "applies_to": ["junk boards", "consumer boards", "small control boards"],
+    "positive_signals": ["basic copper", "small brass contacts"],
+    "negative_signals": ["few IC chips", "no gold fingers", "no processor", "no telecom architecture"],
+    "action": "Keep Pay Dirt off unless a special component is detected.",
+    "notes": "Prevents overgrading common low-value boards."
+  }
+]
