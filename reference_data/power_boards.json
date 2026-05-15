@@ -1,0 +1,90 @@
+[
+  {
+    "category": "Power Supply Board",
+    "grade": "LOW",
+    "aliases": [
+      "psu board",
+      "power board",
+      "power supply pcb"
+    ],
+    "visual_traits": [
+      "large capacitors",
+      "transformers",
+      "coils",
+      "few IC chips",
+      "heavy components"
+    ],
+    "material_signals": [
+      "copper windings",
+      "aluminum heat sinks",
+      "steel transformer cores"
+    ],
+    "negative_value_signals": [
+      "low precious metal content",
+      "few gold contacts",
+      "mostly bulky components"
+    ],
+    "value_rank": 3,
+    "sorting_advice": "Recover copper, aluminum, transformers, and wire only if labor is worth it.",
+    "notes": "Should not be confused with high-grade server or telecom boards."
+  },
+  {
+    "category": "Appliance Control Board",
+    "grade": "LOW",
+    "aliases": [
+      "control board",
+      "appliance board",
+      "washer board",
+      "dryer board",
+      "furnace control board"
+    ],
+    "visual_traits": [
+      "relays",
+      "capacitors",
+      "few chips",
+      "green or tan pcb",
+      "wire connectors"
+    ],
+    "material_signals": [
+      "small copper traces",
+      "relay contacts",
+      "light aluminum or brass"
+    ],
+    "negative_value_signals": [
+      "low chip density",
+      "no gold fingers",
+      "not telecom grade"
+    ],
+    "value_rank": 2,
+    "sorting_advice": "Usually low-grade. Check relays or contacts only if processing in bulk.",
+    "notes": "Common false positive because black relays can look like large chips."
+  },
+  {
+    "category": "Low Value Control Board",
+    "grade": "LOW",
+    "aliases": [
+      "small control pcb",
+      "junk control board",
+      "low grade electronic board"
+    ],
+    "visual_traits": [
+      "small board",
+      "few integrated circuits",
+      "large capacitors",
+      "terminal blocks",
+      "wire plugs"
+    ],
+    "material_signals": [
+      "basic copper",
+      "small brass contacts"
+    ],
+    "negative_value_signals": [
+      "no edge fingers",
+      "no processor",
+      "no dense IC field"
+    ],
+    "value_rank": 1,
+    "sorting_advice": "Do not route to Pay Dirt unless special contacts, gold plating, or unusual chips are visible.",
+    "notes": "This category helps prevent junk boards from being graded too high."
+  }
+]
