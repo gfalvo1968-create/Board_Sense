@@ -1,0 +1,158 @@
+[
+  {
+    "source_type": "Computer Repair Shop",
+    "common_materials": [
+      "motherboards",
+      "RAM",
+      "desktop CPUs",
+      "hard drives",
+      "power supplies"
+    ],
+    "likely_grades": [
+      "medium",
+      "high"
+    ],
+    "relationship_value": "high",
+    "notes": "Consistent source of mixed computer scrap and reusable components."
+  },
+
+  {
+    "source_type": "Telecom Facility",
+    "common_materials": [
+      "telecom cards",
+      "fiber boards",
+      "server hardware",
+      "backplanes"
+    ],
+    "likely_grades": [
+      "high",
+      "very high"
+    ],
+    "relationship_value": "very high",
+    "notes": "Telecom facilities can produce premium-grade boards and specialty electronics."
+  },
+
+  {
+    "source_type": "Server Room",
+    "common_materials": [
+      "server motherboards",
+      "ECC RAM",
+      "RAID cards",
+      "network cards"
+    ],
+    "likely_grades": [
+      "high",
+      "very high"
+    ],
+    "relationship_value": "very high",
+    "notes": "Enterprise hardware often contains dense logic boards and valuable connectors."
+  },
+
+  {
+    "source_type": "Industrial Facility",
+    "common_materials": [
+      "PLC boards",
+      "control systems",
+      "industrial communication boards",
+      "power electronics"
+    ],
+    "likely_grades": [
+      "medium",
+      "high"
+    ],
+    "relationship_value": "high",
+    "notes": "Industrial equipment may contain specialty boards and rare components."
+  },
+
+  {
+    "source_type": "Appliance Repair Shop",
+    "common_materials": [
+      "control boards",
+      "relay boards",
+      "power boards"
+    ],
+    "likely_grades": [
+      "low"
+    ],
+    "relationship_value": "medium",
+    "notes": "Usually lower-grade electronics but can provide steady material flow."
+  },
+
+  {
+    "source_type": "Jewelry Shop",
+    "common_materials": [
+      "gold scrap",
+      "silver scrap",
+      "precious metal recovery",
+      "small electronics"
+    ],
+    "likely_grades": [
+      "specialty"
+    ],
+    "relationship_value": "very high",
+    "notes": "Can connect electronic recovery with precious metal refining opportunities."
+  },
+
+  {
+    "source_type": "Auto Recycling Yard",
+    "common_materials": [
+      "ECUs",
+      "sensors",
+      "wire harnesses",
+      "alternators",
+      "starter motors"
+    ],
+    "likely_grades": [
+      "medium"
+    ],
+    "relationship_value": "high",
+    "notes": "Good source of copper, electronics, and automotive control modules."
+  },
+
+  {
+    "source_type": "Estate Cleanout",
+    "common_materials": [
+      "older computers",
+      "retro electronics",
+      "collectible processors",
+      "mixed boards"
+    ],
+    "likely_grades": [
+      "mixed",
+      "high"
+    ],
+    "relationship_value": "medium",
+    "notes": "Older systems may contain unexpectedly valuable processors or boards."
+  },
+
+  {
+    "source_type": "Scrap Yard",
+    "common_materials": [
+      "mixed electronics",
+      "bulk boards",
+      "wire",
+      "motors"
+    ],
+    "likely_grades": [
+      "mixed"
+    ],
+    "relationship_value": "high",
+    "notes": "Large volume source requiring strong sorting intelligence."
+  },
+
+  {
+    "source_type": "E-Waste Recycler",
+    "common_materials": [
+      "sorted boards",
+      "RAM",
+      "processors",
+      "telecom equipment"
+    ],
+    "likely_grades": [
+      "medium",
+      "high"
+    ],
+    "relationship_value": "very high",
+    "notes": "Potential long-term industrial sourcing relationship."
+  }
+]
