@@ -1,1 +1,97 @@
+[
+  {
+    "signal": "Full Gold Fingers",
+    "market_effect": "high positive",
+    "sorting_bonus": true,
+    "labor_factor": "low",
+    "notes": "Full untrimmed fingers usually receive premium pricing."
+  },
 
+  {
+    "signal": "Trimmed Fingers",
+    "market_effect": "negative adjustment",
+    "sorting_bonus": false,
+    "labor_factor": "low",
+    "notes": "Reduced plating area lowers payout."
+  },
+
+  {
+    "signal": "Ceramic CPU",
+    "market_effect": "high positive",
+    "sorting_bonus": true,
+    "labor_factor": "medium",
+    "notes": "Older ceramic processors usually contain stronger precious metal recovery."
+  },
+
+  {
+    "signal": "Server Board",
+    "market_effect": "positive",
+    "sorting_bonus": true,
+    "labor_factor": "medium",
+    "notes": "Dense server hardware often grades above standard boards."
+  },
+
+  {
+    "signal": "Telecom Board",
+    "market_effect": "high positive",
+    "sorting_bonus": true,
+    "labor_factor": "medium",
+    "notes": "Telecom infrastructure boards frequently contain premium-grade material."
+  },
+
+  {
+    "signal": "Power Board",
+    "market_effect": "low positive",
+    "sorting_bonus": false,
+    "labor_factor": "high",
+    "notes": "Recovery value depends mostly on copper, transformers, and aluminum."
+  },
+
+  {
+    "signal": "Mixed Consumer Boards",
+    "market_effect": "neutral",
+    "sorting_bonus": false,
+    "labor_factor": "low",
+    "notes": "Bulk pricing is usually lower due to inconsistent recovery value."
+  },
+
+  {
+    "signal": "Rare Earth Magnet",
+    "market_effect": "specialty",
+    "sorting_bonus": true,
+    "labor_factor": "medium",
+    "notes": "Market value depends on buyer demand and batch size."
+  },
+
+  {
+    "signal": "Tantalum Capacitors",
+    "market_effect": "specialty high",
+    "sorting_bonus": true,
+    "labor_factor": "medium",
+    "notes": "Often valuable when collected in quantity."
+  },
+
+  {
+    "signal": "Contaminated Load",
+    "market_effect": "negative",
+    "sorting_bonus": false,
+    "labor_factor": "high",
+    "notes": "Trash, dirt, or mixed materials reduce buyer confidence and payout."
+  },
+
+  {
+    "signal": "Sorted Material",
+    "market_effect": "positive",
+    "sorting_bonus": true,
+    "labor_factor": "high upfront",
+    "notes": "Well-sorted material generally receives stronger pricing."
+  },
+
+  {
+    "signal": "Collector Hardware",
+    "market_effect": "specialty premium",
+    "sorting_bonus": true,
+    "labor_factor": "research required",
+    "notes": "Some older CPUs and boards may exceed scrap value due to collector demand."
+  }
+]
