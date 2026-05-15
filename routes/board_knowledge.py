@@ -243,9 +243,10 @@ def analyze_board_knowledge(image_path: str):
     if features["telecom_board"]:
         score += 5
     if features["power_board"]:
-        score += 1
+        score -= 4
+
     if features["heavy_components"]:
-        score += 1
+        score -= 2
     if features["memory_module"]:
         score += 5
     if features["processor"]:
