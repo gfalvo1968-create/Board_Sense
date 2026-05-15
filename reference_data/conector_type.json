@@ -1,0 +1,134 @@
+[
+  {
+    "connector": "Gold Edge Connector",
+    "aliases": ["gold fingers", "edge fingers", "PCI edge"],
+    "signals": [
+      "gold recovery",
+      "expansion card",
+      "telecom board",
+      "server card"
+    ],
+    "positive_value_effect": 5,
+    "notes": "One of the strongest visual indicators of recoverable gold."
+  },
+
+  {
+    "connector": "PCI Slot",
+    "aliases": ["PCI", "expansion slot"],
+    "signals": [
+      "motherboard",
+      "desktop computer",
+      "older architecture"
+    ],
+    "positive_value_effect": 2,
+    "notes": "Older PCI-heavy boards may carry higher precious metal content."
+  },
+
+  {
+    "connector": "PCIe Slot",
+    "aliases": ["PCI Express", "PCI-E"],
+    "signals": [
+      "modern motherboard",
+      "graphics hardware",
+      "server hardware"
+    ],
+    "positive_value_effect": 2,
+    "notes": "Common in modern systems and server boards."
+  },
+
+  {
+    "connector": "ISA Slot",
+    "aliases": ["ISA", "legacy slot"],
+    "signals": [
+      "older motherboard",
+      "high-grade vintage hardware"
+    ],
+    "positive_value_effect": 4,
+    "notes": "Legacy ISA boards may indicate older and potentially higher-value systems."
+  },
+
+  {
+    "connector": "AGP Slot",
+    "aliases": ["AGP graphics slot"],
+    "signals": [
+      "older graphics hardware",
+      "desktop motherboard"
+    ],
+    "positive_value_effect": 3,
+    "notes": "Useful age indicator for motherboard classification."
+  },
+
+  {
+    "connector": "RAM Slot",
+    "aliases": ["DIMM slot", "memory slot"],
+    "signals": [
+      "motherboard",
+      "server board",
+      "computer hardware"
+    ],
+    "positive_value_effect": 3,
+    "notes": "Large numbers of RAM slots may indicate server architecture."
+  },
+
+  {
+    "connector": "Fiber Port",
+    "aliases": ["SFP", "GBIC", "optical port"],
+    "signals": [
+      "telecom hardware",
+      "network infrastructure",
+      "fiber equipment"
+    ],
+    "positive_value_effect": 4,
+    "notes": "Strong telecom-grade signal."
+  },
+
+  {
+    "connector": "SATA Connector",
+    "aliases": ["SATA", "drive connector"],
+    "signals": [
+      "storage hardware",
+      "consumer motherboard",
+      "server backplane"
+    ],
+    "positive_value_effect": 1,
+    "notes": "Weak signal alone but useful with server/storage layouts."
+  },
+
+  {
+    "connector": "Power Connector",
+    "aliases": ["ATX power", "Molex", "power plug"],
+    "signals": [
+      "power handling",
+      "consumer electronics",
+      "control board"
+    ],
+    "positive_value_effect": 0,
+    "negative_value_effect": -1,
+    "notes": "Large power connector density may indicate low-value power boards."
+  },
+
+  {
+    "connector": "Terminal Block",
+    "aliases": ["screw terminal", "industrial connector"],
+    "signals": [
+      "industrial control board",
+      "power distribution",
+      "automation hardware"
+    ],
+    "positive_value_effect": 1,
+    "negative_value_effect": -1,
+    "notes": "Needs supporting signals before increasing grade."
+  },
+
+  {
+    "connector": "CPU Socket",
+    "aliases": ["processor socket", "LGA socket", "PGA socket"],
+    "signals": [
+      "motherboard",
+      "server board",
+      "processor platform"
+    ],
+    "positive_value_effect": 5,
+    "notes": "Large or multiple CPU sockets are strong value indicators."
+  }
+]
