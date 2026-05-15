@@ -1,0 +1,58 @@
+[
+  {
+    "pattern": "Gold Edge Pattern",
+    "visual_traits": ["continuous gold strip", "parallel contact fingers", "edge connector"],
+    "signals": ["gold fingers", "expansion card", "RAM", "telecom card"],
+    "grade_effect": "positive_high",
+    "notes": "Strong value signal when fingers are full and not trimmed."
+  },
+  {
+    "pattern": "Dense Logic Field",
+    "visual_traits": ["many small IC chips", "tight component spacing", "few large power parts"],
+    "signals": ["server board", "telecom board", "logic board"],
+    "grade_effect": "positive_medium_high",
+    "notes": "Better signal when paired with gold connectors or telecom/server layout."
+  },
+  {
+    "pattern": "Power Component Cluster",
+    "visual_traits": ["large capacitors", "transformers", "coils", "heat sinks"],
+    "signals": ["power board", "control board", "low precious metal density"],
+    "grade_effect": "negative",
+    "notes": "Often causes false positives. Should not be treated as high-grade logic."
+  },
+  {
+    "pattern": "RAM Stick Layout",
+    "visual_traits": ["long narrow board", "gold fingers", "repeating memory chips", "notch"],
+    "signals": ["RAM", "server memory", "desktop memory"],
+    "grade_effect": "positive_medium",
+    "notes": "Shape and notch placement are major RAM clues."
+  },
+  {
+    "pattern": "Motherboard Layout",
+    "visual_traits": ["cpu socket", "RAM slots", "PCI/PCIe slots", "chipset area"],
+    "signals": ["motherboard", "computer board"],
+    "grade_effect": "positive_medium",
+    "notes": "Socket size and age indicators affect final grade."
+  },
+  {
+    "pattern": "Server Layout",
+    "visual_traits": ["multiple CPU sockets", "many RAM slots", "large board", "dense circuitry"],
+    "signals": ["server board", "enterprise hardware"],
+    "grade_effect": "positive_high",
+    "notes": "Strong upgrade pattern when not power-only."
+  },
+  {
+    "pattern": "Telecom Layout",
+    "visual_traits": ["fiber ports", "metal cages", "dense ICs", "gold connectors"],
+    "signals": ["telecom board", "network board"],
+    "grade_effect": "positive_high",
+    "notes": "Often higher than common consumer boards."
+  },
+  {
+    "pattern": "Low Density Consumer Layout",
+    "visual_traits": ["few chips", "wire plugs", "relays", "small board"],
+    "signals": ["junk board", "appliance board", "control board"],
+    "grade_effect": "negative",
+    "notes": "Helps keep low-value boards from being overgraded."
+  }
+]
