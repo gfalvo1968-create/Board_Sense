@@ -1,0 +1,144 @@
+[
+  {
+    "component": "CPU Socket",
+    "signals": [
+      "motherboard",
+      "server board",
+      "processor architecture"
+    ],
+    "positive_value_effect": 4,
+    "negative_value_effect": 0,
+    "notes": "Large or multiple CPU sockets often indicate higher-grade boards."
+  },
+
+  {
+    "component": "Gold Fingers",
+    "signals": [
+      "gold recovery",
+      "connector value",
+      "telecom or expansion card"
+    ],
+    "positive_value_effect": 5,
+    "negative_value_effect": -2,
+    "notes": "Trimmed or damaged fingers reduce value."
+  },
+
+  {
+    "component": "Large Capacitors",
+    "signals": [
+      "power board",
+      "power regulation",
+      "low precious metal density"
+    ],
+    "positive_value_effect": 0,
+    "negative_value_effect": -3,
+    "notes": "Often associated with power supplies or low-grade control boards."
+  },
+
+  {
+    "component": "Transformer",
+    "signals": [
+      "copper recovery",
+      "power handling",
+      "industrial power board"
+    ],
+    "positive_value_effect": 1,
+    "negative_value_effect": -2,
+    "notes": "Copper value exists, but transformer-heavy boards are usually not premium logic boards."
+  },
+
+  {
+    "component": "Dense IC Layout",
+    "signals": [
+      "telecom board",
+      "server board",
+      "high logic density"
+    ],
+    "positive_value_effect": 4,
+    "negative_value_effect": 0,
+    "notes": "Strong signal for higher-grade electronics when combined with gold contacts or server architecture."
+  },
+
+  {
+    "component": "RAM Slots",
+    "signals": [
+      "motherboard",
+      "server architecture",
+      "computer board"
+    ],
+    "positive_value_effect": 3,
+    "negative_value_effect": 0,
+    "notes": "Large numbers of RAM slots may indicate server-grade equipment."
+  },
+
+  {
+    "component": "Fiber Port",
+    "signals": [
+      "telecom equipment",
+      "network infrastructure",
+      "high-end communication hardware"
+    ],
+    "positive_value_effect": 4,
+    "negative_value_effect": 0,
+    "notes": "Fiber hardware often correlates with higher-value telecom boards."
+  },
+
+  {
+    "component": "Relay",
+    "signals": [
+      "control board",
+      "appliance board",
+      "possible silver contacts"
+    ],
+    "positive_value_effect": 1,
+    "negative_value_effect": -1,
+    "notes": "Relays can contain silver contacts but often appear on low-grade control boards."
+  },
+
+  {
+    "component": "BGA Chip",
+    "signals": [
+      "modern processing",
+      "graphics hardware",
+      "logic board"
+    ],
+    "positive_value_effect": 2,
+    "negative_value_effect": 0,
+    "notes": "Common in GPUs, consoles, and modern motherboards."
+  },
+
+  {
+    "component": "Ceramic Chip",
+    "signals": [
+      "high precious metal potential",
+      "military electronics",
+      "older telecom equipment"
+    ],
+    "positive_value_effect": 5,
+    "negative_value_effect": 0,
+    "notes": "One of the strongest premium signals."
+  },
+
+  {
+    "component": "Heat Sink",
+    "signals": [
+      "processor cooling",
+      "power handling",
+      "server hardware"
+    ],
+    "positive_value_effect": 1,
+    "negative_value_effect": 0,
+    "notes": "Must be combined with other signals to avoid false positives."
+  },
+
+  {
+    "component": "Battery",
+    "signals": [
+      "CMOS memory",
+      "portable electronics"
+    ],
+    "positive_value_effect": 0,
+    "negative_value_effect": 0,
+    "notes": "Weak classification signal by itself."
+  }
+]
