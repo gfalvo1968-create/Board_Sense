@@ -310,6 +310,8 @@ def analyze_board_knowledge(image_path: str):
     if features["power_board"] and features["heavy_components"]:
          score -= 2  
         
+       
+        score = max(score, 0)
         jackpot = False
     pay_dirt_ready = False
     confidence = 0.50
