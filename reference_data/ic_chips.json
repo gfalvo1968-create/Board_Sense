@@ -1,1 +1,162 @@
+[
+  {
+    "category": "Ceramic IC Chip",
+    "grade": "HIGH",
+    "aliases": [
+      "ceramic chip",
+      "gold ceramic ic",
+      "military chip"
+    ],
+    "visual_traits": [
+      "ceramic package",
+      "gold pins",
+      "gold lid",
+      "square or rectangular body"
+    ],
+    "material_signals": [
+      "gold content",
+      "high precious metal recovery"
+    ],
+    "common_examples": [
+      "military electronics",
+      "older telecom boards",
+      "industrial systems"
+    ],
+    "acceptable_damage": [
+      "minor scratches"
+    ],
+    "critical_damage": [
+      "broken ceramic",
+      "missing pins"
+    ],
+    "value_rank": 10,
+    "sorting_advice": "Separate immediately from plastic IC chips.",
+    "notes": "Ceramic IC chips are among the highest value chip categories."
+  },
 
+  {
+    "category": "Flatpack IC Chip",
+    "grade": "MEDIUM HIGH",
+    "aliases": [
+      "flatpack",
+      "gold leg chip",
+      "flatpack ic"
+    ],
+    "visual_traits": [
+      "flat rectangular body",
+      "gold legs",
+      "thin profile"
+    ],
+    "material_signals": [
+      "gold plated legs"
+    ],
+    "common_examples": [
+      "older telecom boards",
+      "industrial electronics"
+    ],
+    "acceptable_damage": [
+      "light bent legs"
+    ],
+    "critical_damage": [
+      "broken package"
+    ],
+    "value_rank": 7,
+    "sorting_advice": "Separate from mixed plastic IC chips.",
+    "notes": "Flatpacks often contain gold-plated legs."
+  },
+
+  {
+    "category": "Plastic IC Chip",
+    "grade": "LOW MEDIUM",
+    "aliases": [
+      "plastic chip",
+      "standard ic",
+      "black chip"
+    ],
+    "visual_traits": [
+      "black plastic package",
+      "silver or tin legs",
+      "square or rectangular"
+    ],
+    "material_signals": [
+      "low precious metal recovery"
+    ],
+    "common_examples": [
+      "consumer electronics",
+      "modern boards"
+    ],
+    "acceptable_damage": [
+      "minor scratches"
+    ],
+    "critical_damage": [
+      "burn marks"
+    ],
+    "value_rank": 3,
+    "sorting_advice": "Bulk with mixed IC categories unless unusually dense.",
+    "notes": "Very common modern IC chip style."
+  },
+
+  {
+    "category": "BGA Chip",
+    "grade": "MEDIUM",
+    "aliases": [
+      "bga",
+      "ball grid array",
+      "surface mount processor"
+    ],
+    "visual_traits": [
+      "square package",
+      "no visible legs",
+      "surface mounted"
+    ],
+    "material_signals": [
+      "possible gold bond wires"
+    ],
+    "common_examples": [
+      "graphics cards",
+      "motherboards",
+      "game consoles"
+    ],
+    "acceptable_damage": [
+      "surface scratches"
+    ],
+    "critical_damage": [
+      "cracked chip"
+    ],
+    "value_rank": 5,
+    "sorting_advice": "Assess based on board density and application.",
+    "notes": "Very common in modern electronics."
+  },
+
+  {
+    "category": "Telecom IC Chip",
+    "grade": "HIGH",
+    "aliases": [
+      "network chip",
+      "telecom processor",
+      "switching ic"
+    ],
+    "visual_traits": [
+      "dense telecom layout",
+      "large package",
+      "industrial board placement"
+    ],
+    "material_signals": [
+      "higher gold bond wire probability"
+    ],
+    "common_examples": [
+      "network switches",
+      "telecom equipment",
+      "router boards"
+    ],
+    "acceptable_damage": [
+      "minor board residue"
+    ],
+    "critical_damage": [
+      "severe corrosion"
+    ],
+    "value_rank": 8,
+    "sorting_advice": "Separate from low-grade consumer IC chips.",
+    "notes": "Telecom chips are often associated with higher-grade boards."
+  }
+]
