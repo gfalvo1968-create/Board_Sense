@@ -11,4 +11,26 @@
     "value_signal": "high",
     "recovery_notes": "Highest priority precious metal signal. Usually worth separating when visible or associated with CPUs/finger cards."
   },
+  
+  {
+  "material": "Tantalum",
+  "common_locations": [
+    "tantalum capacitors",
+    "telecom boards",
+    "military electronics"
+  ],
+  "value_signal": "specialty_high",
+  "recovery_notes": "Often found in older telecom and industrial boards."
+}
+  {
+  "material": "Rare Earth Magnet",
+  "common_locations": [
+    "hard drives",
+    "speakers",
+    "motors",
+    "voice coils"
+  ],
+  "value_signal": "specialty",
+  "recovery_notes": "Neodymium-bearing magnets may justify separation depending on market demand."
+}
   {
