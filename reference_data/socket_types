@@ -1,0 +1,37 @@
+[
+  {
+    "socket_type": "Large CPU Socket",
+    "aliases": ["large socket", "older socket", "server socket"],
+    "signals": ["high grade motherboard", "server board", "older architecture"],
+    "value_effect": "positive_high",
+    "notes": "Large sockets often indicate older or enterprise boards."
+  },
+  {
+    "socket_type": "Small CPU Socket",
+    "aliases": ["small socket", "modern desktop socket"],
+    "signals": ["medium motherboard", "consumer motherboard"],
+    "value_effect": "positive_medium",
+    "notes": "Useful but not automatically high grade."
+  },
+  {
+    "socket_type": "Multiple CPU Sockets",
+    "aliases": ["dual socket", "quad socket", "multi socket"],
+    "signals": ["server board", "enterprise motherboard"],
+    "value_effect": "positive_very_high",
+    "notes": "One of the strongest server-board indicators."
+  },
+  {
+    "socket_type": "Slot CPU Socket",
+    "aliases": ["slot 1", "slot processor connector"],
+    "signals": ["older motherboard", "slot processor system"],
+    "value_effect": "positive_high",
+    "notes": "Older slot systems may carry better recovery value."
+  },
+  {
+    "socket_type": "RAM Slot Cluster",
+    "aliases": ["DIMM slots", "memory slots"],
+    "signals": ["motherboard", "server board"],
+    "value_effect": "positive_medium",
+    "notes": "Many RAM slots increase server confidence."
+  }
+]
