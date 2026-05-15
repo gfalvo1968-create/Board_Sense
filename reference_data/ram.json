@@ -1,1 +1,168 @@
+[
+  {
+    "category": "Gold Finger RAM",
+    "grade": "HIGH",
+    "aliases": [
+      "gold ram",
+      "memory stick",
+      "desktop ram"
+    ],
+    "visual_traits": [
+      "gold edge fingers",
+      "long narrow board",
+      "multiple memory chips",
+      "green pcb"
+    ],
+    "material_signals": [
+      "gold plated fingers",
+      "memory IC chips"
+    ],
+    "common_examples": [
+      "DDR",
+      "DDR2",
+      "DDR3"
+    ],
+    "acceptable_damage": [
+      "minor scratches"
+    ],
+    "critical_damage": [
+      "broken fingers",
+      "burned chips"
+    ],
+    "value_rank": 7,
+    "sorting_advice": "Keep separate from mixed low-grade boards.",
+    "notes": "RAM contains recoverable gold fingers and valuable IC chips."
+  },
 
+  {
+    "category": "Server RAM",
+    "grade": "HIGH",
+    "aliases": [
+      "ecc ram",
+      "registered ram",
+      "server memory"
+    ],
+    "visual_traits": [
+      "dense chip layout",
+      "large memory capacity",
+      "gold fingers",
+      "server module structure"
+    ],
+    "material_signals": [
+      "high IC density",
+      "gold contacts"
+    ],
+    "common_examples": [
+      "ECC DDR3",
+      "ECC DDR4"
+    ],
+    "acceptable_damage": [
+      "light cosmetic wear"
+    ],
+    "critical_damage": [
+      "missing chips",
+      "broken pcb"
+    ],
+    "value_rank": 8,
+    "sorting_advice": "Separate from standard desktop RAM.",
+    "notes": "Server RAM often contains higher-density IC layouts."
+  },
+
+  {
+    "category": "Laptop RAM",
+    "grade": "MEDIUM",
+    "aliases": [
+      "sodimm",
+      "notebook ram",
+      "mobile memory"
+    ],
+    "visual_traits": [
+      "short memory stick",
+      "compact design",
+      "gold fingers",
+      "small pcb"
+    ],
+    "material_signals": [
+      "gold contacts",
+      "memory chips"
+    ],
+    "common_examples": [
+      "DDR laptop memory",
+      "SODIMM"
+    ],
+    "acceptable_damage": [
+      "light scratches"
+    ],
+    "critical_damage": [
+      "broken edge",
+      "missing chips"
+    ],
+    "value_rank": 5,
+    "sorting_advice": "Sort separately from desktop RAM.",
+    "notes": "Smaller physical size than standard desktop RAM."
+  },
+
+  {
+    "category": "Low Grade RAM",
+    "grade": "LOW",
+    "aliases": [
+      "mixed ram",
+      "low grade memory"
+    ],
+    "visual_traits": [
+      "few chips",
+      "damaged fingers",
+      "low chip density"
+    ],
+    "material_signals": [
+      "reduced gold recovery"
+    ],
+    "common_examples": [
+      "damaged memory",
+      "mixed scrap memory"
+    ],
+    "acceptable_damage": [
+      "light corrosion"
+    ],
+    "critical_damage": [
+      "heavy corrosion",
+      "burn marks"
+    ],
+    "value_rank": 3,
+    "sorting_advice": "Combine into low-grade memory category.",
+    "notes": "Lower recovery value due to damage or low chip count."
+  },
+
+  {
+    "category": "Telecom Memory Module",
+    "grade": "HIGH",
+    "aliases": [
+      "telecom ram",
+      "network memory module"
+    ],
+    "visual_traits": [
+      "industrial layout",
+      "gold fingers",
+      "dense memory chips",
+      "telecom architecture"
+    ],
+    "material_signals": [
+      "high IC density",
+      "gold contacts"
+    ],
+    "common_examples": [
+      "router memory",
+      "network switch memory"
+    ],
+    "acceptable_damage": [
+      "minor wear"
+    ],
+    "critical_damage": [
+      "broken module",
+      "missing chips"
+    ],
+    "value_rank": 8,
+    "sorting_advice": "Separate from common desktop RAM.",
+    "notes": "Industrial and telecom memory often grades higher."
+  }
+]
