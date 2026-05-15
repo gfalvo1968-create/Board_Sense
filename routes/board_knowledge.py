@@ -415,7 +415,15 @@ def analyze_board_knowledge(image_path: str):
             recommendation = "Low-value power/control board. Recover only basic copper, aluminum, or transformer value."
             pay_dirt_ready = False
             jackpot = False
-   
+    if not features["gold_fingers"] and visual["green_board"] and visual["large_chip"]:
+        if not features["processor"] and not features["ceramic_cpu"] and not features["gold_cap_cpu"]:
+            score = min(score, 4)
+            grade = "LOW"
+            recommendation = "Low-value power/control board. Recover basic copper, aluminum, transformer, or wire value only."
+            pay_dirt_ready = False
+            jackpot = False
+    
+    
     return {
         "grade": grade,
         "score": score,
