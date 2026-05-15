@@ -1,1 +1,82 @@
-
+[
+  {
+    "defect": "Bent Pins",
+    "applies_to": ["ceramic processors", "pinned processors", "gold cap CPUs"],
+    "severity": "minor",
+    "value_effect": "small downgrade",
+    "score_adjustment": -1,
+    "notes": "Bent pins are usually acceptable if the pins are still attached."
+  },
+  {
+    "defect": "Missing Pins",
+    "applies_to": ["ceramic processors", "pinned processors", "gold cap CPUs"],
+    "severity": "major",
+    "value_effect": "significant downgrade",
+    "score_adjustment": -4,
+    "notes": "Missing pins reduce recovery value and may lower buyer grade."
+  },
+  {
+    "defect": "Trimmed Gold Fingers",
+    "applies_to": ["finger cards", "RAM", "slot processors", "expansion cards"],
+    "severity": "moderate",
+    "value_effect": "discounted payout",
+    "score_adjustment": -3,
+    "notes": "Trimmed fingers contain less plated area than full fingers."
+  },
+  {
+    "defect": "Broken Gold Fingers",
+    "applies_to": ["finger cards", "RAM", "PCI cards"],
+    "severity": "major",
+    "value_effect": "major downgrade",
+    "score_adjustment": -5,
+    "notes": "Broken edge connectors reduce gold recovery and resale value."
+  },
+  {
+    "defect": "Corrosion",
+    "applies_to": ["all boards", "processors", "RAM", "connectors"],
+    "severity": "major",
+    "value_effect": "downgrade or reject",
+    "score_adjustment": -4,
+    "notes": "Heavy corrosion can destroy contacts and reduce recovery value."
+  },
+  {
+    "defect": "Burn Damage",
+    "applies_to": ["all boards"],
+    "severity": "major",
+    "value_effect": "low or junk grade",
+    "score_adjustment": -6,
+    "notes": "Burned boards should usually be downgraded unless valuable components remain intact."
+  },
+  {
+    "defect": "Cracked Ceramic",
+    "applies_to": ["ceramic CPUs", "ceramic IC chips"],
+    "severity": "major",
+    "value_effect": "significant downgrade",
+    "score_adjustment": -5,
+    "notes": "Cracked ceramic can reduce processor or chip value."
+  },
+  {
+    "defect": "Missing Chips",
+    "applies_to": ["RAM", "telecom boards", "server boards", "motherboards"],
+    "severity": "moderate",
+    "value_effect": "downgrade",
+    "score_adjustment": -3,
+    "notes": "Missing IC chips lower recovery potential."
+  },
+  {
+    "defect": "Broken PCB",
+    "applies_to": ["all boards"],
+    "severity": "moderate",
+    "value_effect": "depends on remaining components",
+    "score_adjustment": -2,
+    "notes": "Broken boards may still have value if gold fingers, CPUs, or IC chips remain."
+  },
+  {
+    "defect": "Contamination",
+    "applies_to": ["bulk board loads", "mixed scrap"],
+    "severity": "moderate",
+    "value_effect": "buyer downgrade",
+    "score_adjustment": -3,
+    "notes": "Trash, plastic, dirt, or mixed non-board material can reduce payout."
+  }
+]
