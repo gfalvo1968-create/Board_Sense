@@ -1,1 +1,144 @@
+[
+  {
+    "category": "Ceramic Processor",
+    "grade": "HIGH",
+    "aliases": [
+      "ceramic cpu",
+      "ceramic chip",
+      "pinned ceramic processor"
+    ],
+    "visual_traits": [
+      "ceramic body",
+      "gold pins",
+      "older processor style",
+      "square package"
+    ],
+    "material_signals": [
+      "gold content",
+      "precious metal recovery"
+    ],
+    "acceptable_damage": [
+      "bent pins"
+    ],
+    "critical_damage": [
+      "missing pins",
+      "broken ceramic"
+    ],
+    "value_rank": 9,
+    "sorting_advice": "Separate immediately from low-grade processors.",
+    "notes": "Common in older computers and often contains recoverable gold."
+  },
 
+  {
+    "category": "Gold Cap CPU",
+    "grade": "HIGH",
+    "aliases": [
+      "gold cap processor",
+      "gold top cpu"
+    ],
+    "visual_traits": [
+      "gold top cap",
+      "ceramic base",
+      "pinned processor"
+    ],
+    "material_signals": [
+      "gold plated cap",
+      "gold pins"
+    ],
+    "acceptable_damage": [
+      "bent pins"
+    ],
+    "critical_damage": [
+      "missing pins",
+      "cracked body"
+    ],
+    "value_rank": 8,
+    "sorting_advice": "Keep separated from standard CPUs.",
+    "notes": "Often found in older AMD and Intel systems."
+  },
+
+  {
+    "category": "Double Gold Cap CPU",
+    "grade": "VERY HIGH",
+    "aliases": [
+      "double gold cap processor",
+      "gold top and bottom cpu"
+    ],
+    "visual_traits": [
+      "gold cap on top",
+      "gold cap on bottom",
+      "ceramic body",
+      "gold pins"
+    ],
+    "material_signals": [
+      "high precious metal potential",
+      "gold coverage"
+    ],
+    "acceptable_damage": [
+      "bent pins if attached"
+    ],
+    "critical_damage": [
+      "missing pins",
+      "broken ceramic"
+    ],
+    "value_rank": 10,
+    "sorting_advice": "Top-tier processor. Store separately.",
+    "notes": "Often among the highest value ceramic CPUs."
+  },
+
+  {
+    "category": "Pinned Processor",
+    "grade": "MEDIUM",
+    "aliases": [
+      "pin cpu",
+      "pga processor"
+    ],
+    "visual_traits": [
+      "metal pins",
+      "square processor",
+      "plastic or ceramic package"
+    ],
+    "material_signals": [
+      "possible gold pins"
+    ],
+    "acceptable_damage": [
+      "minor bent pins"
+    ],
+    "critical_damage": [
+      "missing pins",
+      "heavy corrosion"
+    ],
+    "value_rank": 5,
+    "sorting_advice": "Sort by material type and age.",
+    "notes": "Older processors generally carry more recovery value."
+  },
+
+  {
+    "category": "Slot Processor",
+    "grade": "MEDIUM HIGH",
+    "aliases": [
+      "slot cpu",
+      "slot processor card",
+      "pentium ii slot"
+    ],
+    "visual_traits": [
+      "card-style processor",
+      "gold fingers",
+      "long rectangular board"
+    ],
+    "material_signals": [
+      "gold fingers",
+      "processor module"
+    ],
+    "acceptable_damage": [
+      "minor board wear"
+    ],
+    "critical_damage": [
+      "broken fingers",
+      "severe corrosion"
+    ],
+    "value_rank": 7,
+    "sorting_advice": "Keep gold fingers intact for maximum value.",
+    "notes": "Includes Pentium II and similar slot-based processors."
+  }
+]
