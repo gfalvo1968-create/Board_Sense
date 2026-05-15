@@ -75,7 +75,9 @@ async function analyzeBoard() {
 
     try {
 
-        const response = await fetch("/grade/analyze", {
+        const response = await fetch("/upload", {
+
+                                     
             method: "POST",
             body: formData
         });
