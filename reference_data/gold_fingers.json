@@ -1,1 +1,52 @@
-
+[
+  {
+    "category": "Full Gold Fingers",
+    "grade": "HIGH",
+    "aliases": ["gold fingers", "edge fingers", "full fingers"],
+    "visual_traits": ["continuous gold edge", "untrimmed contact strip", "clean plated fingers"],
+    "material_signals": ["gold plating", "recoverable contacts"],
+    "value_rank": 9,
+    "sorting_advice": "Keep intact and separate from trimmed or damaged cards.",
+    "notes": "Full-length gold fingers carry better recovery value than trimmed fingers."
+  },
+  {
+    "category": "Trimmed Gold Fingers",
+    "grade": "MEDIUM",
+    "aliases": ["trimmed fingers", "cut fingers", "short fingers"],
+    "visual_traits": ["partial gold edge", "cut contact strip", "missing board section"],
+    "material_signals": ["reduced gold recovery"],
+    "value_rank": 5,
+    "sorting_advice": "Separate from full fingers because payout is usually lower.",
+    "notes": "Trimmed fingers are discounted because part of the plated area is missing."
+  },
+  {
+    "category": "High Quality Gold Finger Card",
+    "grade": "HIGH",
+    "aliases": ["finger card", "high quality finger card", "expansion card"],
+    "visual_traits": ["large gold finger edge", "dense IC chips", "green PCB", "server or telecom style"],
+    "material_signals": ["gold fingers", "IC recovery", "possible precious metal content"],
+    "value_rank": 8,
+    "sorting_advice": "Keep separate from mixed low-grade cards.",
+    "notes": "Cards with gold fingers and dense chips should not be mixed with junk boards."
+  },
+  {
+    "category": "Low Grade Finger Card",
+    "grade": "LOW MEDIUM",
+    "aliases": ["low grade card", "basic expansion card"],
+    "visual_traits": ["small gold edge", "few chips", "low component density"],
+    "material_signals": ["light gold plating"],
+    "value_rank": 4,
+    "sorting_advice": "Sort below high-quality finger cards.",
+    "notes": "Gold fingers add value, but low component density limits recovery."
+  },
+  {
+    "category": "Telecom Gold Finger Card",
+    "grade": "HIGH",
+    "aliases": ["telecom card", "network card", "switch card"],
+    "visual_traits": ["gold edge connectors", "dense IC layout", "telecom/server architecture"],
+    "material_signals": ["gold contacts", "high IC density", "possible palladium or silver-bearing parts"],
+    "value_rank": 9,
+    "sorting_advice": "Separate for higher-grade board recovery review.",
+    "notes": "Telecom and networking cards often carry better recovery value than common consumer cards."
+  }
+]
