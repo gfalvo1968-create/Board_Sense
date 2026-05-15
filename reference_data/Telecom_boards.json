@@ -1,1 +1,53 @@
-
+[
+  {
+    "category": "High Grade Telecom Board",
+    "grade": "HIGH",
+    "aliases": ["telecom board", "network board", "switch board", "router board"],
+    "visual_traits": ["dense IC layout", "gold edge connectors", "fiber ports", "server style architecture"],
+    "material_signals": ["gold contacts", "high IC density", "possible palladium or silver-bearing components"],
+    "value_rank": 9,
+    "sorting_advice": "Separate from mixed boards. Telecom boards often deserve manual review.",
+    "notes": "Often found in network switches, routers, phone systems, and communication racks."
+  },
+  {
+    "category": "Fiber Optic Telecom Card",
+    "grade": "HIGH",
+    "aliases": ["fiber card", "optical card", "sfp card", "gbic card"],
+    "visual_traits": ["fiber ports", "metal cages", "gold fingers", "dense telecom chips"],
+    "material_signals": ["gold plated contacts", "high quality IC chips", "telecom recovery value"],
+    "value_rank": 8,
+    "sorting_advice": "Keep separate from basic network cards.",
+    "notes": "Fiber/optical cards are usually better than common consumer boards."
+  },
+  {
+    "category": "Telecom Backplane",
+    "grade": "MEDIUM HIGH",
+    "aliases": ["backplane", "rack backplane", "telecom rack board"],
+    "visual_traits": ["many slot connectors", "large board", "repeating connector pattern", "heavy multilayer board"],
+    "material_signals": ["gold plated connector sockets", "copper layers"],
+    "value_rank": 7,
+    "sorting_advice": "Separate large backplanes from standard motherboards.",
+    "notes": "Value depends heavily on connector quality and gold plating."
+  },
+  {
+    "category": "Low Grade Network Board",
+    "grade": "LOW MEDIUM",
+    "aliases": ["cheap router board", "consumer network board", "modem board"],
+    "visual_traits": ["few IC chips", "plastic ports", "small green board", "low density"],
+    "material_signals": ["light copper", "limited gold recovery"],
+    "negative_value_signals": ["no gold fingers", "few large chips", "consumer-grade layout"],
+    "value_rank": 3,
+    "sorting_advice": "Do not mix with high-grade telecom cards.",
+    "notes": "Consumer routers and modems are often much lower value than telecom rack cards."
+  },
+  {
+    "category": "Industrial Communication Board",
+    "grade": "HIGH",
+    "aliases": ["industrial telecom", "communication controller", "network controller board"],
+    "visual_traits": ["rugged layout", "dense ICs", "gold connectors", "industrial markings"],
+    "material_signals": ["gold contacts", "quality IC packages", "possible specialty components"],
+    "value_rank": 8,
+    "sorting_advice": "Manual review recommended before selling as mixed boards.",
+    "notes": "Industrial communication boards can grade above ordinary consumer electronics."
+  }
+]
