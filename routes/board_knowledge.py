@@ -289,7 +289,7 @@ def analyze_board_knowledge(image_path: str):
     if visual["dense_components"]:
         score += 2
 
-    if visual["large_chip"]:
+    if visual["large_chip"] and features["gold_fingers"]:
         score += 2
 
     if visual["dark_board"]:
