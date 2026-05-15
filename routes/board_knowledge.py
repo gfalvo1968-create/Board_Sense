@@ -341,7 +341,7 @@ def analyze_board_knowledge(image_path: str):
     recommendation = "Manual review required. Possible processor, chip, or specialty recovery item."
 
     if features["power_board"] or features["heavy_components"]:
-    if not features["gold_fingers"] and not features["large_ic_chips"]:
+        if not features["gold_fingers"] and not features["large_ic_chips"]:
         score = min(score, 3)
         grade = "LOW"
         recommendation = "Low-value power/control board. Recover only basic copper, aluminum, or transformer value."
