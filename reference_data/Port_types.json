@@ -1,0 +1,37 @@
+[
+  {
+    "port_type": "Fiber Port",
+    "aliases": ["SFP", "GBIC", "optical port"],
+    "signals": ["telecom board", "network infrastructure"],
+    "value_effect": "positive_high",
+    "notes": "Strong telecom-grade clue."
+  },
+  {
+    "port_type": "Ethernet Port",
+    "aliases": ["RJ45", "network jack"],
+    "signals": ["network board", "router board", "switch board"],
+    "value_effect": "positive_medium",
+    "notes": "Needs supporting signals to separate consumer router boards from telecom cards."
+  },
+  {
+    "port_type": "SATA/SAS Port",
+    "aliases": ["SATA", "SAS", "drive connector"],
+    "signals": ["storage board", "server backplane"],
+    "value_effect": "positive_medium",
+    "notes": "Repeating drive connectors may indicate server backplane."
+  },
+  {
+    "port_type": "Power Terminal",
+    "aliases": ["screw terminal", "power block", "terminal block"],
+    "signals": ["control board", "power board", "industrial board"],
+    "value_effect": "low_or_negative",
+    "notes": "Usually not enough to raise grade by itself."
+  },
+  {
+    "port_type": "PCIe Edge",
+    "aliases": ["PCI Express edge", "graphics card edge"],
+    "signals": ["expansion card", "GPU", "server card"],
+    "value_effect": "positive_medium_high",
+    "notes": "Gold-plated edge contacts are valuable."
+  }
+]
