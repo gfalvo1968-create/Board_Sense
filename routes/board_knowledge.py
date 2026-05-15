@@ -225,8 +225,8 @@ def analyze_board_knowledge(image_path: str):
     if visual["dense_components"]:
         features["large_ic_chips"] = True
 
-    if visual["dark_board"]:
-        features["server_grade"] = True
+    if visual["dark_board"] and visual["dense_components"] and features["large_ic_chips"]:
+       features["server_grade"] = True
 
     score = 0
 
