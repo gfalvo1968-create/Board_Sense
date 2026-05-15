@@ -125,29 +125,26 @@ async function saveSource() {
         notes: document.getElementById("sourceNotes").value
     };
 
-    try {
+  const result = await response.json();
 
-        const response = await fetch("/irm/save-source", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(payload)
-        });
+const data = result.ai_result || result;
 
-        const result = await response.json();
+setText(
+    predictionBox,
+    `
+    <strong>Grade:</strong> ${data.grade || data.ai_grade || "UNKNOWN"}<br>
+    <strong>Confidence:</strong> ${data.confidence || "N/A"}<br>
+    <strong>Score:</strong> ${data.score || 0}<br>
+    <strong>Pay Dirt Ready:</strong> ${data.pay_dirt_ready ? "YES" : "NO"}<br>
+    <strong>Recommendation:</strong> ${data.recommendation || "Manual review required."}
+    `
+);
 
-        setText(
-            irmStatus,
-            result.message || "Source saved."
-        );
+renderSignals(data.signals || result.signals || {});
 
-    } catch (error) {
-
-        setText(
-            irmStatus,
-            "Source save failed."
-        );
+addHistory(
+    `${data.grade || data.ai_grade || "UNKNOWN"} | Score ${data.score || 0}`
+)
     }
 }
 
