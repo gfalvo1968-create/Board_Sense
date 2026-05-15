@@ -1,0 +1,143 @@
+[
+  {
+    "shape_type": "Desktop Motherboard",
+    "visual_traits": [
+      "large rectangular board",
+      "single cpu socket",
+      "multiple expansion slots",
+      "RAM slots near processor"
+    ],
+    "signals": [
+      "computer motherboard",
+      "consumer desktop system"
+    ],
+    "grade_tendency": "medium_high",
+    "notes": "Common desktop architecture pattern."
+  },
+
+  {
+    "shape_type": "Server Motherboard",
+    "visual_traits": [
+      "very large board",
+      "multiple CPU sockets",
+      "many RAM slots",
+      "dense circuitry"
+    ],
+    "signals": [
+      "enterprise hardware",
+      "server architecture"
+    ],
+    "grade_tendency": "high",
+    "notes": "Large multi-socket layouts strongly suggest server hardware."
+  },
+
+  {
+    "shape_type": "RAM Module",
+    "visual_traits": [
+      "long narrow board",
+      "gold fingers",
+      "repeating memory chips",
+      "single edge notch"
+    ],
+    "signals": [
+      "memory module",
+      "computer memory"
+    ],
+    "grade_tendency": "medium_high",
+    "notes": "Very recognizable geometry for AI classification."
+  },
+
+  {
+    "shape_type": "Expansion Card",
+    "visual_traits": [
+      "gold edge connector",
+      "rectangular card",
+      "IC chips on one or both sides"
+    ],
+    "signals": [
+      "PCI card",
+      "telecom card",
+      "graphics card"
+    ],
+    "grade_tendency": "medium_high",
+    "notes": "Gold fingers and chip density determine value."
+  },
+
+  {
+    "shape_type": "Telecom Card",
+    "visual_traits": [
+      "long card",
+      "dense IC layout",
+      "fiber or telecom ports",
+      "industrial layout"
+    ],
+    "signals": [
+      "network infrastructure",
+      "telecom hardware"
+    ],
+    "grade_tendency": "high",
+    "notes": "Often confused with ordinary cards unless ports and density are recognized."
+  },
+
+  {
+    "shape_type": "Power Supply Board",
+    "visual_traits": [
+      "large capacitors",
+      "transformers",
+      "heat sinks",
+      "few logic chips"
+    ],
+    "signals": [
+      "power regulation",
+      "low precious metal density"
+    ],
+    "grade_tendency": "low",
+    "notes": "Common false positive category."
+  },
+
+  {
+    "shape_type": "Control Board",
+    "visual_traits": [
+      "terminal blocks",
+      "relays",
+      "wire connectors",
+      "small IC count"
+    ],
+    "signals": [
+      "appliance control",
+      "industrial control"
+    ],
+    "grade_tendency": "low_medium",
+    "notes": "Needs strong supporting signals before upgrading."
+  },
+
+  {
+    "shape_type": "Backplane",
+    "visual_traits": [
+      "many repeating connectors",
+      "large flat board",
+      "minimal large chips"
+    ],
+    "signals": [
+      "server chassis",
+      "telecom rack"
+    ],
+    "grade_tendency": "medium_high",
+    "notes": "Connector quality often matters more than chip count."
+  },
+
+  {
+    "shape_type": "Processor",
+    "visual_traits": [
+      "square package",
+      "pins or contact pads",
+      "metal or ceramic top"
+    ],
+    "signals": [
+      "CPU",
+      "processor family"
+    ],
+    "grade_tendency": "medium_to_premium",
+    "notes": "Ceramic and gold-cap styles raise value significantly."
+  }
+]
