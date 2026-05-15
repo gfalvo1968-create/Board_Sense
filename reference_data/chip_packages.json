@@ -1,0 +1,125 @@
+[
+  {
+    "package_type": "Ceramic Package",
+    "visual_traits": [
+      "ceramic body",
+      "gold lid",
+      "gold pins",
+      "square or rectangular shape"
+    ],
+    "signals": [
+      "high precious metal recovery",
+      "military electronics",
+      "older telecom hardware"
+    ],
+    "value_tendency": "high",
+    "notes": "One of the strongest premium component indicators."
+  },
+
+  {
+    "package_type": "Plastic DIP",
+    "visual_traits": [
+      "black rectangular body",
+      "legs on both sides",
+      "through-hole mounting"
+    ],
+    "signals": [
+      "older electronics",
+      "consumer boards"
+    ],
+    "value_tendency": "low_medium",
+    "notes": "Common IC package found on older electronics."
+  },
+
+  {
+    "package_type": "Flatpack",
+    "visual_traits": [
+      "thin package",
+      "gold or silver legs",
+      "flat rectangular body"
+    ],
+    "signals": [
+      "telecom board",
+      "industrial electronics"
+    ],
+    "value_tendency": "medium_high",
+    "notes": "Gold-legged flatpacks can improve board value."
+  },
+
+  {
+    "package_type": "BGA",
+    "visual_traits": [
+      "square package",
+      "no visible legs",
+      "surface mounted"
+    ],
+    "signals": [
+      "modern processing hardware",
+      "graphics hardware",
+      "motherboards"
+    ],
+    "value_tendency": "medium",
+    "notes": "Very common modern chip style."
+  },
+
+  {
+    "package_type": "QFP",
+    "visual_traits": [
+      "square flat package",
+      "fine legs on all sides"
+    ],
+    "signals": [
+      "telecom",
+      "industrial control",
+      "logic processing"
+    ],
+    "value_tendency": "medium",
+    "notes": "Dense leg count may indicate advanced logic hardware."
+  },
+
+  {
+    "package_type": "Relay",
+    "visual_traits": [
+      "black rectangular block",
+      "few pins",
+      "larger than IC chips"
+    ],
+    "signals": [
+      "control board",
+      "power switching",
+      "possible silver contacts"
+    ],
+    "value_tendency": "low_medium",
+    "notes": "Often confused with valuable ICs by early vision systems."
+  },
+
+  {
+    "package_type": "Capacitor",
+    "visual_traits": [
+      "cylindrical body",
+      "aluminum can",
+      "radial leads"
+    ],
+    "signals": [
+      "power regulation",
+      "consumer electronics"
+    ],
+    "value_tendency": "low",
+    "notes": "Large capacitor density often lowers overall board grade."
+  },
+
+  {
+    "package_type": "Transformer",
+    "visual_traits": [
+      "copper coil",
+      "heavy component",
+      "ferrite core"
+    ],
+    "signals": [
+      "power supply",
+      "industrial power board"
+    ],
+    "value_tendency": "copper_value",
+    "notes": "Strong copper signal but weak precious metal signal."
+  }
+]
