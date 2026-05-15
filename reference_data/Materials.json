@@ -1,1 +1,14 @@
-
+[
+  {
+    "material": "Gold",
+    "common_locations": [
+      "gold fingers",
+      "cpu pins",
+      "ceramic processors",
+      "edge connectors",
+      "some IC bond wires"
+    ],
+    "value_signal": "high",
+    "recovery_notes": "Highest priority precious metal signal. Usually worth separating when visible or associated with CPUs/finger cards."
+  },
+  {
