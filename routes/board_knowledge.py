@@ -373,7 +373,7 @@ def analyze_board_knowledge(image_path: str):
         grade = "HIGH"
         recommendation = "Telecom/network board signal detected. Strong IC and recovery potential."
         pay_dirt_ready = True
-    elif features["server_grade"]:
+    elif features["server_grade"] and features["large_ic_chips"] and not features["power_board"]:
         grade = "HIGH"
         recommendation = "Server-grade board signal detected. Separate from mixed boards."
         pay_dirt_ready = True
