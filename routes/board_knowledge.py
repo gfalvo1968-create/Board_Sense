@@ -188,9 +188,7 @@ def make_signals(features, visual):
         ),
         "server_grade": (
             "green"
-            if features["server_grade"] and (visual["dense_components"] or visual["dark_board"])
-            else "orange"
-            if features["server_grade"]
+            if features["server_grade"] and not features["power_board"]
             else "red"
         ),
         "telecom_board": (
