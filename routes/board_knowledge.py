@@ -297,6 +297,19 @@ def analyze_board_knowledge(image_path: str):
     if visual["dark_board"]:
         score += 1   
         
+     # Junk board penalty logic
+    if features["power_board"] and not features["gold_fingers"]:
+        score -= 4
+
+    if features["heavy_components"] and not features["large_ic_chips"]:
+        score -= 3
+
+    if visual["green_board"] and not features["gold_fingers"] and not features["large_ic_chips"]:
+        score -= 3
+
+    if features["power_board"] and features["heavy_components"]:
+         score -= 2  
+        
         jackpot = False
     pay_dirt_ready = False
     confidence = 0.50
