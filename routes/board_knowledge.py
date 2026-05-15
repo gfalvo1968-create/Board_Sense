@@ -311,8 +311,8 @@ def analyze_board_knowledge(image_path: str):
          score -= 2  
         
        
-          score = max(score, 0)
-          jackpot = False
+        score = max(score, 0)
+        jackpot = False
         pay_dirt_ready = False
         confidence = 0.50
 
