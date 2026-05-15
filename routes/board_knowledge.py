@@ -272,7 +272,7 @@ def analyze_board_knowledge(image_path: str):
     if features["low_value_board"]:
         score -= 5
 
-    if visual["gold_like"]:
+    if visual["gold_like"] and features["gold_fingers"]:
         score += 2
     if visual["dense_components"]:
         score += 2
