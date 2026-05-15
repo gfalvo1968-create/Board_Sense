@@ -285,6 +285,18 @@ def analyze_board_knowledge(image_path: str):
     if visual["green_board"]:
         score += 1
 
+    if visual["green_board"]:
+        score += 1
+
+    if visual["dense_components"]:
+        score += 2
+
+    if visual["large_chip"]:
+        score += 2
+
+    if visual["dark_board"]:
+        score += 1   
+        
         jackpot = False
     pay_dirt_ready = False
     confidence = 0.50
