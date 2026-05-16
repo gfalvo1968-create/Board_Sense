@@ -235,7 +235,7 @@ def analyze_board_knowledge(image_path: str):
         and not features.get("processor")
         and not features.get("memory_module")
 ):
-    score -= 3
+        score -= 3
     
     if features["gold_fingers"]:
         score += 3
