@@ -12,7 +12,7 @@ from routes.irm_core import router as irm_router
 from routes.reference_loader import load_reference_data
 
 app = FastAPI(title="Board Sense")
-o@app.on_event("startup")
+app.on_event("startup")
 def startup_event():
     load_reference_data()
 BASE_DIR = Path(__file__).resolve().parent
