@@ -305,12 +305,12 @@ if features.get("power_board") and features.get("heavy_components"):
     score -= 2
 
 score = max(score, 0)
-    if (
-        visual.get("green_board")
-        and not features.get("gold_fingers")
-        and not features.get("large_ic_chips")
-        and not features.get("processor")
-        and not features.get("memory_module")
+if (
+    visual.get("green_board")
+    and not features.get("gold_fingers")
+    and not features.get("large_ic_chips")
+    and not features.get("processor")
+    and not features.get("memory_module")
 ):
     score = min(score, 2)
 
