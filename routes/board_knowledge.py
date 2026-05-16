@@ -279,12 +279,9 @@ def analyze_board_knowledge(image_path: str):
     if visual["dark_board"]:
         score += 1
     if visual["green_board"]:
-        score += 2
+        score += 0
     if visual["green_board"]:
-        score += 1
-
-    if visual["green_board"]:
-        score += 1
+        score += 0
 
     if visual["dense_components"]:
         score += 2
@@ -304,7 +301,9 @@ def analyze_board_knowledge(image_path: str):
 
     if visual["green_board"] and not features["gold_fingers"] and not features["large_ic_chips"]:
         score -= 3
-
+    if visual["green_board"] and not features["gold_fingers"] and not features["large_ic_chips"] and not features["processor"] and not features["memory_module"]:
+        score = min(score, 2)o
+    
     if features["power_board"] and features["heavy_components"]:
         score -= 2
 
