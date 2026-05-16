@@ -228,6 +228,15 @@ def analyze_board_knowledge(image_path: str):
 
     score = 0
 
+    if (
+        visual.get("green_board")
+        and not features.get("gold_fingers")
+        and not features.get("large_ic_chips")
+        and not features.get("processor")
+        and not features.get("memory_module")
+):
+    score -= 3
+    
     if features["gold_fingers"]:
         score += 3
     if features["large_ic_chips"]:
