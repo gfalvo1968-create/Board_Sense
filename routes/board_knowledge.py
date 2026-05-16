@@ -226,7 +226,7 @@ def analyze_board_knowledge(image_path: str):
     if visual["dark_board"] and visual["dense_components"] and features["large_ic_chips"]:
        features["server_grade"] = True
 
-    score = min(score, 2)
+    score = 0
 
     if features["gold_fingers"]:
         score += 3
