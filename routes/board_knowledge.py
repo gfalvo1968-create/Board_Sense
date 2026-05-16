@@ -280,7 +280,7 @@ def analyze_board_knowledge(image_path: str):
         score -= 5
 
     if visual.get("green_board"):
-    score += 0
+        score += 0
 
 if visual.get("dense_components"):
     score += 2
