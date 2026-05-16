@@ -279,35 +279,32 @@ def analyze_board_knowledge(image_path: str):
     if features["low_value_board"]:
         score -= 5
 
-    if visual["gold_like"] and features["gold_fingers"]:
-        score += 2
-    if visual["dense_components"]:
-        score += 2
-    if visual["large_chip"] and not features["power_board"]:
-        score += 1
-    if visual["dark_board"]:
-        score += 1
-    if visual["green_board"]:
-        score += 0
-    if visual["green_board"]:
-        score += 0
+    if visual.get("green_board"):
+    score += 0
 
-    if visual["dense_components"]:
-        score += 2
+if visual.get("dense_components"):
+    score += 2
 
-    if visual["large_chip"] and features["gold_fingers"]:
-        score += 2
+if visual.get("large_chip") and features.get("gold_fingers"):
+    score += 2
 
-    if visual["dark_board"]:
-        score += 1   
-        
-         # Junk board penalty logic
-    if features["power_board"] and not features["gold_fingers"]:
-        score -= 4
+if visual.get("dark_board"):
+    score += 1
 
-    if features["heavy_components"] and not features["large_ic_chips"]:
-        score -= 3
+# Bare / low-value board penalty
+if (
+    visual.get("green_board")
+    and not features.get("gold_fingers")
+    and not features.get("large_ic_chips")
+    and not features.get("processor")
+    and not features.get("memory_module")
+):
+    score = min(score, 2)
 
+if features.get("power_board") and features.get("heavy_components"):
+    score -= 2
+
+score = max(score, 0)
     if (
         visual.get("green_board")
         and not features.get("gold_fingers")
