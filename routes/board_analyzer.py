@@ -36,7 +36,18 @@ def analyze_board(image_path):
         confidence = 0.75
         recommendation = "Worth separating for recovery."
 
-    return {
+        motherboard_signals, motherboard_score = detect_motherboard_signals(
+        features,
+        visual_data
+)
+
+        features["motherboard_signals"] = motherboard_signals
+
+    if motherboard_score >= 3:
+        features["motherboard"] = True
+        score += 12
+
+return {
         "grade": grade,
         "confidence": confidence,
         "score": score,
