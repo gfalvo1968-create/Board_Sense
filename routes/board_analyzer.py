@@ -56,10 +56,10 @@ return {
         "features": features,
         "visual": visual,
         "signals": {
-            "motherboard": features.get("motherboard", False),
-            "ram": features.get("ram", False),
-            "power_board": features.get("power_board", False),
-            "possible_ram": visual.get("possible_ram", False),
+        "motherboard": features.get("motherboard", False),
+        "ram": features.get("ram", False),
+        "power_board": features.get("power_board", False),
+        "possible_ram": visual.get("possible_ram", False),
         },
-        "model": "Autodidact Modular Core"
+         "model": "Autodidact Modular Core"
     }
