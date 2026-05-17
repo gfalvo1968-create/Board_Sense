@@ -1,4 +1,4 @@
-from routes.board_knowledge import analyze_board_knowledge
+from routes.board_analyzer import analyze_board
 
 
 class BoardAI:
