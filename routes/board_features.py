@@ -1,11 +1,31 @@
-def detect_board_features(image_path):
+# routes/board_features.py
 
-    lower_name = image_path.lower()
+def detect_board_features(image_path: str):
+    lower_name = str(image_path).lower()
 
-    return {
-        "motherboard": "motherboard" in lower_name,
-        "ram": "ram" in lower_name,
-        "power_board": "power" in lower_name
+    features = {
+        "motherboard": False,
+        "memory_module": False,
+        "ram": False,
+        "power_board": False,
+        "gold_fingers": False,
+        "large_ic_chips": False,
+        "processor": False,
     }
-if "ram" in lower_name or "memory" in lower_name:
-    features["memory_module"] = True
+
+    if "motherboard" in lower_name or "mainboard" in lower_name:
+        features["motherboard"] = True
+
+    if "ram" in lower_name or "memory" in lower_name:
+        features["ram"] = True
+        features["memory_module"] = True
+        features["gold_fingers"] = True
+        features["large_ic_chips"] = True
+
+    if "power" in lower_name or "psu" in lower_name:
+        features["power_board"] = True
+
+    if "cpu" in lower_name or "processor" in lower_name:
+        features["processor"] = True
+
+    return features
