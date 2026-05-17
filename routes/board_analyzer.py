@@ -15,6 +15,9 @@ def analyze_board(image_path):
         features["memory_module"] = True
         features["gold_fingers"] = True
 
+    if visual.get("gold_finger_edge"):
+        features["gold_fingers"] = True
+    
     score = calculate_score(features)
 
     grade = "LOW"
