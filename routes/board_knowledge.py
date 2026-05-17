@@ -430,14 +430,14 @@ if (
             jackpot = False
     
     
-    return {
-        "grade": grade,
-        "score": score,
-        "confidence": round(confidence, 2),
-        "jackpot": jackpot,
-        "recommendation": recommendation,
-        "pay_dirt_ready": pay_dirt_ready,
-        "features": features,
-        "visual": visual,
-        "signals": make_signals(features, visual),
+     return {
+         "grade": grade,
+         "score": score,
+         "confidence": round(confidence, 2),
+         "jackpot": jackpot,
+         "recommendation": recommendation,
+         "pay_dirt_ready": pay_dirt_ready,
+         "features": features,
+         "visual": visual,
+         "signals": make_signals(features, visual),
     }
