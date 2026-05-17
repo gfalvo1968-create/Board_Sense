@@ -7,3 +7,5 @@ def detect_board_features(image_path):
         "ram": "ram" in lower_name,
         "power_board": "power" in lower_name
     }
+if "ram" in lower_name or "memory" in lower_name:
+    features["memory_module"] = True
