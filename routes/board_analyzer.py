@@ -25,7 +25,7 @@ def analyze_board(image_path):
         recommendation = "Low value board."
         pay_dirt_ready = False
 
-    if  score >= filename:
+    if  score >= 5:
         grade = "HIGH"
         confidence = 0.90
         pay_dirt_ready = True
