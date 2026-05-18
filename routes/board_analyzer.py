@@ -3,7 +3,7 @@
 from routes.board_features import detect_board_features
 from routes.board_visual import detect_visual_features
 from routes.board_scoring import calculate_score
-from routes.board_motherboard import detect_motherboard_signals
+
 
 def analyze_board(image_path):
 
@@ -15,9 +15,6 @@ def analyze_board(image_path):
         features["memory_module"] = True
         features["gold_fingers"] = True
 
-    if visual.get("gold_finger_edge"):
-        features["gold_fingers"] = True
-    
     score = calculate_score(features)
 
     grade = "LOW"
@@ -36,18 +33,7 @@ def analyze_board(image_path):
         confidence = 0.75
         recommendation = "Worth separating for recovery."
 
-        motherboard_signals, motherboard_score = detect_motherboard_signals(
-        features,
-        visual_data
-)
-
-        features["motherboard_signals"] = motherboard_signals
-
-    if motherboard_score >= 3:
-        features["motherboard"] = True
-        score += 12
-
-return {
+    return {
         "grade": grade,
         "confidence": confidence,
         "score": score,
@@ -56,10 +42,10 @@ return {
         "features": features,
         "visual": visual,
         "signals": {
-        "motherboard": features.get("motherboard", False),
-        "ram": features.get("ram", False),
-        "power_board": features.get("power_board", False),
-        "possible_ram": visual.get("possible_ram", False),
+            "motherboard": features.get("motherboard", False),
+            "ram": features.get("ram", False),
+            "power_board": features.get("power_board", False),
+            "possible_ram": visual.get("possible_ram", False),
         },
-         "model": "Autodidact Modular Core"
+        "model": "Autodidact Modular Core"
     }
