@@ -15,12 +15,15 @@ def analyze_board(image_path):
         features["memory_module"] = True
         features["gold_fingers"] = True
 
-    score = calculate_score(features)
+    if visual.get("gold_finger_edge"):
+        features["gold_fingers"] = True
+    
+        score = calculate_score(features)
 
-    grade = "LOW"
-    confidence = 0.50
-    recommendation = "Low value board."
-    pay_dirt_ready = False
+        grade = "LOW"
+        confidence = 0.50
+        recommendation = "Low value board."
+        pay_dirt_ready = False
 
     if score >= 10:
         grade = "HIGH"
