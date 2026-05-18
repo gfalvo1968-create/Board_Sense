@@ -9,6 +9,17 @@ def detect_motherboard_signals(features, visual):
         "dense_layout": False,
     }
 
+  motherboard_signals, motherboard_score = detect_motherboard_signals(
+    features,
+    visual_data
+)
+
+features["motherboard_signals"] = motherboard_signals
+
+   if motherboard_score >= 3:
+      features["motherboard"] = True
+      score += 12
+    
     # temporary keyword helpers until stronger image vision is added
     name = features.get("_filename", "")
 
