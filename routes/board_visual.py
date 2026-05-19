@@ -10,7 +10,6 @@ def detect_visual_features(image_path):
         "possible_ram": False,
         "gold_finger_edge": False,
     
-    # RAM shape detection
 if width > height * 2:
     features["possible_ram"] = True
 
