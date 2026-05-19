@@ -22,7 +22,8 @@ def detect_visual_features(image_path):
         print(f"[Board Visual Error] {e}")
 
     return visual
-        
+
+    )
         long_side = max(width, height)
         short_side = min(width, height)
 
