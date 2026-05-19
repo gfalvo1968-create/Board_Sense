@@ -35,6 +35,11 @@ def analyze_board(image_path):
         confidence = 0.75
         recommendation = "Worth separating for recovery."
 
+    motherboard = detect_motherboard(image_path)
+
+if motherboard.get("possible_motherboard"):
+    features["motherboard"] = True
+    
     return {
         "grade": grade,
         "confidence": confidence,
