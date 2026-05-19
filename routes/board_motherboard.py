@@ -1,22 +1,29 @@
 # routes/board_motherboard.py
 
-def detect_motherboard(features, visual):
+from PIL import Image
+
+
+def detect_motherboard(image_path):
     signals = {
-        "cpu_socket": False,
-        "ram_slots": False,
-        "pci_slots": False,
-        "rear_io_cluster": False,
-        "dense_layout": False,
+        "large_board": False,
+        "possible_motherboard": False
     }
 
-    motherboard_score = 0
+    try:
+        img = Image.open(image_path)
+        width, height = img.size
 
-    if features.get("motherboard"):
-        signals["cpu_socket"] = True
-        signals["ram_slots"] = True
-        signals["pci_slots"] = True
-        signals["rear_io_cluster"] = True
-        signals["dense_layout"] = True
-        motherboard_score = 5
+        long_side = max(width, height)
+        short_side = min(width, height)
 
-    return signals, motherboard_score
+        ratio = long_side / short_side if short_side else 0
+
+        # Motherboards are usually larger and not super skinny like RAM
+        if ratio < 2.2 and long_side > 700:
+            signals["large_board"] = True
+            signals["possible_motherboard"] = True
+
+    except Exception as e:
+        print(f"[Motherboard Detector Error] {e}")
+
+    return signals
