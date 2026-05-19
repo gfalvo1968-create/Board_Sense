@@ -16,15 +16,8 @@ if width > height * 2:
      # Gold finger edge detection
 if gold_pixels > 100:
     features["gold_finger_edge"] = True
+  
     
-    }
-
-    try:
-        img = Image.open(image_path).convert("RGB")
-
-        width, height = img.size
-    
-    }
 
         # ADD NEW DETECTION LOGIC HERE
 
