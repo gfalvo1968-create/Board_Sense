@@ -48,7 +48,7 @@ if motherboard.get("possible_motherboard"):
         "recommendation": recommendation,
         "features": features,
         "visual": visual,
-        "signals": 
+        "signals":{ 
             "motherboard": features.get("motherboard", False),
             "ram": features.get("ram", False),
             "power_board": features.get("power_board", False),
