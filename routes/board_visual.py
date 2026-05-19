@@ -11,8 +11,8 @@ def detect_visual_features(image_path):
         "gold_finger_edge": False,
 
      # Gold finger edge detection
-if gold_pixels > 100:
-    features["gold_finger_edge"] = True
+    if gold_pixels > 100:
+        features["gold_finger_edge"] = True
   
     
 
