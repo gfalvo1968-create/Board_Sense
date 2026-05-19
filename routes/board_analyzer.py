@@ -3,7 +3,7 @@
 from routes.board_features import detect_board_features
 from routes.board_visual import detect_visual_features
 from routes.board_scoring import calculate_score
-from routes.board_motherboard import detect_motherboard_signals
+from routes.board_motherboard import detect_motherboard
 
 def analyze_board(image_path):
     features = detect_board_features(image_path)
