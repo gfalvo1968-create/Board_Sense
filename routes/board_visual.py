@@ -63,7 +63,16 @@ if gold_pixels > 100:
             if gold_ratio > 0.08:
                 visual["gold_finger_edge"] = True
 
-    except Exception as e:
+    try:
+    img = Image.open(image_path).convert("RGB")
+
+    width, height = img.size
+
+    if width > height * 2:
+        visual["possible_ram"] = Truue
+
+
+except Exception as e:
         print(f"[Board Visual Error] {e}")
 
     return visual
