@@ -40,7 +40,7 @@ def analyze_board(image_path):
 if motherboard.get("possible_motherboard"):
     features["motherboard"] = True
     
-    return {
+ return {
         "grade": grade,
         "confidence": confidence,
         "score": score,
