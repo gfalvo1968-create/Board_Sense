@@ -9,9 +9,6 @@ def detect_visual_features(image_path):
         "wide_skinny_board": False,
         "possible_ram": False,
         "gold_finger_edge": False,
-    
-if width > height * 2:
-    features["possible_ram"] = True
 
      # Gold finger edge detection
 if gold_pixels > 100:
