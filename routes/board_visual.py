@@ -72,7 +72,7 @@ if gold_pixels > 100:
         visual["possible_ram"] = Truue
 
 
-except Exception as e:
+    except Exception as e:
         print(f"[Board Visual Error] {e}")
 
     return visual
