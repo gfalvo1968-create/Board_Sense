@@ -15,19 +15,8 @@ def detect_visual_features(image_path):
         img = Image.open(image_path).convert("RGB")
 
         width, height = img.size
-
-        def detect_visual_features(image_path):
-
-    visual = {
-        "wide_skinny_board": False,
-        "possible_ram": False,
-        "gold_finger_edge": False,
+    
     }
-
-    try:
-        img = Image.open(image_path).convert("RGB")
-
-        width, height = img.size
 
         # ADD NEW DETECTION LOGIC HERE
 
