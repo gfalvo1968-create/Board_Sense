@@ -16,6 +16,26 @@ def detect_visual_features(image_path):
 
         width, height = img.size
 
+        def detect_visual_features(image_path):
+
+    visual = {
+        "wide_skinny_board": False,
+        "possible_ram": False,
+        "gold_finger_edge": False,
+    }
+
+    try:
+        img = Image.open(image_path).convert("RGB")
+
+        width, height = img.size
+
+        # ADD NEW DETECTION LOGIC HERE
+
+    except Exception as e:
+        print(f"[Board Visual Error] {e}")
+
+    return visual
+        
         long_side = max(width, height)
         short_side = min(width, height)
 
