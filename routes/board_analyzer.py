@@ -47,15 +47,14 @@ return {
         "recommendation": recommendation,
         "features": features,
         "visual": visual,
-        "signals":{ 
-        "motherboard": features.get("motherboard", False),
-        "ram": features.get("ram", False),
-        "power_board": features.get("power_board", False),
-        "possible_ram": visual.get("possible_ram", False),
-        "gold_finger_edge": visual.get("gold_finger_edge", False),
-        "possible_motherboard": motherboard.get("possible_motherboard", False),
-        "large_board": motherboard.get("large_board", False),
-        "model": "Autodidact Modular Core",
-    }
+        "signals": {
+    "motherboard": features.get("motherboard", False),
+    "ram": features.get("ram", False),
+    "power_board": features.get("power_board", False),
+    "possible_ram": visual.get("possible_ram", False),
+    "gold_finger_edge": visual.get("gold_finger_edge", False),
+    "possible_motherboard": motherboard.get("possible_motherboard", False),
+    "large_board": motherboard.get("large_board", False),
+},
 
-
+"model": "Autodidact Modular Core",
