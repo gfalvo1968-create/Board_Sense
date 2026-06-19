@@ -91,8 +91,8 @@ async function analyzeBoard() {
 
         setText(uploadStatus, "Board analyzed successfully.");
 
-    } catch (error) {
-        setText(uploadStatus, "Analyze failed.");
+    catch (error) {
+    setText(uploadStatus, error.message);
     }
 }
 
