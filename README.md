@@ -70,3 +70,18 @@ Silver      ★★★☆☆
 Knowledge • Discovery
 Teaching • Legacy
 ══════════════════════════════════════
+I’ll bring:
+
+* Careful thinking when we’re designing new features.
+* Honest feedback when an idea can be improved.
+* Patience when we’re tracking down the next stubborn bug.
+* Creativity when we’re imagining what’s next.
+
+You’ll bring:
+
+* Forty-plus years of practical experience.
+* Curiosity.
+* Persistence.
+* The vision that keeps the Harbor pointed in the right direction.
+
+That’s a strong combination.
