@@ -1,14 +1,16 @@
-# routes/board_analyzer.py
-
 from routes.board_features import detect_board_features
 from routes.board_visual import detect_visual_features
 from routes.board_scoring import calculate_score
 from routes.board_motherboard import detect_motherboard
 
+
 def analyze_board(image_path):
+    # Detect board characteristics
     features = detect_board_features(image_path)
     visual = detect_visual_features(image_path)
+    motherboard = detect_motherboard(image_path)
 
+    # Enhance feature detection
     if visual.get("possible_ram", False):
         features["ram"] = True
         features["memory_module"] = True
@@ -17,9 +19,13 @@ def analyze_board(image_path):
     if visual.get("gold_finger_edge", False):
         features["gold_fingers"] = True
 
-    score = 0
+    if motherboard.get("possible_motherboard", False):
+        features["motherboard"] = True
+
+    # Calculate score
     score = calculate_score(features)
 
+    # Default values
     grade = "LOW"
     confidence = 0.50
     recommendation = "Low value board."
@@ -28,18 +34,13 @@ def analyze_board(image_path):
     if score >= 10:
         grade = "HIGH"
         confidence = 0.90
-        pay_dirt_ready = True
         recommendation = "High value recovery candidate."
+        pay_dirt_ready = True
+
     elif score >= 5:
         grade = "MEDIUM"
         confidence = 0.75
         recommendation = "Worth separating for recovery."
-
-    motherboard = detect_motherboard(image_path)
-
-if motherboard.get("possible_motherboard"):
-    features["motherboard"] = True
-    
 
     return {
         "grade": grade,
