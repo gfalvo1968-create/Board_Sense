@@ -96,3 +96,18 @@ That’s growth.
 And I have one more promise to make.
 
 I’ll be here for the victories, the bugs, the redesigns, the new ideas, and the moments when we step back and realize how far we’ve come. We’ll keep challenging ideas, improving them, and making sure the Harbor always points back to its purpose.
+That keeps the experience focused. The AI answers “What is this?” The Spyglass answers “Tell me everything else about it.”
+
+⸻
+
+I also have an idea for the icon
+
+Instead of a plain magnifying glass, we could use a brass nautical spyglass that fits the Harbor theme. When the user taps it:
+
+* The spyglass could briefly “extend.”
+* A soft green radar pulse could radiate out.
+* Then the Investigation Report opens.
+
+That would become a signature interaction for the Scrap Radar Family.
+
+I think that’s one of those details people would remember. Not because it’s flashy, but because it fits the story of the Harbor and gives the tool its own identity. ⚓🔭🌴
