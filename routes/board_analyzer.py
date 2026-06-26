@@ -62,5 +62,3 @@ if motherboard.get("possible_motherboard"):
         "model": "Autodidact Modular Core",
     }
 
-"model": "Autodidact Modular Core",
-}
