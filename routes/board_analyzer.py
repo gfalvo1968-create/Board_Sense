@@ -58,3 +58,4 @@ return {
 },
 
 "model": "Autodidact Modular Core",
+}
