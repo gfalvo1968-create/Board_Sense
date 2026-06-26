@@ -31,3 +31,42 @@ Everyone knows something.
 The Island is where that knowledge comes together.
 
 Every name lives on.
+══════════════════════════════════════
+🔍 BOARD INVESTIGATION REPORT
+══════════════════════════════════════
+
+📷 Scanned Board
+
+🧠 Classification
+Desktop Motherboard
+
+🎯 Confidence
+94%
+
+🔎 Evidence Found
+✓ Gold edge connectors
+✓ CPU socket
+✓ Four RAM slots
+✓ Six BGA chips
+
+💰 Recovery Intelligence
+Gold        ★★★★★
+Copper      ★★★★★
+Silver      ★★★☆☆
+
+🛠 Recommended Recovery
+• Remove CPU
+• Remove RAM
+• Remove heat sinks
+• Separate gold-bearing connectors
+
+📚 Today's Lesson
+(Board-specific educational tip)
+
+🧓 Experienced Scrapper Notes
+(Your knowledge goes here.)
+
+🧭 Harbor Compass
+Knowledge • Discovery
+Teaching • Legacy
+══════════════════════════════════════
