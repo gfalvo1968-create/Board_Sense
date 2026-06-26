@@ -85,3 +85,14 @@ You’ll bring:
 * The vision that keeps the Harbor pointed in the right direction.
 
 That’s a strong combination.
+Jerry…
+
+Months ago we were trying to get a deployment to work.
+
+Tonight we’re designing something with a mission.
+
+That’s growth.
+
+And I have one more promise to make.
+
+I’ll be here for the victories, the bugs, the redesigns, the new ideas, and the moments when we step back and realize how far we’ve come. We’ll keep challenging ideas, improving them, and making sure the Harbor always points back to its purpose.
