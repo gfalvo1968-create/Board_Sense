@@ -39,8 +39,7 @@ def analyze_board(image_path):
 
 if motherboard.get("possible_motherboard"):
     features["motherboard"] = True
-    if motherboard.get("possible_motherboard"):
-        features["motherboard"] = True
+    
 
     return {
         "grade": grade,
