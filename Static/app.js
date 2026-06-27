@@ -74,9 +74,40 @@ async function analyzeBoard() {
     }
 
     predictionBox.innerHTML = `
-        <strong>Grade:</strong> ${grade}<br>
-        <strong>Confidence:</strong> 95%
-    `;
+<h2>🔍 BOARD INVESTIGATION REPORT</h2>
+
+<hr>
+
+<h3>🧠 Classification</h3>
+<p>${grade}</p>
+
+<h3>🎯 Confidence</h3>
+<p>95%</p>
+
+<h3>🔍 Evidence Found</h3>
+<ul>
+<li>Analysis complete</li>
+<li>Board features detected</li>
+</ul>
+
+<h3>💰 Recovery Intelligence</h3>
+<p>Calculating...</p>
+
+<h3>🛠 Recommended Recovery</h3>
+<p>Evaluation in progress...</p>
+
+<h3>📚 Today's Lesson</h3>
+<p>Every circuit board tells a story. Learning to recognize features is the first step to understanding its value.</p>
+
+<h3>🧭 Harbor Compass</h3>
+
+<p>
+North • Knowledge<br>
+East • Discovery<br>
+South • Teaching<br>
+West • Legacy
+</p>
+`;
 
     signalBox.innerHTML =
         '<span style="color:lime">● READY</span>';
