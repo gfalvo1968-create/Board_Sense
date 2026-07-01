@@ -113,7 +113,11 @@ ${investigation.evidence
 <p>Recovery Score: ${investigation.recoveryScore}/100</p>
 
 <h3>🛠 Recommended Recovery</h3>
-<p>Evaluation in progress...</p>
+<ul>
+${investigation.recoveryPlan
+    .map(step => `<li>${step}</li>`)
+    .join("")}
+</ul>
 
 <h3>📚 Today's Lesson</h3>
 <p>Every circuit board tells a story. Learning to recognize features is the first step to understanding its value.</p>
