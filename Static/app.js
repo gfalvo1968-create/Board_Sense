@@ -103,8 +103,10 @@ if (file.name.toLowerCase().includes("gold")) {
 
 <h3>🔍 Evidence Found</h3>
 <ul>
-<li>Analysis complete</li>
-<li>Board features detected</li>
+<ul>
+${investigation.evidence
+    .map(item => `<li>${item}</li>`)
+    .join("")}
 </ul>
 
 <h3>💰 Recovery Intelligence</h3>
