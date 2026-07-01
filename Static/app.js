@@ -77,6 +77,7 @@ async function analyzeBoard() {
 
     if (file.name.toLowerCase().includes("ram")) {
     grade = "HIGH GRADE";
+        investigation.classification = grade;
 
     investigation.evidence.push("RAM module detected");
     investigation.recoveryPlan.push("Remove RAM before further processing");
