@@ -110,7 +110,7 @@ ${investigation.evidence
 </ul>
 
 <h3>💰 Recovery Intelligence</h3>
-<p>Calculating...</p>
+<p>Recovery Score: ${investigation.recoveryScore}/100</p>
 
 <h3>🛠 Recommended Recovery</h3>
 <p>Evaluation in progress...</p>
