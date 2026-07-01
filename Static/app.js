@@ -66,6 +66,15 @@ async function analyzeBoard() {
 
     let grade = "LOW GRADE";
 
+    const investigation = {
+    classification: grade,
+    confidence: 95,
+    evidence: [],
+    recoveryScore: 0,
+    recoveryPlan: [],
+    lesson: ""
+};
+
     if (
         file.name.toLowerCase().includes("ram") ||
         file.name.toLowerCase().includes("gold")
