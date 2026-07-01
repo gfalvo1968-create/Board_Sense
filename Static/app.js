@@ -95,11 +95,9 @@ if (file.name.toLowerCase().includes("gold")) {
 
 <hr>
 
-<h3>🧠 Classification</h3>
-<p>${grade}</p>
+<h3><p>${investigation.classification}</p>
 
-<h3>🎯 Confidence</h3>
-<p>95%</p>
+<p>${investigation.confidence}%</p>
 
 <h3>🔍 Evidence Found</h3>
 <ul>
