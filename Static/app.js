@@ -75,12 +75,19 @@ async function analyzeBoard() {
     lesson: ""
 };
 
-    if (
-        file.name.toLowerCase().includes("ram") ||
-        file.name.toLowerCase().includes("gold")
-    ) {
-        grade = "HIGH GRADE";
-    }
+    if (file.name.toLowerCase().includes("ram")) {
+    grade = "HIGH GRADE";
+
+    investigation.evidence.push("RAM module detected");
+    investigation.recoveryPlan.push("Remove RAM before further processing");
+    investigation.recoveryScore += 30;
+}
+
+if (file.name.toLowerCase().includes("gold")) {
+    investigation.evidence.push("Gold edge contacts detected");
+    investigation.recoveryPlan.push("Separate gold finger material");
+    investigation.recoveryScore += 40;
+}
 
     predictionBox.innerHTML = `
 <h2>🔍 BOARD INVESTIGATION REPORT</h2>
