@@ -2,6 +2,7 @@ from routes.board_features import detect_board_features
 from routes.board_visual import detect_visual_features
 from routes.board_scoring import calculate_score
 from routes.board_motherboard import detect_motherboard
+from routes.board_insight import BoardInsight
 
 
 def analyze_board(image_path):
