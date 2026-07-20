@@ -42,6 +42,27 @@ def analyze_board(image_path):
         grade = "MEDIUM"
         confidence = 0.75
         recommendation = "Worth separating for recovery."
+        result = {
+    "grade": grade,
+    "confidence": confidence,
+    "score": score,
+    "pay_dirt_ready": pay_dirt_ready,
+    "recommendation": recommendation,
+    "features": features,
+    "visual": visual,
+    "signals": {
+        "motherboard": features.get("motherboard"),
+        "ram": features.get("ram", False),
+        "power_board": features.get("power_board"),
+        "possible_ram": visual.get("possible_ram"),
+        "gold_finger_edge": visual.get("gold_finger_edge"),
+        "possible_motherboard": motherboard.get("possible_motherboard"),
+        "large_board": motherboard.get("large_board")
+    },
+    "model": "Autodidact Modular Core"
+}
+
+insight = insight_engine.generate(result)
 
     return {
         "grade": grade,
