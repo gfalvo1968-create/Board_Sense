@@ -51,6 +51,8 @@ function renderSignals(signals) {
 }
 
 async function analyzeBoard() {
+    console.log("Analyze button clicked");
+    alert("Analyze button clicked");
 
     const file = fileInput.files[0];
 
