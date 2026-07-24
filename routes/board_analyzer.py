@@ -60,11 +60,7 @@ def analyze_board(image_path):
         "large_board": motherboard.get("large_board")
     },
     "model": "Autodidact Modular Core"
-}
-
-result = {
-    ...
-}
+        }
 
 insight = insight_engine.generate(result)
 
