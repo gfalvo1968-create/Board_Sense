@@ -68,4 +68,4 @@ result = {
 
 insight = insight_engine.generate(result)
 
-return result
+    return result
