@@ -62,7 +62,10 @@ def analyze_board(image_path):
     "model": "Autodidact Modular Core"
 }
 
+result = {
+    ...
+}
+
 insight = insight_engine.generate(result)
 
 return result
-
