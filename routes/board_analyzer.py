@@ -63,5 +63,4 @@ def analyze_board(image_path):
         }
 
 insight = insight_engine.generate(result)
-
-    return result
+return result
