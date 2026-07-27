@@ -165,4 +165,29 @@ button:hover {
 #irmStatus {
     margin-top: 15px;
  }
+    #developer-panel{
+    margin-top:30px;
+    padding:20px;
+    border:2px solid #39ff14;
+    border-radius:18px;
+    background:#0a0a0a;
+}
+
+#developer-panel h2{
+    color:#39ff14;
+    margin-bottom:12px;
+}
+
+#dev-console{
+    background:#000;
+    color:#39ff14;
+    font-family:monospace;
+    font-size:14px;
+    padding:12px;
+    height:220px;
+    overflow-y:auto;
+    border:1px solid #39ff14;
+    border-radius:10px;
+    white-space:pre-wrap;
+}
 }
