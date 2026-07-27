@@ -392,6 +392,8 @@ async function uploadImage() {
     const formData = new FormData();
 
     formData.append("file", file);
+    devLog("Packaging image...");
+    devLog("Sending request to Harbor AI...");
 
     try {
 
