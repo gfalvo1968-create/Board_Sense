@@ -6,12 +6,13 @@ from routes.board_insight import BoardInsight
 
 
 def analyze_board(image_path):
+
     # Detect board characteristics
     features = detect_board_features(image_path)
     visual = detect_visual_features(image_path)
     motherboard = detect_motherboard(image_path)
 
-    # Enhance feature detection
+    # Improve feature detection
     if visual.get("possible_ram", False):
         features["ram"] = True
         features["memory_module"] = True
@@ -28,39 +29,45 @@ def analyze_board(image_path):
 
     # Default values
     grade = "LOW"
-    confidence = 0.50
+    confidence = 50
     recommendation = "Low value board."
     pay_dirt_ready = False
 
     if score >= 10:
         grade = "HIGH"
-        confidence = 0.90
+        confidence = 90
         recommendation = "High value recovery candidate."
         pay_dirt_ready = True
 
     elif score >= 5:
         grade = "MEDIUM"
-        confidence = 0.75
+        confidence = 75
         recommendation = "Worth separating for recovery."
-        result = {
-    "grade": grade,
-    "confidence": confidence,
-    "score": score,
-    "pay_dirt_ready": pay_dirt_ready,
-    "recommendation": recommendation,
-    "features": features,
-    "visual": visual,
-    "signals": {
-        "motherboard": features.get("motherboard"),
-        "ram": features.get("ram", False),
-        "power_board": features.get("power_board"),
-        "possible_ram": visual.get("possible_ram"),
-        "gold_finger_edge": visual.get("gold_finger_edge"),
-        "possible_motherboard": motherboard.get("possible_motherboard"),
-        "large_board": motherboard.get("large_board")
-    },
-    "model": "Autodidact Modular Core"
-        }
-        insight = insight_engine.generate(result)
-        return result
+
+    # Build final result
+    result = {
+        "grade": grade,
+        "confidence": confidence,
+        "score": score,
+        "pay_dirt_ready": pay_dirt_ready,
+        "recommendation": recommendation,
+        "features": features,
+        "visual": visual,
+        "signals": {
+            "motherboard": features.get("motherboard", False),
+            "ram": features.get("ram", False),
+            "power_board": features.get("power_board", False),
+            "possible_ram": visual.get("possible_ram", False),
+            "gold_finger_edge": visual.get("gold_finger_edge", False),
+            "possible_motherboard": motherboard.get("possible_motherboard", False),
+            "large_board": motherboard.get("large_board", False),
+        },
+        "model": "Autodidact Modular Core"
+    }
+
+    # Generate insight
+    insight_engine = BoardInsight()
+    result["insight"] = insight_engine.generate(result)
+
+    return result
 
