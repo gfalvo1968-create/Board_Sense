@@ -406,6 +406,10 @@ async function uploadImage() {
         });
 
         const data = await response.json();
+        devLog("Response received");
+        devLog("Grade: " + data.ai_grade);
+        devLog("Confidence: " + data.confidence + "%");
+        devLog("Estimated Value: $" + data.value_estimate);
 
         $("predictionBox").innerHTML =
             "<b>Grade:</b> " + data.ai_grade +
