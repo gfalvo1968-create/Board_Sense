@@ -1,15 +1,7 @@
 """
-board_insight.py
-
 Board Sense Insight Engine
 
-Purpose:
-Transform analysis results into clear, useful explanations
-for the user.
-
-Foundation:
-Answers inform.
-Insight transforms.
+Converts board analysis into a human-readable report.
 """
 
 from typing import Dict, List
@@ -18,62 +10,95 @@ from typing import Dict, List
 class BoardInsight:
 
     def generate(self, analysis: Dict) -> Dict:
-        """
-        Generate a human-readable insight report.
-        """
-
-        insight = {
+        return {
             "summary": self._summary(analysis),
             "evidence": self._evidence(analysis),
             "recommendation": self._recommendation(analysis),
             "confidence_reason": self._confidence_reason(analysis),
-            "next_steps": self._next_steps(analysis)
+            "next_steps": self._next_steps(analysis),
         }
 
-        return insight
+    def _summary(self, analysis: Dict) -> str:
+        grade = analysis.get("grade", "Unknown")
+        score = analysis.get("score", 0)
 
-    def _evidence(self, analysis):
-    evidence = []
+        return (
+            f"Board classified as {grade} "
+            f"with a recovery score of {score}."
+        )
 
-    for feature, detected in analysis.get("features", {}).items():
-        if detected:
-            evidence.append(feature)
-
-    return evidence
-
-    def _evidence(self, analysis):
-
+    def _evidence(self, analysis: Dict) -> List[str]:
         evidence = []
 
-       evidence = []
+        features = analysis.get("features", {})
+        visual = analysis.get("visual", {})
+        signals = analysis.get("signals", {})
 
-for feature, detected in analysis.get("features", {}).items():
-    if detected:
-        evidence.append(feature)
+        for key, value in features.items():
+            if value:
+                evidence.append(key.replace("_", " ").title())
 
-return evidence
+        for key, value in visual.items():
+            if value:
+                evidence.append(key.replace("_", " ").title())
+
+        for key, value in signals.items():
+            if value:
+                evidence.append(key.replace("_", " ").title())
 
         return evidence
 
-    def _recommendation(self, analysis):
-
+    def _recommendation(self, analysis: Dict) -> str:
         return analysis.get(
             "recommendation",
             "Further inspection recommended."
         )
 
-    def _confidence_reason(self, analysis):
-
+    def _confidence_reason(self, analysis: Dict) -> str:
         confidence = analysis.get("confidence", 0)
 
-        if confidence >= 90:
-            return "Multiple visual and knowledge matches support this result."
+        if confidence >= 0.90:
+            return (
+                "High confidence based on multiple visual "
+                "and feature indicators."
+            )
 
-        if confidence >= 75:
-            return "Several strong indicators were detected."
+        if confidence >= 0.75:
+            return (
+                "Good confidence based on several matching "
+                "board characteristics."
+            )
 
-        return "Limited evidence. Additional images may improve confidence."
+        if confidence >= 0.50:
+            return (
+                "Moderate confidence. Additional images "
+                "could improve accuracy."
+            )
 
-    def _next_steps(self, analysis):
+        return (
+            "Low confidence. More information is recommended."
+        )
 
-        return analysis.get("next_steps", [])
+    def _next_steps(self, analysis: Dict) -> List[str]:
+
+        grade = analysis.get("grade", "LOW")
+
+        if grade == "HIGH":
+            return [
+                "Separate this board.",
+                "Inspect for CPUs and RAM.",
+                "Recover gold-bearing components.",
+                "Store with premium boards."
+            ]
+
+        if grade == "MEDIUM":
+            return [
+                "Separate for later processing.",
+                "Inspect valuable chips.",
+                "Evaluate before selling."
+            ]
+
+        return [
+            "Process with general e-waste.",
+            "Recover reusable components if practical."
+        ]
