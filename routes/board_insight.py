@@ -43,8 +43,13 @@ class BoardInsight:
 
         evidence = []
 
-        for feature in analysis.get("features", []):
-            evidence.append(feature)
+       evidence = []
+
+for feature, detected in analysis.get("features", {}).items():
+    if detected:
+        evidence.append(feature)
+
+return evidence
 
         return evidence
 
