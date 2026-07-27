@@ -381,6 +381,10 @@ async function uploadImage() {
     }
 
     const file = input.files[0];
+    if (file) {
+    devLog("Selected file: " + file.name);
+    devLog("File size: " + Math.round(file.size / 1024) + " KB");
+}
 
     $("uploadStatus").innerHTML =
         "Uploading " + file.name + "...";
