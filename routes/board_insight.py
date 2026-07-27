@@ -32,12 +32,14 @@ class BoardInsight:
 
         return insight
 
-    def _summary(self, analysis):
+    def _evidence(self, analysis):
+    evidence = []
 
-        family = analysis.get("board_family", "Unknown")
-        grade = analysis.get("grade", "Unknown")
+    for feature, detected in analysis.get("features", {}).items():
+        if detected:
+            evidence.append(feature)
 
-        return f"This board appears to be a {grade} {family} board."
+    return evidence
 
     def _evidence(self, analysis):
 
