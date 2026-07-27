@@ -291,6 +291,17 @@ img.preview{
 function $(id){
     return document.getElementById(id);
 }
+    const devConsole = document.getElementById("dev-console");
+
+function devLog(message) {
+    if (!devConsole) return;
+
+    const time = new Date().toLocaleTimeString();
+
+    devConsole.innerHTML += "<br>[" + time + "] " + message;
+
+    devConsole.scrollTop = devConsole.scrollHeight;
+}
 
 // ---------- Startup ----------
 
