@@ -32,20 +32,21 @@ function initialize() {
 
 }
 
-function analyzeBoard() {
+async function uploadImage(file) {
 
-    log("Analyze button pressed");
+    log("Preparing upload...");
+    log("Waiting for Harbor AI...");
 
-const image = document.getElementById("boardImage");
+    const uploadStatus = document.getElementById("uploadStatus");
 
-if (!image || image.files.length === 0) {
+    if (uploadStatus) {
+        uploadStatus.textContent = "Uploading board...";
+    }
 
-    log("No image selected.");
+    const formData = new FormData();
+    formData.append("file", file);
 
-    document.getElementById("uploadStatus").textContent =
-        "Please choose a board image.";
-
-    return;
+    // Backend connection comes next.
 
 }
 
