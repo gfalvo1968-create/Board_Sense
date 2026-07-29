@@ -22,5 +22,6 @@ document.addEventListener("DOMContentLoaded", function () {
     log("⚓ Harbor Edition initialized");
 
     log("System ready");
+    
 
 });
