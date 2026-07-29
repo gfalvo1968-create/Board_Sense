@@ -55,7 +55,7 @@ log("Board image selected.");
 uploadImage(image.files[0]);
 
 }
-function uploadImage(file) {
+async function uploadImage(file) {
 
     log("Preparing upload...");
     log("Waiting for Harbor AI...");
