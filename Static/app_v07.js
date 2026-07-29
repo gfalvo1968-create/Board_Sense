@@ -52,8 +52,6 @@ if (!image || image.files.length === 0) {
 log("Board image selected.");
 
 uploadImage(image.files[0]);
-log("Preparing upload...");
-log("Waiting for Harbor AI...");
 
 }
 function uploadImage(file) {
