@@ -16,6 +16,27 @@ function log(message) {
 
     consoleBox.scrollTop = consoleBox.scrollHeight;
 }
+function initialize() {
+
+    log("Loading interface...");
+
+    const analyzeBtn = document.getElementById("analyzeBtn");
+
+    if (analyzeBtn) {
+
+        analyzeBtn.addEventListener("click", analyzeBoard);
+
+        log("Analyze button ready");
+
+    }
+
+}
+
+function analyzeBoard() {
+
+    log("Analyze button pressed");
+
+}
 
 document.addEventListener("DOMContentLoaded", function () {
 
