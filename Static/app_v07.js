@@ -56,6 +56,15 @@ log("Preparing upload...");
 log("Waiting for Harbor AI...");
 
 }
+function uploadImage(file) {
+
+    log("Preparing upload...");
+    log("Waiting for Harbor AI...");
+
+    document.getElementById("uploadStatus").textContent =
+        "Preparing upload...";
+
+}
 
 document.addEventListener("DOMContentLoaded", function () {
 
