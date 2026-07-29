@@ -36,6 +36,21 @@ function analyzeBoard() {
 
     log("Analyze button pressed");
 
+const image = document.getElementById("boardImage");
+
+if (!image || image.files.length === 0) {
+
+    log("No image selected.");
+
+    document.getElementById("uploadStatus").textContent =
+        "Please choose a board image.";
+
+    return;
+
+}
+
+log("Board image selected.");
+
 }
 
 document.addEventListener("DOMContentLoaded", function () {
