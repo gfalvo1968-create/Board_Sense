@@ -1,1 +1,84 @@
 
+/* =========================================
+   Board Sense Harbor Edition v0.7
+   ========================================= */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: #0b0f12;
+    color: #f2f2f2;
+    font-family: Arial, Helvetica, sans-serif;
+    padding: 20px;
+}
+
+#app {
+    max-width: 1100px;
+    margin: auto;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 25px;
+}
+
+header h1 {
+    color: #32ff7e;
+    font-size: 2.3rem;
+}
+
+header p {
+    color: #8fd6a8;
+    margin-top: 8px;
+}
+
+.panel {
+    background: #151b20;
+    border: 2px solid #32ff7e;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.panel h2 {
+    color: #32ff7e;
+    margin-bottom: 15px;
+}
+
+.button-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+button {
+    background: #32ff7e;
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 20px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+button:hover {
+    opacity: 0.9;
+}
+
+input[type="file"] {
+    margin-bottom: 15px;
+}
+
+#uploadStatus,
+#predictionBox,
+#dev-console {
+    background: #0b0f12;
+    border: 1px solid #32ff7e;
+    border-radius: 8px;
+    padding: 12px;
+    min-height: 60px;
+}
