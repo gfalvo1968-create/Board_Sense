@@ -20,8 +20,8 @@ function log(message) {
 document.addEventListener("DOMContentLoaded", function () {
 
     log("⚓ Harbor Edition initialized");
-
     log("System ready");
-    
+
+    initialize();
 
 });
