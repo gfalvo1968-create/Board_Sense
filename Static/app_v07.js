@@ -50,6 +50,8 @@ if (!image || image.files.length === 0) {
 }
 
 log("Board image selected.");
+log("Preparing upload...");
+log("Waiting for Harbor AI...");
 
 }
 
