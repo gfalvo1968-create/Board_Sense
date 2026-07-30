@@ -68,7 +68,48 @@ async function uploadImage(file) {
     const formData = new FormData();
     formData.append("file", file);
 
-    // Backend connection comes next.
+    try {
+
+    const response = await fetch("/analyze", {
+        method: "POST",
+        body: formData
+    });
+
+    if (!response.ok) {
+        throw new Error("Server returned " + response.status);
+    }
+
+    const result = await response.json();
+
+    log("Analysis complete.");
+    log("Board: " + result.board);
+    log("Score: " + result.score);
+
+    if (result.jackpot) {
+        log("💰 JACKPOT DETECTED!");
+    }
+
+    if (uploadStatus) {
+        uploadStatus.textContent = "Analysis complete.";
+    }
+
+    const predictionBox = document.getElementById("predictionBox");
+
+    if (predictionBox) {
+        predictionBox.innerHTML =
+            "<strong>Score:</strong> " + result.score +
+            "<br><strong>Recovery:</strong> " + result.recovery_message;
+    }
+
+} catch (err) {
+
+    log("ERROR: " + err.message);
+
+    if (uploadStatus) {
+        uploadStatus.textContent = "Upload failed.";
+    }
+
+}
 
 }
 
