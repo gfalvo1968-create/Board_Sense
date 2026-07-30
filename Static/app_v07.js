@@ -98,7 +98,8 @@ async function uploadImage(file) {
     if (predictionBox) {
         predictionBox.innerHTML =
             "<strong>Score:</strong> " + result.score +
-            "<br><strong>Recovery:</strong> " + result.recovery_message;
+            "<br><strong>Recovery:</strong> " +
+       (result.recovery_message || "No recovery message.");
     }
 
 } catch (err) {
