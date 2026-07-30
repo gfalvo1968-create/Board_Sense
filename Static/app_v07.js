@@ -55,15 +55,6 @@ log("Board image selected.");
 uploadImage(image.files[0]);
 
 }
-async function uploadImage(file) {
-
-    log("Preparing upload...");
-    log("Waiting for Harbor AI...");
-
-    document.getElementById("uploadStatus").textContent =
-        "Preparing upload...";
-
-}
 
 document.addEventListener("DOMContentLoaded", function () {
 
