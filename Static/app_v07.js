@@ -31,6 +31,28 @@ function initialize() {
     }
 
 }
+function analyzeBoard() {
+
+    log("Analyze button pressed");
+
+    const image = document.getElementById("boardImage");
+
+    if (!image || image.files.length === 0) {
+
+        log("No image selected.");
+
+        document.getElementById("uploadStatus").textContent =
+            "Please choose a board image.";
+
+        return;
+
+    }
+
+    log("Board image selected.");
+
+    uploadImage(image.files[0]);
+
+}
 
 async function uploadImage(file) {
 
@@ -47,12 +69,6 @@ async function uploadImage(file) {
     formData.append("file", file);
 
     // Backend connection comes next.
-
-}
-
-log("Board image selected.");
-
-uploadImage(image.files[0]);
 
 }
 
