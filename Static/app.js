@@ -1,5 +1,5 @@
 const analyzeBtn = document.getElementById("analyzeBtn");
-const fileInput = document.getElementById("fileInput");
+const fileInput = document.getElementById("boardImage");
 const uploadStatus = document.getElementById("uploadStatus");
 const predictionBox = document.getElementById("predictionBox");
 const signalBox = document.getElementById("signalBox");
