@@ -66,7 +66,54 @@ async function analyzeBoard() {
     previewImage.src = URL.createObjectURL(file);
     previewImage.style.display = "block";
 
-    
+    const formData = new FormData();
+
+    formData.append("file", file);
+    devLog("Packaging image...");
+    devLog("Sending request to Harbor AI...");
+
+    try {
+
+        const response = await fetch("https://boardsense.scrapradarfamily.com/analyze", {
+
+            method: "POST",
+
+            body: formData
+
+        });
+
+        const data = await response.json();
+        devLog("Response received");
+        devLog("Grade: " + data.ai_grade);
+        devLog("Confidence: " + data.confidence + "%");
+        devLog("Estimated Value: $" + data.value_estimate);
+
+        $("predictionBox").innerHTML =
+            "<b>Grade:</b> " + data.ai_grade +
+            "<br><b>Confidence:</b> " + data.confidence +
+            "<br><b>Action:</b> " + data.action +
+            "<br><b>Estimated Value:</b> $" + data.value_estimate;
+
+        $("uploadStatus").innerHTML =
+            "Analysis complete.";
+
+        if (typeof renderSignals === "function") {
+
+            renderSignals(data.signals);
+
+        }
+
+    }
+
+    catch (err) {
+
+        $("predictionBox").innerHTML =
+            "Upload failed.<br><br>" + err;
+
+        $("uploadStatus").innerHTML =
+            "Upload failed.";
+
+    }
 
 async function saveSource() {
     setText(irmStatus, "Saving source...");
