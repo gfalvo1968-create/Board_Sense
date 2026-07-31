@@ -61,9 +61,6 @@ async function analyzeBoard() {
 
     uploadStatus.innerHTML = "Analyzing board...";
 
-    previewImage.src = URL.createObjectURL(file);
-    previewImage.style.display = "block";
-
     const formData = new FormData();
 
     formData.append("file", file);
