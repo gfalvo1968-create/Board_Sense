@@ -29,6 +29,14 @@ function initialize() {
         log("Analyze button ready");
 
     }
+    const dashboardBtn = document.getElementById("dashboardBtn");
+
+if (dashboardBtn) {
+    dashboardBtn.addEventListener("click", function () {
+        window.location.href = "index.html";
+    });
+    log("Dashboard button ready");
+}
 
 }
 function analyzeBoard() {
