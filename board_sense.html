@@ -1,1 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Board Sense</title>
 
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0b1117;
+      color: #ffffff;
+    }
+
+    .app {
+      max-width: 900px;
+      margin: auto;
+      padding: 24px;
+    }
+
+    h1 {
+      margin-bottom: 4px;
+      font-size: 34px;
+    }
+
+    .subtitle {
+      color: #9aa7b2;
+      margin-bottom: 30px;
+    }
+
+    .panel {
+      background: #151e27;
+      border: 1px solid #263442;
+      border-radius: 18px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .upload {
+      border: 2px dashed #405364;
+      border-radius: 16px;
+      padding: 45px 20px;
+      text-align: center;
+      cursor: pointer;
+    }
+
+    .upload:hover {
+      border-color: #63b3ed;
+    }
+
+    input {
+      display: none;
+    }
+
+    button {
+      width: 100%;
+      padding: 16px;
+      margin-top: 20px;
+      border: 0;
+      border-radius: 12px;
+      background: #1683ff;
+      color: white;
+      font-size: 17px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #0d6fd9;
+    }
+
+    #preview {
+      max-width: 100%;
+      margin-top: 20px;
+      border-radius: 12px;
+      display: none;
+    }
+
+    #status {
+      margin-top: 18px;
+      color: #9aa7b2;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <h1>Board Sense</h1>
+    <div class="subtitle">
+      Learn. Teach. Discuss. Build.
+    </div>
+
+    <div class="panel">
+
+      <label class="upload">
+        <input type="file" id="boardPhoto" accept="image/*">
+        <strong>📷 Upload Board Photo</strong>
+        <p>Choose a circuit board image to begin analysis.</p>
+      </label>
+
+      <img id="preview" alt="Board preview">
+
+      <button onclick="analyzeBoard()">
+        Analyze Board
+      </button>
+
+      <div id="status">
+        Waiting for a board image...
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    const photoInput = document.getElementById("boardPhoto");
+    const preview = document.getElementById("preview");
+    const status = document.getElementById("status");
+
+    photoInput.addEventListener("change", function () {
+      const file = this.files[0];
+
+      if (!file) return;
+
+      preview.src = URL.createObjectURL(file);
+      preview.style.display = "block";
+
+      status.textContent =
+        "Board image loaded. Ready for analysis.";
+    });
+
+    function analyzeBoard() {
+      if (!photoInput.files.length) {
+        status.textContent =
+          "Please upload a board photo first.";
+        return;
+      }
+
+      status.textContent =
+        "Board Sense analysis engine ready. Image received.";
+    }
+  </script>
+
+</body>
+</html>
