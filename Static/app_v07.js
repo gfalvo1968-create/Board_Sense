@@ -95,12 +95,14 @@ async function uploadImage(file) {
 
     const predictionBox = document.getElementById("predictionBox");
 
-    if (predictionBox) {
-        predictionBox.innerHTML =
-            "<strong>Score:</strong> " + result.score +
-            "<br><strong>Recovery:</strong> " +
-       (result.recovery_message || "No recovery message.");
-    }
+if (predictionBox) {
+    predictionBox.innerHTML =
+        "<strong>Grade:</strong> " + (result.grade || "UNKNOWN") +
+        "<br><strong>Confidence:</strong> " + (result.confidence ?? 0) + "%" +
+        "<br><strong>Recovery Score:</strong> " + (result.score ?? 0) +
+        "<br><strong>Recommendation:</strong> " +
+        (result.recommendation || "Manual review required.");
+}
 
 } catch (err) {
 
