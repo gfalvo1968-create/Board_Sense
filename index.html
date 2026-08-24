@@ -320,21 +320,23 @@ window.addEventListener("load", () => {
 
     const enterBtn = $("enterDashboardBtn");
 
-    if (enterBtn) {
+if (enterBtn) {
+    enterBtn.addEventListener("click", function () {
+        const splash = $("splash");
+        const dashboard = $("dashboard");
 
-        enterBtn.onclick = function () {
-
+        if (splash) {
             splash.style.display = "none";
+        }
 
+        if (dashboard) {
             dashboard.classList.remove("hidden");
-
             dashboard.style.display = "block";
+        }
 
-            console.log("Dashboard opened");
-
-        };
-
-    }
+        devLog("✓ Dashboard opened");
+    });
+}
 
     const elevatorBtn = $("elevatorBtn");
 
