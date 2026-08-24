@@ -5,7 +5,7 @@ from pathlib import Path
 from datetime import datetime
 import shutil
 
-from ai_engine import board_ai
+from routes.board_analyzer import analyze_board
 
 router = APIRouter()
 
