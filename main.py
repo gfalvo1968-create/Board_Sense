@@ -40,7 +40,7 @@ app.include_router(irm_router)
 
 @app.get("/")
 async def root():
-    return FileResponse(BASE_DIR / "Indexv07.html")
+    return FileResponse(BASE_DIR / "index.html")
 
 
 @app.get("/ecosystem")
