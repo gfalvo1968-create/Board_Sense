@@ -12,14 +12,12 @@ router = APIRouter()
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 IMAGE_DIR = DATA_DIR / "Images"
-
 IMAGE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 @router.post("/upload")
 async def upload_board(file: UploadFile = File(...)):
     suffix = Path(file.filename).suffix.lower()
-
     if suffix not in [".jpg", ".jpeg", ".png", ".webp"]:
         raise HTTPException(status_code=400, detail="Unsupported image type")
 
@@ -45,6 +43,7 @@ async def upload_board(file: UploadFile = File(...)):
         "recommendation": ai_result.get("recommendation", "Manual review required."),
         "recovery_signals": ai_result.get("recovery_signals", []),
         "grade_notes": ai_result.get("grade_notes", ""),
+        "reference_intelligence": ai_result.get("reference_intelligence", {}),
         "pay_dirt_ready": ai_result.get("pay_dirt_ready", False),
         "features": ai_result.get("features", {}),
         "power": ai_result.get("power", {}),
