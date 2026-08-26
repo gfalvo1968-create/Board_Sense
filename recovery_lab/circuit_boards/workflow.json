@@ -1,0 +1,16 @@
+{
+  "lab": "Circuit Board Lab",
+  "version": "0.1",
+  "scope": "whole-board grading, selective mechanical recovery, and sale comparison",
+  "workflow": [
+    {"step": 1, "title": "Scan before touching", "instruction": "Run Board Sense on the intact board and save the grade, board family, confidence, and reference matches."},
+    {"step": 2, "title": "Check whole-board category", "instruction": "Determine whether the board belongs in a specialty buyer category before removing valuable components."},
+    {"step": 3, "title": "Mark high-interest components", "instruction": "Use Spike Glass to inspect processors, RAM, gold fingers, relays/contacts, transformers, heat sinks, connectors, and unusual IC packages."},
+    {"step": 4, "title": "Route to labs", "instruction": "Send identified components to their Recovery Lab categories and keep uncertain items intact for review."},
+    {"step": 5, "title": "Selective depopulation", "instruction": "Remove components only when their separated value or recovery value is expected to exceed the lost whole-board value plus labor."},
+    {"step": 6, "title": "Keep fractions clean", "instruction": "Separate copper-rich, aluminum, steel, precious-metal-bearing, and remaining PCB fractions instead of remixing them."},
+    {"step": 7, "title": "Run economics", "instruction": "Use Worth My Time? with actual labor minutes and buyer/refinery quotes to decide whether the workflow should be repeated on similar boards."}
+  ],
+  "decision_rule": "The default is not to depopulate everything. Preserve whole-board value unless selective recovery has a measurable advantage.",
+  "price_source": "Scrap Radar"
+}
