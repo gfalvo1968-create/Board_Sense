@@ -1,0 +1,16 @@
+{
+  "lab": "Processor Lab",
+  "version": "0.1",
+  "scope": "processor identification, grading, mechanical sorting, and refinery routing",
+  "workflow": [
+    {"step": 1, "title": "Identify package", "instruction": "Photograph the processor intact and classify broad package family such as ceramic, fiber/organic, BGA, pin-grid, or land-grid when evidence supports it."},
+    {"step": 2, "title": "Check collectible/resale value", "instruction": "Older, rare, or functional processors may be worth more intact than as scrap. Check that path before alteration."},
+    {"step": 3, "title": "Sort by package family", "instruction": "Keep ceramic, fiber, BGA, server, and unknown processors in separate labeled groups."},
+    {"step": 4, "title": "Inspect visible recovery signals", "instruction": "Record pins, lids, substrates, exposed contacts, and package construction without assuming precious-metal content from color alone."},
+    {"step": 5, "title": "Compare buyer categories", "instruction": "Compare specialty e-scrap buyer grades and professional refinery terms before any destructive processing."},
+    {"step": 6, "title": "Preserve assay value", "instruction": "Keep lots clean and documented so a buyer or refiner can grade them accurately."},
+    {"step": 7, "title": "Time-value check", "instruction": "Compare sorting labor and any safe mechanical separation against the intact processor lot value."}
+  ],
+  "hazard_policy": "Processor precious-metal refining requires controlled professional processes. This lab does not provide garage-scale chemical recipes or uncontrolled thermal processing.",
+  "price_source": "Scrap Radar"
+}
