@@ -1,0 +1,16 @@
+{
+  "lab": "Copper Lab",
+  "version": "0.1",
+  "scope": "mechanical copper identification, grading, separation, and sale comparison",
+  "workflow": [
+    {"step": 1, "title": "Identify copper-bearing item", "instruction": "Determine whether the material is bare copper, insulated wire, bus bar, tubing, winding, connector material, or a mixed assembly."},
+    {"step": 2, "title": "Verify base metal", "instruction": "Use visible cross-section, magnet response where useful, weight/context, and buyer-grade rules rather than assuming copper from surface color."},
+    {"step": 3, "title": "Preserve grade", "instruction": "Keep clean bare copper separate from soldered, painted, tinned, insulated, or mixed copper-bearing material."},
+    {"step": 4, "title": "Compare processing options", "instruction": "For insulated wire or mixed assemblies, compare the buyer's as-is price against the expected clean-copper yield and labor required."},
+    {"step": 5, "title": "Mechanical preparation", "instruction": "Use safe mechanical stripping or disassembly only when it improves net value. Do not burn insulation."},
+    {"step": 6, "title": "Weigh clean fractions", "instruction": "Record net weights by grade so Scrap Radar can apply the appropriate local or estimated price."},
+    {"step": 7, "title": "Time-value check", "instruction": "Use Worth My Time? to decide whether additional cleaning or stripping earns enough per minute to continue."}
+  ],
+  "grade_targets": ["bare bright", "#1 copper", "#2 copper", "light/#3 copper", "insulated wire", "mixed copper-bearing"],
+  "price_source": "Scrap Radar"
+}
