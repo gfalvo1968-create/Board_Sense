@@ -4,12 +4,15 @@ The gate answers a simple question before board grading begins:
 Is the uploaded image actually a PCB/board, a loose electronic component/module,
 or something we should leave unknown?
 
-This is deliberately conservative. It is better to route an uncertain image to
-review/component mode than to manufacture a confident motherboard diagnosis.
+v0.2 keeps the conservative safety behavior but adds structural PCB evidence so
+small, narrow, irregular, and partially populated boards are not rejected merely
+because they occupy less of the photo than a desktop motherboard.
 """
 
 import cv2
 import numpy as np
+
+from routes.component_discriminator import discriminate_components
 
 
 def _largest_foreground(gray):
@@ -56,17 +59,24 @@ def classify_object(image_path):
         max_side = max(h0, w0)
         if max_side > 1200:
             scale = 1200.0 / max_side
-            image = cv2.resize(image, (max(1, int(w0 * scale)), max(1, int(h0 * scale))), interpolation=cv2.INTER_AREA)
+            image = cv2.resize(
+                image,
+                (max(1, int(w0 * scale)), max(1, int(h0 * scale))),
+                interpolation=cv2.INTER_AREA,
+            )
 
         h, w = image.shape[:2]
         area = max(h * w, 1)
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-        # Common green PCB solder-mask signal. Keep the range broad enough for
-        # different lighting, while requiring saturation so gray backgrounds do not count.
-        green_mask = cv2.inRange(hsv, np.array([30, 45, 28]), np.array([100, 255, 245]))
+        green_mask = cv2.inRange(hsv, np.array([28, 38, 24]), np.array([105, 255, 250]))
         green_ratio = float(cv2.countNonZero(green_mask) / area)
+
+        green_contours, _ = cv2.findContours(green_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        largest_green_ratio = 0.0
+        if green_contours:
+            largest_green_ratio = max(cv2.contourArea(c) for c in green_contours) / area
 
         edges = cv2.Canny(cv2.GaussianBlur(gray, (5, 5), 0), 60, 150)
         edge_ratio = float(cv2.countNonZero(edges) / area)
@@ -81,8 +91,6 @@ def classify_object(image_path):
             bbox_fill = (bw * bh) / area
             compact = bbox_aspect <= 1.8 and bbox_fill <= 0.38
 
-        # Lens-like evidence: one or more dark circular structures inside a compact
-        # foreground object, useful for loose smartphone camera modules.
         blur = cv2.GaussianBlur(gray, (9, 9), 1.6)
         min_r = max(5, int(min(h, w) * 0.012))
         max_r = max(min_r + 2, int(min(h, w) * 0.11))
@@ -98,29 +106,70 @@ def classify_object(image_path):
         )
         circle_count = 0 if circles is None else len(circles[0])
 
+        components = discriminate_components(image_path)
+        ic_count = int(components.get("ic_like", 0))
+        capacitor_count = int(components.get("capacitor_like", 0))
+        contact_count = int(components.get("contact_pad_like", 0))
+        block_count = int(components.get("transformer_relay_like", 0))
+        major_component_count = ic_count + capacitor_count + block_count
+        structural_count = major_component_count + min(contact_count, 8)
+
         board_score = 0
         if green_ratio >= 0.22:
-            board_score += 60
+            board_score += 58
         elif green_ratio >= 0.10:
-            board_score += 45
+            board_score += 44
         elif green_ratio >= 0.055:
             board_score += 28
+        elif green_ratio >= 0.030:
+            board_score += 16
+
+        if largest_green_ratio >= 0.08:
+            board_score += 12
+        elif largest_green_ratio >= 0.035:
+            board_score += 7
+
         if foreground_ratio >= 0.28:
-            board_score += 18
+            board_score += 14
+        elif foreground_ratio >= 0.12:
+            board_score += 8
+
         if edge_ratio >= 0.055:
             board_score += 12
-        if foreground_ratio >= 0.50:
-            board_score += 10
+        elif edge_ratio >= 0.030:
+            board_score += 7
+
+        if major_component_count >= 3:
+            board_score += 12
+        elif major_component_count >= 1:
+            board_score += 6
+
+        # Gold contact/keypad pads are strong evidence of PCB construction even
+        # though they should never count as capacitors or power components.
+        if contact_count >= 3:
+            board_score += 12
+        elif contact_count >= 1:
+            board_score += 5
+
+        # Small/irregular board rescue: solder mask + circuitry + parts is more
+        # important than how much of the photograph the board occupies.
+        if green_ratio >= 0.045 and edge_ratio >= 0.025 and structural_count >= 3:
+            board_score += 14
+
         board_score = min(board_score, 100)
 
         component_score = 0
         if 0.003 <= foreground_ratio <= 0.38:
-            component_score += 42
-        if green_ratio < 0.055:
-            component_score += 22
+            component_score += 36
+        if green_ratio < 0.030:
+            component_score += 24
+        elif green_ratio < 0.055:
+            component_score += 10
         if compact:
             component_score += 18
         if edge_ratio >= 0.01:
+            component_score += 8
+        if major_component_count <= 1 and contact_count == 0:
             component_score += 8
         component_score = min(component_score, 100)
 
@@ -133,7 +182,9 @@ def classify_object(image_path):
             camera_score += 15
         if bbox_aspect and bbox_aspect <= 1.45:
             camera_score += 10
-        camera_score = min(camera_score, 100)
+        if structural_count >= 3 or green_ratio >= 0.055:
+            camera_score -= 25
+        camera_score = max(0, min(camera_score, 100))
 
         result.update({
             "board_likelihood": int(board_score),
@@ -141,21 +192,40 @@ def classify_object(image_path):
             "camera_module_likelihood": int(camera_score),
             "metrics": {
                 "pcb_green_ratio": round(green_ratio, 4),
+                "largest_green_region_ratio": round(largest_green_ratio, 4),
                 "foreground_ratio": round(foreground_ratio, 4),
                 "edge_ratio": round(edge_ratio, 4),
                 "circle_count": int(circle_count),
+                "ic_like": ic_count,
+                "capacitor_like": capacitor_count,
+                "contact_pad_like": contact_count,
+                "power_block_like": block_count,
             },
         })
 
-        if board_score >= 58 and board_score >= component_score + 8:
+        strong_small_board = (
+            board_score >= 55
+            and green_ratio >= 0.040
+            and edge_ratio >= 0.020
+            and structural_count >= 2
+        )
+
+        if (board_score >= 58 and board_score >= component_score + 4) or strong_small_board:
             result["mode"] = "board"
             result["label"] = "Circuit board / PCB"
-            result["confidence"] = max(60, min(96, board_score))
-            result["evidence"] = [
-                "PCB-like solder-mask area detected",
-                "Board-scale foreground geometry detected",
-                "Circuit-detail edge density supports board analysis",
-            ]
+            result["confidence"] = max(60, min(97, board_score))
+            evidence = []
+            if green_ratio >= 0.03:
+                evidence.append("PCB-like solder-mask area detected")
+            if edge_ratio >= 0.02:
+                evidence.append("Circuit-detail edge density supports board analysis")
+            if major_component_count:
+                evidence.append(f"Electronic component population detected ({major_component_count} major candidates)")
+            if contact_count:
+                evidence.append(f"Plated/contact-pad pattern supports PCB construction ({contact_count} candidates)")
+            if foreground_ratio >= 0.12:
+                evidence.append("Board-scale foreground geometry detected")
+            result["evidence"] = evidence or ["Multiple PCB construction signals agree"]
             result["message"] = "Board evidence is strong enough to continue into Board Sense grading."
             return result
 
@@ -171,7 +241,7 @@ def classify_object(image_path):
             result["message"] = "Component mode selected; motherboard grading and board recovery scoring were intentionally skipped."
             return result
 
-        if component_score >= 58 and board_score < 58:
+        if component_score >= 58 and board_score < 55:
             result["mode"] = "component"
             result["label"] = "Loose electronic component / module"
             result["confidence"] = max(58, min(90, component_score))
@@ -182,7 +252,7 @@ def classify_object(image_path):
             result["message"] = "Component mode selected; board-specific grading was intentionally skipped."
             return result
 
-        result["confidence"] = max(30, min(55, max(board_score, component_score)))
+        result["confidence"] = max(30, min(57, max(board_score, component_score)))
         result["evidence"] = ["Input does not yet meet the confidence threshold for board or component mode."]
         return result
 
