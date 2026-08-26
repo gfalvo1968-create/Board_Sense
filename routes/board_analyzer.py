@@ -9,6 +9,7 @@ from routes.board_insight import BoardInsight
 from routes.reference_loader import get_knowledge
 from routes.reference_reasoner import build_reference_matches
 from routes.component_discriminator import discriminate_components
+from routes.spike_glass import recognize as spike_glass_recognize
 
 
 def _grade_from_reference(score):
@@ -69,14 +70,10 @@ def analyze_board(image_path):
     if power.get("possible_power_board", False):
         features["power_board"] = True
 
-    # Require the dedicated component discriminator to support the older dark-
-    # rectangle heuristic before promoting large ICs into recovery scoring.
     visual_ic_signal = visual.get("possible_large_ic_chips", False)
     component_ic_support = components.get("ic_like", 0) >= 2 and components.get("dominant_family") != "power_components"
     features["large_ic_chips"] = bool(visual_ic_signal and component_ic_support)
 
-    # Strong power-component dominance is useful negative evidence against an
-    # IC-rich interpretation and positive evidence for power-board handling.
     if components.get("dominant_family") == "power_components":
         features["power_board"] = True
 
@@ -85,6 +82,7 @@ def analyze_board(image_path):
     grade_result = _grade_from_reference(score)
     reference_intelligence = build_reference_matches(features, visual, motherboard, power, board_type)
     reasoning_crosscheck = _agreement(board_type["type"], reference_intelligence.get("top_hypothesis"))
+    spike_glass = spike_glass_recognize(features, visual, motherboard, power, components, reference_intelligence)
 
     confidence = calculate_confidence(score, features=features, visual=visual, motherboard=motherboard, power=power)
     if reasoning_crosscheck["status"] == "review":
@@ -99,6 +97,7 @@ def analyze_board(image_path):
         "board_type": board_type["type"],
         "board_type_reason": board_type["reason"],
         "reasoning_crosscheck": reasoning_crosscheck,
+        "spike_glass": spike_glass,
         "pay_dirt_ready": grade_result["pay_dirt_ready"],
         "recommendation": grade_result["recommendation"],
         "recovery_signals": grade_result["recovery_signals"],
@@ -129,7 +128,7 @@ def analyze_board(image_path):
             "large_component_regions": power.get("large_component_regions", 0),
             "power_score": power.get("power_score", 0),
         },
-        "model": "Board Sense v1.4",
+        "model": "Board Sense v1.5 + Spike Glass v0.1",
     }
     insight_engine = BoardInsight()
     result["insight"] = insight_engine.generate(result)
