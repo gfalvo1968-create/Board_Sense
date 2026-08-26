@@ -11,7 +11,6 @@ from routes.reference_reasoner import build_reference_matches
 
 
 def _grade_from_reference(score):
-    """Use the loaded board_grade reference sheet as the grading authority."""
     rules = get_knowledge().get("board_grade", [])
     for rule in rules:
         score_range = rule.get("score_range", [])
@@ -26,7 +25,6 @@ def _grade_from_reference(score):
                 "recovery_signals": rule.get("recovery_signals", []),
                 "grade_notes": rule.get("notes", ""),
             }
-
     if score >= 22:
         return {"grade": "VERY HIGH", "recommendation": "Separate immediately and store securely.", "pay_dirt_ready": True, "recovery_signals": ["high precious metal potential"], "grade_notes": "Premium recovery candidate."}
     if score >= 16:
@@ -34,6 +32,46 @@ def _grade_from_reference(score):
     if score >= 9:
         return {"grade": "MEDIUM", "recommendation": "Sort into medium-grade categories.", "pay_dirt_ready": False, "recovery_signals": ["moderate recovery value"], "grade_notes": "Average recovery category."}
     return {"grade": "LOW", "recommendation": "Recover copper, aluminum, transformers, or bulk shred value.", "pay_dirt_ready": False, "recovery_signals": ["limited precious metal recovery"], "grade_notes": "Low-value or mixed recovery material."}
+
+
+def _agreement(simple_type, top_hypothesis):
+    if not top_hypothesis:
+        return {
+            "status": "insufficient_evidence",
+            "message": "Weighted reasoner did not produce a strong competing hypothesis.",
+        }
+
+    weighted_type = top_hypothesis.get("type", "Unknown")
+    simple_lower = simple_type.lower()
+    weighted_lower = weighted_type.lower()
+
+    keyword_groups = [
+        ("ram", "memory"),
+        ("power", "supply"),
+        ("motherboard", "logic"),
+        ("telecom", "network"),
+        ("expansion", "gold finger"),
+        ("processor",),
+        ("server", "enterprise"),
+    ]
+
+    agrees = any(
+        any(word in simple_lower for word in group)
+        and any(word in weighted_lower for word in group)
+        for group in keyword_groups
+    )
+
+    return {
+        "status": "agree" if agrees else "review",
+        "simple_classifier": simple_type,
+        "weighted_hypothesis": weighted_type,
+        "weighted_confidence": top_hypothesis.get("hypothesis_confidence", 0),
+        "message": (
+            "Independent classifiers agree on the same broad board family."
+            if agrees
+            else "Independent classifiers disagree; keep the result conservative and review the evidence."
+        ),
+    }
 
 
 def analyze_board(image_path):
@@ -60,6 +98,10 @@ def analyze_board(image_path):
     reference_intelligence = build_reference_matches(
         features, visual, motherboard, power, board_type
     )
+    reasoning_crosscheck = _agreement(
+        board_type["type"],
+        reference_intelligence.get("top_hypothesis"),
+    )
 
     confidence = calculate_confidence(
         score,
@@ -69,12 +111,18 @@ def analyze_board(image_path):
         power=power,
     )
 
+    # If two independent reasoning paths disagree, lower certainty rather than
+    # pretending the disagreement does not exist.
+    if reasoning_crosscheck["status"] == "review":
+        confidence = max(25, confidence - 10)
+
     result = {
         "grade": grade_result["grade"],
         "confidence": confidence,
         "score": score,
         "board_type": board_type["type"],
         "board_type_reason": board_type["reason"],
+        "reasoning_crosscheck": reasoning_crosscheck,
         "pay_dirt_ready": grade_result["pay_dirt_ready"],
         "recommendation": grade_result["recommendation"],
         "recovery_signals": grade_result["recovery_signals"],
@@ -103,7 +151,7 @@ def analyze_board(image_path):
             "large_component_regions": power.get("large_component_regions", 0),
             "power_score": power.get("power_score", 0),
         },
-        "model": "Board Sense v1.2",
+        "model": "Board Sense v1.3",
     }
 
     insight_engine = BoardInsight()
