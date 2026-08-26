@@ -1,0 +1,16 @@
+{
+  "lab": "Relay & Contact Lab",
+  "version": "0.1",
+  "scope": "mechanical identification, contact segregation, and value comparison",
+  "workflow": [
+    {"step": 1, "title": "Identify assembly", "instruction": "Confirm relay, contactor, switchgear, or contact-bearing component and document it intact."},
+    {"step": 2, "title": "Check resale/whole value", "instruction": "Compare intact component value before dismantling, especially for industrial or specialty parts."},
+    {"step": 3, "title": "Open mechanically", "instruction": "When economically justified, use appropriate hand tools to expose contacts without heating, burning, or grinding unknown materials."},
+    {"step": 4, "title": "Separate fractions", "instruction": "Keep contact tips, copper, brass, steel, coils, and plastic housings separated and labeled."},
+    {"step": 5, "title": "Treat contact alloy as unknown", "instruction": "Do not assume a silver-colored contact is pure silver. Record source and route uncertain alloys for testing or professional assay."},
+    {"step": 6, "title": "Weigh and compare", "instruction": "Record separated contact weight and compare specialty buyer/refinery terms with the intact-item value."},
+    {"step": 7, "title": "Time-value check", "instruction": "Use Worth My Time? before repeating the process across a batch."}
+  ],
+  "hazard_policy": "Unknown contact alloys may contain hazardous metals. Avoid dust-producing or thermal processing and use appropriate professional testing/refining routes.",
+  "price_source": "Scrap Radar"
+}
