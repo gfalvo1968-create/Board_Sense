@@ -1,0 +1,13 @@
+{
+  "lab":"Aluminum Lab","version":"0.1","scope":"mechanical identification, grade separation, and sale comparison",
+  "workflow":[
+    {"step":1,"title":"Identify source","instruction":"Record whether aluminum comes from heat sinks, housings, castings, sheet, wire, radiators, or mixed assemblies."},
+    {"step":2,"title":"Check attachments","instruction":"Inspect for steel screws, copper tubing, plastic, thermal pads, and other contamination that can change buyer grade."},
+    {"step":3,"title":"Separate grades","instruction":"Keep clean extrusion, cast, sheet, aluminum wire, heat sinks, and mixed/dirty aluminum separate where buyer categories justify it."},
+    {"step":4,"title":"Remove easy contamination","instruction":"Mechanically remove accessible steel, plastic, or copper attachments only when the grade improvement exceeds the labor cost."},
+    {"step":5,"title":"Weigh fractions","instruction":"Record clean and mixed weights separately for Scrap Radar pricing and yield comparison."},
+    {"step":6,"title":"Time-value check","instruction":"Compare upgraded grade value with labor minutes before repeating the cleaning process across a batch."}
+  ],
+  "stop_conditions":["sealed or pressurized unknown component","unsafe cutting position","unknown material or coating"],
+  "price_source":"Scrap Radar"
+}
