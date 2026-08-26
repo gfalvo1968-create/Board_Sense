@@ -1,0 +1,9 @@
+{
+  "lab": "Copper Lab",
+  "material": "copper",
+  "workflow_types": ["sort", "strip", "separate", "sell_whole_compare"],
+  "common_sources": ["wire", "transformer windings", "bus bars", "board traces", "motors"],
+  "price_source": "Scrap Radar",
+  "status": "starter",
+  "notes": "Detailed mechanical sorting and separation guidance belongs here."
+}
