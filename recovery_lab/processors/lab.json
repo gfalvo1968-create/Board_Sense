@@ -1,0 +1,1 @@
+{"lab":"Processor Lab","material":"mixed_precious","workflow_types":["identify","grade_package","mechanically_sort","refinery_route","sell_whole_compare"],"common_sources":["CPUs","BGAs","ceramic packages"],"price_source":"Scrap Radar","status":"starter","notes":"Package identification, mechanical sorting, and refinery-vs-sale economics belong here."}
