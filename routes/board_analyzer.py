@@ -27,8 +27,13 @@ def analyze_board(image_path):
     # Calculate score
     score = calculate_score(features)
 
-    # Calculate confidence
-    confidence = calculate_confidence(score)
+    # Calculate confidence from the score plus corroborating detector evidence
+    confidence = calculate_confidence(
+        score,
+        features=features,
+        visual=visual,
+        motherboard=motherboard,
+    )
 
     # Grade and recommendation
     if score >= 10:
