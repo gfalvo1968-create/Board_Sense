@@ -1,12 +1,19 @@
 # routes/board_confidence.py
 
 
-def calculate_confidence(score, features=None, visual=None, motherboard=None):
+def calculate_confidence(
+    score,
+    features=None,
+    visual=None,
+    motherboard=None,
+    power=None,
+):
     """Estimate confidence from score plus corroborating evidence."""
 
     features = features or {}
     visual = visual or {}
     motherboard = motherboard or {}
+    power = power or {}
 
     if score >= 10:
         confidence = 78
@@ -23,6 +30,7 @@ def calculate_confidence(score, features=None, visual=None, motherboard=None):
             features.get("motherboard", False),
             features.get("ram", False),
             features.get("memory_module", False),
+            features.get("power_board", False),
             features.get("gold_fingers", False),
             features.get("large_ic_chips", False),
             features.get("dense_component_board", False),
@@ -32,13 +40,13 @@ def calculate_confidence(score, features=None, visual=None, motherboard=None):
             visual.get("possible_large_ic_chips", False),
             motherboard.get("possible_motherboard", False),
             motherboard.get("large_board", False),
+            power.get("possible_power_board", False),
         )
         if value
     )
 
     confidence += min(positive_signals * 3, 18)
 
-    # Reward agreement between independent detectors.
     if features.get("ram") and visual.get("possible_ram"):
         confidence += 5
 
@@ -51,7 +59,9 @@ def calculate_confidence(score, features=None, visual=None, motherboard=None):
     if features.get("large_ic_chips") and visual.get("possible_large_ic_chips"):
         confidence += 4
 
-    # Strong component counts provide extra support without deciding grade alone.
+    if features.get("power_board") and power.get("possible_power_board"):
+        confidence += 5
+
     component_count = int(features.get("component_count", 0) or 0)
     if component_count >= 8:
         confidence += 3
