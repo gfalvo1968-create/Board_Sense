@@ -15,10 +15,6 @@ from routes.reference_loader import load_reference_data
 
 app = FastAPI(title="Board Sense")
 
-# The Scrap Radar Island is served by GitHub Pages, while Board Sense runs on
-# its own API domain. Explicit CORS permission lets the Island dashboard call
-# /analyze and /market-intelligence from the browser without opening the API to
-# arbitrary web origins.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -37,19 +33,16 @@ def startup_event():
 
 
 BASE_DIR = Path(__file__).resolve().parent
-
 STATIC_DIR = BASE_DIR / "Static"
 DATA_DIR = BASE_DIR / "data"
 IMAGE_DIR = DATA_DIR / "Images"
+BLUEPRINT_DIR = DATA_DIR / "Blueprints"
 
 IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+BLUEPRINT_DIR.mkdir(parents=True, exist_ok=True)
 
-
-app.mount(
-    "/Static",
-    StaticFiles(directory=STATIC_DIR),
-    name="Static"
-)
+app.mount("/Static", StaticFiles(directory=STATIC_DIR), name="Static")
+app.mount("/blueprints", StaticFiles(directory=BLUEPRINT_DIR), name="blueprints")
 
 app.include_router(grade_router)
 app.include_router(irm_router)
@@ -68,23 +61,15 @@ def ecosystem_data():
 
 @app.post("/analyze")
 async def analyze_board_route(file: UploadFile = File(...)):
-
     file_path = IMAGE_DIR / file.filename
-
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
     result = analyze_board(str(file_path))
-
     result["status"] = "success"
     result["board"] = file.filename
-
     return result
 
 
 if __name__ == "__main__":
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=8080
-    )
+    uvicorn.run(app, host="0.0.0.0", port=8080)
