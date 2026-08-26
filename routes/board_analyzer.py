@@ -12,7 +12,7 @@ def analyze_board(image_path):
     visual = detect_visual_features(image_path)
     motherboard = detect_motherboard(image_path)
 
-    # Improve feature detection with evidence from the image itself.
+    # Merge independent visual evidence into the shared feature set.
     if visual.get("possible_ram", False):
         features["ram"] = True
         features["memory_module"] = True
@@ -26,10 +26,8 @@ def analyze_board(image_path):
     if motherboard.get("possible_motherboard", False):
         features["motherboard"] = True
 
-    # Calculate score
     score = calculate_score(features)
 
-    # Calculate confidence from the score plus corroborating detector evidence
     confidence = calculate_confidence(
         score,
         features=features,
@@ -37,23 +35,19 @@ def analyze_board(image_path):
         motherboard=motherboard,
     )
 
-    # Grade and recommendation
     if score >= 10:
         grade = "HIGH"
         recommendation = "High value recovery candidate."
         pay_dirt_ready = True
-
     elif score >= 5:
         grade = "MEDIUM"
         recommendation = "Worth separating for recovery."
         pay_dirt_ready = False
-
     else:
         grade = "LOW"
         recommendation = "Low value board."
         pay_dirt_ready = False
 
-    # Build final result
     result = {
         "grade": grade,
         "confidence": confidence,
@@ -68,6 +62,10 @@ def analyze_board(image_path):
             "power_board": features.get("power_board", False),
             "gold_fingers": features.get("gold_fingers", False),
             "large_ic_chips": features.get("large_ic_chips", False),
+            "dense_component_board": features.get("dense_component_board", False),
+            "processor": features.get("processor", False),
+            "component_count": features.get("component_count", 0),
+            "component_density": features.get("component_density", 0.0),
             "possible_ram": visual.get("possible_ram", False),
             "gold_finger_edge": visual.get("gold_finger_edge", False),
             "possible_large_ic_chips": visual.get(
@@ -78,12 +76,10 @@ def analyze_board(image_path):
             ),
             "large_board": motherboard.get("large_board", False),
         },
-        "model": "Board Sense v0.8",
+        "model": "Board Sense v0.9",
     }
 
-    # Generate insight
     insight_engine = BoardInsight()
     result["insight"] = insight_engine.generate(result)
 
     return result
-
