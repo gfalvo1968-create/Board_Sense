@@ -1,0 +1,22 @@
+{
+  "lab": "RAM Lab",
+  "version": "0.1",
+  "scope": "mechanical sorting and value comparison",
+  "identify": [
+    "Confirm long narrow memory-module geometry and edge contacts.",
+    "Use Spike Glass evidence to distinguish RAM from other edge-card boards.",
+    "Record module type and visible contact/IC condition before altering it."
+  ],
+  "workflow": [
+    {"step": 1, "title": "Grade whole module", "instruction": "Photograph and grade the RAM module intact before removing anything."},
+    {"step": 2, "title": "Sort by family", "instruction": "Keep server, desktop, laptop, older specialty, and unusually dense modules separated when identifiable."},
+    {"step": 3, "title": "Inspect edge contacts", "instruction": "Check whether the contact fingers are intact, worn, contaminated, or already trimmed."},
+    {"step": 4, "title": "Inspect IC population", "instruction": "Record chip count, package style, and board density for Board Sense reference comparison."},
+    {"step": 5, "title": "Compare sale paths", "instruction": "Compare intact RAM-board value with any buyer price for trimmed fingers or separated board fractions before cutting."},
+    {"step": 6, "title": "Mechanical separation only when justified", "instruction": "If the value comparison supports separation, keep finger material, remaining PCB, and removed hardware in distinct labeled fractions."},
+    {"step": 7, "title": "Time-value check", "instruction": "Use Worth My Time? to compare the added recovery value against labor minutes."}
+  ],
+  "stop_conditions": ["module may have collectible/resale value", "buyer pays premium for intact RAM", "material identification is uncertain"],
+  "refining_note": "Precious-metal refining is a separate controlled process. RAM Lab provides identification, sorting, mechanical separation, and refinery-routing guidance rather than hazardous chemical recipes.",
+  "price_source": "Scrap Radar"
+}
