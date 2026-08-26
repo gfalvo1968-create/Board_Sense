@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 import shutil
 import uvicorn
@@ -13,6 +14,21 @@ from routes.market_bridge import router as market_router
 from routes.reference_loader import load_reference_data
 
 app = FastAPI(title="Board Sense")
+
+# The Scrap Radar Island is served by GitHub Pages, while Board Sense runs on
+# its own API domain. Explicit CORS permission lets the Island dashboard call
+# /analyze and /market-intelligence from the browser without opening the API to
+# arbitrary web origins.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://gfalvo1968-create.github.io",
+        "https://boardsense.scrapradarfamily.com",
+    ],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")
