@@ -57,19 +57,19 @@ class BoardInsight:
     def _confidence_reason(self, analysis: Dict) -> str:
         confidence = analysis.get("confidence", 0)
 
-        if confidence >= 0.90:
+        if confidence >= 90:
             return (
                 "High confidence based on multiple visual "
                 "and feature indicators."
             )
 
-        if confidence >= 0.75:
+        if confidence >= 75:
             return (
                 "Good confidence based on several matching "
                 "board characteristics."
             )
 
-        if confidence >= 0.50:
+        if confidence >= 50:
             return (
                 "Moderate confidence. Additional images "
                 "could improve accuracy."
