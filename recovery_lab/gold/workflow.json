@@ -1,0 +1,14 @@
+{
+  "lab":"Gold Lab","version":"0.1","scope":"gold-bearing material identification, segregation, valuation, and professional refinery routing",
+  "workflow":[
+    {"step":1,"title":"Identify source","instruction":"Record whether suspected gold-bearing material comes from connectors, fingers, processors, pins, plated hardware, jewelry, or another source."},
+    {"step":2,"title":"Do not grade by color","instruction":"Gold-colored material is not proof of gold content. Preserve source, markings, and Board Sense evidence until testing or buyer/refinery grading confirms value."},
+    {"step":3,"title":"Keep categories separate","instruction":"Separate gold fingers, processors, connector pins, plated hardware, jewelry-grade material, and unknown lots rather than mixing unlike feedstock."},
+    {"step":4,"title":"Record weight and condition","instruction":"Weigh clean lots and document contamination, base material, plating condition, and known grade information."},
+    {"step":5,"title":"Compare intact and recovered value","instruction":"Check specialty e-scrap, collectible/resale, and professional refinery paths before destructive processing."},
+    {"step":6,"title":"Route for testing/refining","instruction":"Use appropriate professional assay/refinery services when actual precious-metal content determines payout."},
+    {"step":7,"title":"Time-value check","instruction":"Compare sorting or safe mechanical preparation labor against the expected increase in buyer/refinery value."}
+  ],
+  "hazard_policy":"Gold chemical recovery can involve corrosive reagents, toxic gases, and hazardous waste. This lab provides identification, sorting, valuation, and professional refinery-routing guidance rather than uncontrolled chemical recipes.",
+  "price_source":"Scrap Radar"
+}
