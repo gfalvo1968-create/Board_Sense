@@ -1,0 +1,21 @@
+{
+  "lab": "Gold Finger Lab",
+  "version": "0.1",
+  "scope": "identification, mechanical segregation, and refinery routing",
+  "identify": [
+    "Confirm the material is an edge-contact finger section rather than decorative gold-colored metal.",
+    "Record source board type because plating and buyer categories vary by source.",
+    "Use Spike Glass and Board Sense confidence as supporting evidence, not as an assay."
+  ],
+  "workflow": [
+    {"step": 1, "title": "Document intact value", "instruction": "Check whether the complete RAM/card/board has a better buyer category before trimming fingers."},
+    {"step": 2, "title": "Sort sources", "instruction": "Keep RAM fingers, expansion-card fingers, telecom/server material, and unknown edge contacts separated where practical."},
+    {"step": 3, "title": "Inspect contamination", "instruction": "Note solder, steel hardware, excess fiberglass, dirt, and mixed connector material that may affect buyer grade."},
+    {"step": 4, "title": "Mechanical segregation", "instruction": "When separation is economically justified, segregate the finger-bearing section without burning the board or creating unnecessary dust."},
+    {"step": 5, "title": "Label and weigh", "instruction": "Keep each grade/source in a labeled container and record net weight for price comparison."},
+    {"step": 6, "title": "Choose sale/refinery path", "instruction": "Compare specialty e-scrap buyer pricing with professional refinery terms and minimum lot requirements."},
+    {"step": 7, "title": "Time-value check", "instruction": "Compare added value from segregation against labor time before processing the rest of the batch."}
+  ],
+  "hazard_policy": "No burning and no garage-scale chemical refining instructions. Chemical recovery requires appropriate professional controls and waste handling.",
+  "price_source": "Scrap Radar"
+}
