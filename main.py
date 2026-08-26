@@ -9,6 +9,7 @@ from ecosystem import get_ecosystem
 from routes.board_analyzer import analyze_board
 from routes.grade import router as grade_router
 from routes.irm_core import router as irm_router
+from routes.market_bridge import router as market_router
 from routes.reference_loader import load_reference_data
 
 app = FastAPI(title="Board Sense")
@@ -36,6 +37,7 @@ app.mount(
 
 app.include_router(grade_router)
 app.include_router(irm_router)
+app.include_router(market_router)
 
 
 @app.get("/")
