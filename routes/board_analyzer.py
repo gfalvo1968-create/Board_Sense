@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from routes.board_features import detect_board_features
 from routes.board_visual import detect_visual_features
 from routes.board_scoring import calculate_score
@@ -11,6 +13,7 @@ from routes.reference_reasoner import build_reference_matches
 from routes.component_discriminator import discriminate_components
 from routes.spike_glass import recognize as spike_glass_recognize
 from routes.photo_quality import assess_photo_quality
+from routes.board_blueprint import generate_blueprint
 from recovery_lab.core.recovery_engine import build_recovery_plan
 
 
@@ -100,6 +103,11 @@ def analyze_board(image_path):
     if not photo_quality.get("usable", False):
         confidence = max(20, min(confidence, 50))
 
+    blueprint_dir = Path(image_path).resolve().parent.parent / "Blueprints"
+    blueprint = generate_blueprint(image_path, components.get("regions", []), blueprint_dir)
+    if blueprint.get("available"):
+        blueprint["image_url"] = "/blueprints/" + blueprint["image_filename"]
+
     result = {
         "grade": grade_result["grade"],
         "confidence": confidence,
@@ -109,6 +117,7 @@ def analyze_board(image_path):
         "reasoning_crosscheck": reasoning_crosscheck,
         "photo_quality": photo_quality,
         "spike_glass": spike_glass,
+        "board_blueprint": blueprint,
         "pay_dirt_ready": grade_result["pay_dirt_ready"],
         "recommendation": grade_result["recommendation"],
         "recovery_signals": grade_result["recovery_signals"],
@@ -139,7 +148,7 @@ def analyze_board(image_path):
             "large_component_regions": power.get("large_component_regions", 0),
             "power_score": power.get("power_score", 0),
         },
-        "model": "Board Sense v1.7 + Spike Glass v0.2 + Recovery Lab v0.1",
+        "model": "Board Sense v1.8 + Spike Glass v0.2 + Recovery Lab v0.1 + Board Blueprint v0.1",
     }
 
     result["recovery_lab"] = build_recovery_plan(spike_glass, result)
