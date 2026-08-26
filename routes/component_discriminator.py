@@ -5,9 +5,9 @@ component silhouettes so dark/large parts are not automatically treated as ICs.
 It also preserves candidate coordinates so Board Blueprint can show users where
 the detected evidence appears on their actual uploaded board photo.
 
-v0.3 adds a board-region mask and a much stricter round-component filter so
-solder pads, holes, blanket/background texture, and printed circles are not all
-promoted to capacitors.
+v0.4 adds plated/contact-pad discrimination. Flat gold circular pads are now
+kept separate from capacitor evidence so keypad/contact boards do not look like
+power-supply boards simply because they contain many round gold features.
 """
 
 import cv2
@@ -20,7 +20,6 @@ def _board_mask(image):
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-    # Prefer common green PCB solder mask when it occupies a meaningful area.
     green = cv2.inRange(hsv, np.array([28, 38, 24]), np.array([105, 255, 250]))
     green = cv2.morphologyEx(green, cv2.MORPH_CLOSE, np.ones((11, 11), np.uint8))
     green = cv2.morphologyEx(green, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
@@ -28,7 +27,6 @@ def _board_mask(image):
         contours, _ = cv2.findContours(green, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if contours:
             mask = np.zeros((h, w), dtype=np.uint8)
-            # Keep substantial green regions; components may split the board surface.
             for c in contours:
                 if cv2.contourArea(c) >= h * w * 0.01:
                     cv2.drawContours(mask, [c], -1, 255, -1)
@@ -36,7 +34,6 @@ def _board_mask(image):
             if cv2.countNonZero(mask) / max(h * w, 1) >= 0.08:
                 return mask
 
-    # Fallback: estimate foreground from the border background tone.
     band_h = max(2, h // 20)
     band_w = max(2, w // 20)
     border = np.concatenate([
@@ -63,22 +60,31 @@ def _inside(mask, cx, cy, radius=0):
         return False
     if radius <= 1:
         return True
-    # Require most cardinal points of the candidate to stay on the board.
     points = [
         (cx + radius, cy), (cx - radius, cy),
         (cx, cy + radius), (cx, cy - radius),
     ]
     good = 0
     for x, y in points:
-        x = min(w - 1, max(0, x)); y = min(h - 1, max(0, y))
+        x = min(w - 1, max(0, x))
+        y = min(h - 1, max(0, y))
         good += 1 if mask[y, x] else 0
     return good >= 3
+
+
+def _gold_ratio(hsv_roi):
+    """Estimate how much of a region looks like exposed gold/copper contact metal."""
+    if hsv_roi.size == 0:
+        return 0.0
+    gold = cv2.inRange(hsv_roi, np.array([7, 55, 55]), np.array([38, 255, 255]))
+    return float(cv2.countNonZero(gold) / max(gold.size, 1))
 
 
 def discriminate_components(image_path):
     result = {
         "ic_like": 0,
         "capacitor_like": 0,
+        "contact_pad_like": 0,
         "transformer_relay_like": 0,
         "small_component_like": 0,
         "dominant_family": "unknown",
@@ -107,7 +113,6 @@ def discriminate_components(image_path):
             height, width = image.shape[:2]
 
         inv_scale = 1.0 / scale
-        image_area = max(width * height, 1)
         board_mask = _board_mask(image)
         board_area = max(cv2.countNonZero(board_mask), 1)
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -158,9 +163,6 @@ def discriminate_components(image_path):
                     "confidence": confidence,
                 })
 
-        # Round-component pass. Hough circles alone are too permissive on PCBs,
-        # so candidates must be on the board, reasonably sized, and have local
-        # edge/contrast evidence consistent with a physical cylindrical part.
         circle_blur = cv2.GaussianBlur(gray, (11, 11), 1.8)
         min_radius = max(8, int(min(width, height) * 0.016))
         max_radius = max(min_radius + 2, int(min(width, height) * 0.075))
@@ -174,33 +176,49 @@ def discriminate_components(image_path):
             maxRadius=max_radius,
         )
 
-        accepted_circles = []
+        capacitor_candidates = []
+        contact_candidates = []
         edges = cv2.Canny(circle_blur, 70, 170)
         saturation = hsv[:, :, 1]
+
         if circles is not None:
             for cx, cy, radius in np.round(circles[0]).astype(int):
                 if not _inside(board_mask, cx, cy, max(2, int(radius * 0.8))):
                     continue
+
                 x1, y1 = max(0, cx-radius), max(0, cy-radius)
                 x2, y2 = min(width, cx+radius+1), min(height, cy+radius+1)
                 roi_edges = edges[y1:y2, x1:x2]
                 roi_sat = saturation[y1:y2, x1:x2]
+                roi_hsv = hsv[y1:y2, x1:x2]
                 if roi_edges.size == 0:
                     continue
+
                 edge_density = cv2.countNonZero(roi_edges) / roi_edges.size
                 mean_sat = float(np.mean(roi_sat)) if roi_sat.size else 0.0
-                # Reject smooth printed circles/holes and weak background texture.
+                gold_ratio = _gold_ratio(roi_hsv)
+
                 if edge_density < 0.075:
                     continue
                 if edge_density < 0.11 and mean_sat < 28:
                     continue
-                accepted_circles.append((cx, cy, radius, edge_density))
 
-        # Extra safety valve: a real whole board can have many capacitors, but
-        # hundreds of accepted Hough circles is still diagnostic of false positives.
-        accepted_circles = sorted(accepted_circles, key=lambda c: c[2], reverse=True)[:40]
-        capacitor_like = len(accepted_circles)
-        for cx, cy, radius, edge_density in accepted_circles:
+                # Flat keypad/contact pads are commonly gold/copper colored across
+                # much of the circle. Preserve them as useful recovery evidence but
+                # never let them inflate the capacitor/power-board count.
+                if gold_ratio >= 0.24 and mean_sat >= 45:
+                    contact_candidates.append((cx, cy, radius, edge_density, gold_ratio))
+                    continue
+
+                capacitor_candidates.append((cx, cy, radius, edge_density))
+
+        capacitor_candidates = sorted(capacitor_candidates, key=lambda c: c[2], reverse=True)[:24]
+        contact_candidates = sorted(contact_candidates, key=lambda c: c[2], reverse=True)[:32]
+
+        capacitor_like = len(capacitor_candidates)
+        contact_pad_like = len(contact_candidates)
+
+        for cx, cy, radius, edge_density in capacitor_candidates:
             confidence = min(88, int(55 + edge_density * 170))
             regions.append({
                 "type": "Capacitor-like round component",
@@ -211,8 +229,20 @@ def discriminate_components(image_path):
                 "confidence": confidence,
             })
 
+        for cx, cy, radius, edge_density, gold_ratio in contact_candidates:
+            confidence = min(94, int(62 + gold_ratio * 55 + edge_density * 45))
+            regions.append({
+                "type": "Plated contact / keypad pad",
+                "x": int((cx - radius) * inv_scale),
+                "y": int((cy - radius) * inv_scale),
+                "w": int(radius * 2 * inv_scale),
+                "h": int(radius * 2 * inv_scale),
+                "confidence": confidence,
+            })
+
         result["ic_like"] = ic_like
         result["capacitor_like"] = capacitor_like
+        result["contact_pad_like"] = contact_pad_like
         result["transformer_relay_like"] = block_like
         result["small_component_like"] = small_like
         result["regions"] = sorted(
@@ -237,7 +267,9 @@ def discriminate_components(image_path):
 
         result["notes"].append("Component candidates are filtered to the estimated PCB/foreground region.")
         if capacitor_like:
-            result["notes"].append(f"Accepted {capacitor_like} round-component candidates after stricter filtering.")
+            result["notes"].append(f"Accepted {capacitor_like} capacitor-like candidates after stricter filtering.")
+        if contact_pad_like:
+            result["notes"].append(f"Separated {contact_pad_like} plated/contact-pad candidates from capacitor evidence.")
 
     except Exception as exc:
         print(f"[Component Discriminator Error] {exc}")
