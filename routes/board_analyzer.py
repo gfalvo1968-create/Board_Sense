@@ -14,6 +14,7 @@ from routes.component_discriminator import discriminate_components
 from routes.spike_glass import recognize as spike_glass_recognize
 from routes.photo_quality import assess_photo_quality
 from routes.board_blueprint import generate_blueprint
+from routes.object_gate import classify_object
 from recovery_lab.core.recovery_engine import build_recovery_plan
 
 
@@ -58,8 +59,87 @@ def _agreement(simple_type, top_hypothesis):
     }
 
 
+def _non_board_result(object_gate, photo_quality):
+    """Return a safe result shape without invoking board-specific classifiers."""
+    mode = object_gate.get("mode", "unknown")
+    label = object_gate.get("label", "Unknown object")
+    confidence = int(object_gate.get("confidence", 35))
+
+    if mode == "component":
+        recommendation = "Keep the item intact, identify the component family, and accumulate similar modules before assigning recovery value."
+        signals = ["component-level inspection recommended", "whole-board grade not applicable"]
+        reason = object_gate.get("message", "Component mode selected.")
+    else:
+        recommendation = "Retake the photo or use Spike Glass for a closer component view before assigning a board grade."
+        signals = ["insufficient board evidence"]
+        reason = object_gate.get("message", "Object could not be classified safely.")
+
+    spike = {
+        "status": "object_gate",
+        "confidence": confidence,
+        "top_match": {
+            "label": label,
+            "evidence": object_gate.get("evidence", []),
+            "action": recommendation,
+        },
+    }
+
+    return {
+        "grade": "N/A",
+        "confidence": confidence,
+        "score": 0,
+        "board_type": label,
+        "board_type_reason": reason,
+        "object_gate": object_gate,
+        "reasoning_crosscheck": {
+            "status": "not_board" if mode == "component" else "insufficient_evidence",
+            "message": "Object Gate stopped the board classifiers because this image does not have enough evidence to be treated as a whole PCB.",
+        },
+        "photo_quality": photo_quality,
+        "spike_glass": spike,
+        "board_blueprint": {
+            "available": False,
+            "message": "Board Blueprint is reserved for confirmed whole-board scans. Use component mode for this item.",
+            "component_index": [],
+        },
+        "pay_dirt_ready": False,
+        "recommendation": recommendation,
+        "recovery_signals": signals,
+        "grade_notes": "Whole-board grading intentionally skipped by Object Gate.",
+        "reference_intelligence": {
+            "matches": [],
+            "hypotheses": [],
+            "top_hypothesis": None,
+        },
+        "component_intelligence": {},
+        "features": {},
+        "visual": {},
+        "power": {},
+        "signals": {},
+        "recovery_lab": {
+            "labs": [],
+            "risk": {"level": "unclassified"},
+            "economics": {},
+            "decision_options": ["IDENTIFY COMPONENT", "ACCUMULATE SIMILAR ITEMS", "MANUAL REVIEW"],
+            "note": "Board-specific recovery routing is disabled until the object is confirmed as a whole PCB.",
+        },
+        "insight": {
+            "summary": reason,
+            "recommendation": recommendation,
+        },
+        "model": "Board Sense v1.9 + Object Gate v0.1 + Spike Glass v0.2 + Recovery Lab v0.1 + Board Blueprint v0.1",
+    }
+
+
 def analyze_board(image_path):
     photo_quality = assess_photo_quality(image_path)
+    object_gate = classify_object(image_path)
+
+    # Critical safety/accuracy gate: do not let a loose camera module, connector,
+    # random object, or uncertain image enter the motherboard/power-board Jury.
+    if object_gate.get("mode") != "board":
+        return _non_board_result(object_gate, photo_quality)
+
     features = detect_board_features(image_path)
     visual = detect_visual_features(image_path)
     motherboard = detect_motherboard(image_path)
@@ -114,6 +194,7 @@ def analyze_board(image_path):
         "score": score,
         "board_type": board_type["type"],
         "board_type_reason": board_type["reason"],
+        "object_gate": object_gate,
         "reasoning_crosscheck": reasoning_crosscheck,
         "photo_quality": photo_quality,
         "spike_glass": spike_glass,
@@ -148,7 +229,7 @@ def analyze_board(image_path):
             "large_component_regions": power.get("large_component_regions", 0),
             "power_score": power.get("power_score", 0),
         },
-        "model": "Board Sense v1.8 + Spike Glass v0.2 + Recovery Lab v0.1 + Board Blueprint v0.1",
+        "model": "Board Sense v1.9 + Object Gate v0.1 + Spike Glass v0.2 + Recovery Lab v0.1 + Board Blueprint v0.1",
     }
 
     result["recovery_lab"] = build_recovery_plan(spike_glass, result)
