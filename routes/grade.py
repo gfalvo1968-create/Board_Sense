@@ -28,9 +28,7 @@ async def upload_board(file: UploadFile = File(...)):
         )
 
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-
     safe_name = f"{timestamp}_{Path(file.filename).name}"
-
     file_path = IMAGE_DIR / safe_name
 
     with file_path.open("wb") as buffer:
@@ -44,11 +42,14 @@ async def upload_board(file: UploadFile = File(...)):
         "image_url": f"/data/Images/{safe_name}",
         "ai_grade": ai_result.get("grade", "UNKNOWN"),
         "confidence": ai_result.get("confidence", 0),
-        "signals": ai_result.get("signals", []),
+        "board_type": ai_result.get("board_type", "General PCB"),
+        "board_type_reason": ai_result.get("board_type_reason", ""),
+        "signals": ai_result.get("signals", {}),
         "score": ai_result.get("score", 0),
-        "jackpot": ai_result.get("jackpot", False),
         "recommendation": ai_result.get("recommendation", "Manual review required."),
         "pay_dirt_ready": ai_result.get("pay_dirt_ready", False),
         "features": ai_result.get("features", {}),
+        "power": ai_result.get("power", {}),
+        "insight": ai_result.get("insight", {}),
         "model": ai_result.get("model", "Board Sense AI")
     }
