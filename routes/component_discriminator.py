@@ -2,6 +2,8 @@
 
 This is a heuristic layer, not exact part identification. It separates common
 component silhouettes so dark/large parts are not automatically treated as ICs.
+It also preserves candidate coordinates so Board Blueprint can show users where
+the detected evidence appears on their actual uploaded board photo.
 """
 
 import cv2
@@ -17,6 +19,7 @@ def discriminate_components(image_path):
         "dominant_family": "unknown",
         "logic_component_ratio": 0.0,
         "power_component_ratio": 0.0,
+        "regions": [],
         "notes": [],
     }
 
@@ -25,7 +28,9 @@ def discriminate_components(image_path):
         if image is None:
             return result
 
-        height, width = image.shape[:2]
+        original_height, original_width = image.shape[:2]
+        height, width = original_height, original_width
+        scale = 1.0
         max_side = max(width, height)
         if max_side > 1400:
             scale = 1400.0 / max_side
@@ -36,12 +41,11 @@ def discriminate_components(image_path):
             )
             height, width = image.shape[:2]
 
+        inv_scale = 1.0 / scale
         image_area = max(width * height, 1)
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         blur = cv2.GaussianBlur(gray, (5, 5), 0)
 
-        # Dark package candidates. Rectangularity and size help separate likely
-        # IC packages from large blocks and tiny passive components.
         _, dark = cv2.threshold(blur, 78, 255, cv2.THRESH_BINARY_INV)
         dark = cv2.morphologyEx(dark, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
         contours, _ = cv2.findContours(dark, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -49,6 +53,7 @@ def discriminate_components(image_path):
         ic_like = 0
         block_like = 0
         small_like = 0
+        regions = []
 
         for contour in contours:
             area = cv2.contourArea(contour)
@@ -60,14 +65,29 @@ def discriminate_components(image_path):
             rectangularity = area / rect_area
             aspect = max(w, h) / max(min(w, h), 1)
 
+            region_type = None
+            confidence = 0
             if 0.001 <= area_ratio <= 0.045 and rectangularity >= 0.62 and aspect <= 4.5:
                 ic_like += 1
+                region_type = "IC-like package"
+                confidence = min(95, int(65 + rectangularity * 25))
             elif 0.008 <= area_ratio <= 0.16 and rectangularity >= 0.48:
                 block_like += 1
+                region_type = "Power block / transformer / relay-like"
+                confidence = min(90, int(55 + rectangularity * 25))
             elif 0.00008 <= area_ratio < 0.001:
                 small_like += 1
 
-        # Cylindrical electrolytic capacitors often appear circular from above.
+            if region_type:
+                regions.append({
+                    "type": region_type,
+                    "x": int(x * inv_scale),
+                    "y": int(y * inv_scale),
+                    "w": int(w * inv_scale),
+                    "h": int(h * inv_scale),
+                    "confidence": confidence,
+                })
+
         circle_blur = cv2.GaussianBlur(gray, (9, 9), 1.5)
         min_radius = max(6, int(min(width, height) * 0.012))
         max_radius = max(min_radius + 2, int(min(width, height) * 0.10))
@@ -82,11 +102,26 @@ def discriminate_components(image_path):
             maxRadius=max_radius,
         )
         capacitor_like = 0 if circles is None else int(len(circles[0]))
+        if circles is not None:
+            for cx, cy, radius in np.round(circles[0]).astype(int):
+                regions.append({
+                    "type": "Capacitor-like round component",
+                    "x": int((cx - radius) * inv_scale),
+                    "y": int((cy - radius) * inv_scale),
+                    "w": int(radius * 2 * inv_scale),
+                    "h": int(radius * 2 * inv_scale),
+                    "confidence": 70,
+                })
 
         result["ic_like"] = ic_like
         result["capacitor_like"] = capacitor_like
         result["transformer_relay_like"] = block_like
         result["small_component_like"] = small_like
+        result["regions"] = sorted(
+            regions,
+            key=lambda item: item["w"] * item["h"],
+            reverse=True,
+        )[:24]
 
         total_major = max(ic_like + capacitor_like + block_like, 1)
         result["logic_component_ratio"] = round(ic_like / total_major, 3)
