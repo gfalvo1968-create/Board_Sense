@@ -10,6 +10,7 @@ from routes.reference_loader import get_knowledge
 from routes.reference_reasoner import build_reference_matches
 from routes.component_discriminator import discriminate_components
 from routes.spike_glass import recognize as spike_glass_recognize
+from recovery_lab.core.recovery_engine import build_recovery_plan
 
 
 def _grade_from_reference(score):
@@ -128,8 +129,10 @@ def analyze_board(image_path):
             "large_component_regions": power.get("large_component_regions", 0),
             "power_score": power.get("power_score", 0),
         },
-        "model": "Board Sense v1.5 + Spike Glass v0.1",
+        "model": "Board Sense v1.6 + Spike Glass v0.1 + Recovery Lab v0.1",
     }
+
+    result["recovery_lab"] = build_recovery_plan(spike_glass, result)
     insight_engine = BoardInsight()
     result["insight"] = insight_engine.generate(result)
     return result
