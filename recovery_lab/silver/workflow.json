@@ -1,0 +1,16 @@
+{
+  "lab": "Silver Lab",
+  "version": "0.1",
+  "scope": "silver-bearing material identification, mechanical segregation, testing, and refinery routing",
+  "workflow": [
+    {"step": 1, "title": "Identify source", "instruction": "Record whether the suspected silver-bearing material came from contacts, relays, switchgear, plated hardware, jewelry/tableware, or another source."},
+    {"step": 2, "title": "Do not grade by color", "instruction": "Treat silver-colored material as unknown until markings, source knowledge, non-destructive testing, or professional assay supports an identification."},
+    {"step": 3, "title": "Preserve markings", "instruction": "Photograph hallmarks, alloy stamps, part numbers, and source assemblies before separating material."},
+    {"step": 4, "title": "Mechanically segregate", "instruction": "When justified, separate suspected silver-bearing pieces from copper, brass, steel, plastic, and other fractions without burning or creating unknown-metal dust."},
+    {"step": 5, "title": "Keep lots by source", "instruction": "Do not mix unlike contact alloys or plated material with known sterling or other identified silver grades."},
+    {"step": 6, "title": "Test or route for assay", "instruction": "Use appropriate non-destructive/professional testing or refinery assay when composition materially affects value."},
+    {"step": 7, "title": "Compare sale/refinery value", "instruction": "Use weight, confirmed grade when available, Scrap Radar silver reference price, and buyer/refinery terms to compare options."}
+  ],
+  "hazard_policy": "Chemical stripping/refining and thermal processing are controlled operations with corrosive, toxic, and waste-handling hazards. This lab provides sorting, testing, value, and professional refinery-routing guidance rather than hazardous recipes.",
+  "price_source": "Scrap Radar"
+}
