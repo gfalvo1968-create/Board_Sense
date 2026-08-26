@@ -2,13 +2,7 @@
 
 
 def calculate_confidence(score, features=None, visual=None, motherboard=None):
-    """Estimate confidence from score plus corroborating evidence.
-
-    Confidence is expressed as a percentage from 0 to 100. The score gives
-    the baseline, while independent visual and structural signals can raise
-    or lower certainty. This avoids treating every board with the same score
-    as equally well supported.
-    """
+    """Estimate confidence from score plus corroborating evidence."""
 
     features = features or {}
     visual = visual or {}
@@ -23,7 +17,6 @@ def calculate_confidence(score, features=None, visual=None, motherboard=None):
     else:
         confidence = 40
 
-    # Count corroborating positive evidence from separate detectors.
     positive_signals = sum(
         1
         for value in (
@@ -32,16 +25,18 @@ def calculate_confidence(score, features=None, visual=None, motherboard=None):
             features.get("memory_module", False),
             features.get("gold_fingers", False),
             features.get("large_ic_chips", False),
+            features.get("dense_component_board", False),
             features.get("processor", False),
             visual.get("possible_ram", False),
             visual.get("gold_finger_edge", False),
+            visual.get("possible_large_ic_chips", False),
             motherboard.get("possible_motherboard", False),
             motherboard.get("large_board", False),
         )
         if value
     )
 
-    confidence += min(positive_signals * 3, 15)
+    confidence += min(positive_signals * 3, 18)
 
     # Reward agreement between independent detectors.
     if features.get("ram") and visual.get("possible_ram"):
@@ -53,7 +48,16 @@ def calculate_confidence(score, features=None, visual=None, motherboard=None):
     if features.get("gold_fingers") and visual.get("gold_finger_edge"):
         confidence += 4
 
-    # A low score with no supporting evidence should remain uncertain.
+    if features.get("large_ic_chips") and visual.get("possible_large_ic_chips"):
+        confidence += 4
+
+    # Strong component counts provide extra support without deciding grade alone.
+    component_count = int(features.get("component_count", 0) or 0)
+    if component_count >= 8:
+        confidence += 3
+    elif component_count >= 4:
+        confidence += 2
+
     if score == 0 and positive_signals == 0:
         confidence = 35
 
