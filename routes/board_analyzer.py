@@ -12,14 +12,16 @@ def analyze_board(image_path):
     visual = detect_visual_features(image_path)
     motherboard = detect_motherboard(image_path)
 
-    # Improve feature detection
+    # Improve feature detection with evidence from the image itself.
     if visual.get("possible_ram", False):
         features["ram"] = True
         features["memory_module"] = True
-        features["gold_fingers"] = True
 
     if visual.get("gold_finger_edge", False):
         features["gold_fingers"] = True
+
+    if visual.get("possible_large_ic_chips", False):
+        features["large_ic_chips"] = True
 
     if motherboard.get("possible_motherboard", False):
         features["motherboard"] = True
@@ -64,14 +66,19 @@ def analyze_board(image_path):
             "motherboard": features.get("motherboard", False),
             "ram": features.get("ram", False),
             "power_board": features.get("power_board", False),
+            "gold_fingers": features.get("gold_fingers", False),
+            "large_ic_chips": features.get("large_ic_chips", False),
             "possible_ram": visual.get("possible_ram", False),
             "gold_finger_edge": visual.get("gold_finger_edge", False),
+            "possible_large_ic_chips": visual.get(
+                "possible_large_ic_chips", False
+            ),
             "possible_motherboard": motherboard.get(
                 "possible_motherboard", False
             ),
             "large_board": motherboard.get("large_board", False),
         },
-        "model": "Board Sense v0.7",
+        "model": "Board Sense v0.8",
     }
 
     # Generate insight
