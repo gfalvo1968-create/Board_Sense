@@ -10,6 +10,7 @@ from routes.reference_loader import get_knowledge
 from routes.reference_reasoner import build_reference_matches
 from routes.component_discriminator import discriminate_components
 from routes.spike_glass import recognize as spike_glass_recognize
+from routes.photo_quality import assess_photo_quality
 from recovery_lab.core.recovery_engine import build_recovery_plan
 
 
@@ -55,6 +56,7 @@ def _agreement(simple_type, top_hypothesis):
 
 
 def analyze_board(image_path):
+    photo_quality = assess_photo_quality(image_path)
     features = detect_board_features(image_path)
     visual = detect_visual_features(image_path)
     motherboard = detect_motherboard(image_path)
@@ -85,11 +87,18 @@ def analyze_board(image_path):
     reasoning_crosscheck = _agreement(board_type["type"], reference_intelligence.get("top_hypothesis"))
     spike_glass = spike_glass_recognize(features, visual, motherboard, power, components, reference_intelligence)
 
+    if not photo_quality.get("usable", False):
+        spike_glass["status"] = "retake_recommended"
+        spike_glass["confidence"] = min(int(spike_glass.get("confidence", 0)), 45)
+        spike_glass["photo_warning"] = "Recognition confidence capped because the photo quality gate recommends a retake."
+
     confidence = calculate_confidence(score, features=features, visual=visual, motherboard=motherboard, power=power)
     if reasoning_crosscheck["status"] == "review":
         confidence = max(25, confidence - 10)
     if visual_ic_signal and not component_ic_support:
         confidence = max(25, confidence - 5)
+    if not photo_quality.get("usable", False):
+        confidence = max(20, min(confidence, 50))
 
     result = {
         "grade": grade_result["grade"],
@@ -98,6 +107,7 @@ def analyze_board(image_path):
         "board_type": board_type["type"],
         "board_type_reason": board_type["reason"],
         "reasoning_crosscheck": reasoning_crosscheck,
+        "photo_quality": photo_quality,
         "spike_glass": spike_glass,
         "pay_dirt_ready": grade_result["pay_dirt_ready"],
         "recommendation": grade_result["recommendation"],
@@ -129,7 +139,7 @@ def analyze_board(image_path):
             "large_component_regions": power.get("large_component_regions", 0),
             "power_score": power.get("power_score", 0),
         },
-        "model": "Board Sense v1.6 + Spike Glass v0.1 + Recovery Lab v0.1",
+        "model": "Board Sense v1.7 + Spike Glass v0.2 + Recovery Lab v0.1",
     }
 
     result["recovery_lab"] = build_recovery_plan(spike_glass, result)
