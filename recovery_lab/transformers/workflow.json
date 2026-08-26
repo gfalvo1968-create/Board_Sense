@@ -1,0 +1,22 @@
+{
+  "lab": "Transformer Lab",
+  "version": "0.1",
+  "scope": "mechanical sorting and dismantling",
+  "identify": [
+    "Confirm the item is a transformer or wound magnetic component before dismantling.",
+    "Look for a laminated or ferrite core with insulated windings and leads.",
+    "Separate unusually large, sealed, leaking, burned, or unknown units for manual review."
+  ],
+  "workflow": [
+    {"step": 1, "title": "Isolate", "instruction": "Disconnect the unit from equipment and verify it is not connected to stored electrical energy."},
+    {"step": 2, "title": "Inspect", "instruction": "Check the core, winding access, fasteners, resin/potting, and whether dismantling can be done without excessive labor."},
+    {"step": 3, "title": "Compare whole-unit value", "instruction": "Record the sell-whole value before dismantling so Recovery Lab can compare it with expected separated value."},
+    {"step": 4, "title": "Open mechanically", "instruction": "Use appropriate hand tools and guards to expose accessible windings without burning insulation or using chemical stripping."},
+    {"step": 5, "title": "Separate fractions", "instruction": "Sort copper-bearing windings, steel/ferrite core material, aluminum if present, and nonmetal residue into separate containers."},
+    {"step": 6, "title": "Verify winding metal", "instruction": "Do not assume every winding is copper. Verify copper-colored material beneath insulation before assigning copper value."},
+    {"step": 7, "title": "Time-value check", "instruction": "Enter recovered value and labor minutes into Worth My Time? and compare against selling the transformer whole."}
+  ],
+  "stop_conditions": ["unknown energized equipment", "damaged or leaking sealed unit", "unsafe cutting position", "material cannot be identified confidently"],
+  "outputs": ["copper-bearing winding", "steel/ferrite", "possible aluminum winding", "residue"],
+  "price_source": "Scrap Radar"
+}
