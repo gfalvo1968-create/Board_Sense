@@ -1,0 +1,12 @@
+{
+  "lab":"Brass Lab","version":"0.1","scope":"mechanical identification, contamination removal, grade sorting, and value comparison",
+  "workflow":[
+    {"step":1,"title":"Identify brass-bearing item","instruction":"Record source such as plumbing fittings, valves, hardware, electrical parts, radiators, or mixed assemblies."},
+    {"step":2,"title":"Verify base metal","instruction":"Use exposed base metal, context, magnet response where useful, and buyer rules rather than judging only by surface color or plating."},
+    {"step":3,"title":"Separate clean and mixed","instruction":"Keep clean yellow/red brass categories and contaminated or attached brass-bearing items separated according to local buyer grades."},
+    {"step":4,"title":"Remove easy attachments","instruction":"Mechanically remove accessible steel, plastic, rubber, or other attachments only when the value increase justifies the labor."},
+    {"step":5,"title":"Preserve plated material evidence","instruction":"If an item is plated, document the plating and base metal before cleaning so Board Sense and Recovery Lab retain the source information."},
+    {"step":6,"title":"Time-value check","instruction":"Compare clean-grade value against mixed-grade value and labor minutes before processing the batch."}
+  ],
+  "price_source":"Scrap Radar"
+}
