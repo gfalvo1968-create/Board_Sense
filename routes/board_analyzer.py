@@ -7,12 +7,12 @@ from routes.board_type import classify_board_type
 from routes.board_confidence import calculate_confidence
 from routes.board_insight import BoardInsight
 from routes.reference_loader import get_knowledge
+from routes.reference_reasoner import build_reference_matches
 
 
 def _grade_from_reference(score):
     """Use the loaded board_grade reference sheet as the grading authority."""
     rules = get_knowledge().get("board_grade", [])
-
     for rule in rules:
         score_range = rule.get("score_range", [])
         if len(score_range) != 2:
@@ -21,47 +21,19 @@ def _grade_from_reference(score):
         if low <= score <= high:
             return {
                 "grade": rule.get("grade", "UNKNOWN"),
-                "recommendation": rule.get(
-                    "recommended_action",
-                    "Manual review recommended.",
-                ),
+                "recommendation": rule.get("recommended_action", "Manual review recommended."),
                 "pay_dirt_ready": bool(rule.get("pay_dirt_ready", False)),
                 "recovery_signals": rule.get("recovery_signals", []),
                 "grade_notes": rule.get("notes", ""),
             }
 
-    # Safe fallback if reference data is unavailable during development/tests.
     if score >= 22:
-        return {
-            "grade": "VERY HIGH",
-            "recommendation": "Separate immediately and store securely.",
-            "pay_dirt_ready": True,
-            "recovery_signals": ["high precious metal potential"],
-            "grade_notes": "Premium recovery candidate.",
-        }
+        return {"grade": "VERY HIGH", "recommendation": "Separate immediately and store securely.", "pay_dirt_ready": True, "recovery_signals": ["high precious metal potential"], "grade_notes": "Premium recovery candidate."}
     if score >= 16:
-        return {
-            "grade": "HIGH",
-            "recommendation": "Separate from mixed board loads.",
-            "pay_dirt_ready": True,
-            "recovery_signals": ["moderate to high precious metal recovery"],
-            "grade_notes": "Strong recovery potential.",
-        }
+        return {"grade": "HIGH", "recommendation": "Separate from mixed board loads.", "pay_dirt_ready": True, "recovery_signals": ["moderate to high precious metal recovery"], "grade_notes": "Strong recovery potential."}
     if score >= 9:
-        return {
-            "grade": "MEDIUM",
-            "recommendation": "Sort into medium-grade categories.",
-            "pay_dirt_ready": False,
-            "recovery_signals": ["moderate recovery value"],
-            "grade_notes": "Average recovery category.",
-        }
-    return {
-        "grade": "LOW",
-        "recommendation": "Recover copper, aluminum, transformers, or bulk shred value.",
-        "pay_dirt_ready": False,
-        "recovery_signals": ["limited precious metal recovery"],
-        "grade_notes": "Low-value or mixed recovery material.",
-    }
+        return {"grade": "MEDIUM", "recommendation": "Sort into medium-grade categories.", "pay_dirt_ready": False, "recovery_signals": ["moderate recovery value"], "grade_notes": "Average recovery category."}
+    return {"grade": "LOW", "recommendation": "Recover copper, aluminum, transformers, or bulk shred value.", "pay_dirt_ready": False, "recovery_signals": ["limited precious metal recovery"], "grade_notes": "Low-value or mixed recovery material."}
 
 
 def analyze_board(image_path):
@@ -73,22 +45,21 @@ def analyze_board(image_path):
     if visual.get("possible_ram", False):
         features["ram"] = True
         features["memory_module"] = True
-
     if visual.get("gold_finger_edge", False):
         features["gold_fingers"] = True
-
     if visual.get("possible_large_ic_chips", False):
         features["large_ic_chips"] = True
-
     if motherboard.get("possible_motherboard", False):
         features["motherboard"] = True
-
     if power.get("possible_power_board", False):
         features["power_board"] = True
 
     board_type = classify_board_type(features, visual, motherboard, power)
     score = calculate_score(features)
     grade_result = _grade_from_reference(score)
+    reference_intelligence = build_reference_matches(
+        features, visual, motherboard, power, board_type
+    )
 
     confidence = calculate_confidence(
         score,
@@ -108,6 +79,7 @@ def analyze_board(image_path):
         "recommendation": grade_result["recommendation"],
         "recovery_signals": grade_result["recovery_signals"],
         "grade_notes": grade_result["grade_notes"],
+        "reference_intelligence": reference_intelligence,
         "features": features,
         "visual": visual,
         "power": power,
@@ -131,10 +103,9 @@ def analyze_board(image_path):
             "large_component_regions": power.get("large_component_regions", 0),
             "power_score": power.get("power_score", 0),
         },
-        "model": "Board Sense v1.1",
+        "model": "Board Sense v1.2",
     }
 
     insight_engine = BoardInsight()
     result["insight"] = insight_engine.generate(result)
-
     return result
