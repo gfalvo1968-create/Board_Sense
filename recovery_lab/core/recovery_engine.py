@@ -3,6 +3,7 @@
 from recovery_lab.registry import RECOVERY_LABS
 from recovery_lab.core.safety_rules import classify_recovery_risk
 from recovery_lab.core.time_value import compare_recovery_to_sale
+from recovery_lab.core.workflow_loader import attach_workflows
 
 
 def choose_labs(spike_glass, board_result):
@@ -32,11 +33,11 @@ def choose_labs(spike_glass, board_result):
         if any(word in text for word in words):
             labels.append(lab_key)
 
-    # Always keep whole-board economics available for PCB-related scans.
     if "circuit_boards" not in labels and board_result.get("board_type"):
         labels.append("circuit_boards")
 
-    return [RECOVERY_LABS[key] | {"key": key} for key in labels if key in RECOVERY_LABS]
+    labs = [RECOVERY_LABS[key] | {"key": key} for key in labels if key in RECOVERY_LABS]
+    return attach_workflows(labs)
 
 
 def build_recovery_plan(spike_glass, board_result, sell_value=None, recovered_value=None, minutes=None):
