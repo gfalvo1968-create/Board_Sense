@@ -11,10 +11,15 @@
 <header id="header">
     <h1>🧠 Board Sense</h1>
     <p>⚓ Harbor Edition v0.7 | Clean Build</p>
+    <div class="button-row">
+        <a class="action-btn" href="https://gfalvo1968-create.github.io/scrap_radar_family/island_portal.html">🏝️ Back to Island</a>
+        <a class="action-btn" href="https://gfalvo1968-create.github.io/scrap_radar_family/harbor_elevator.html">🛗 Harbor Elevator</a>
+        <a class="action-btn" href="https://gfalvo1968-create.github.io/scrap_radar_family/scrap_radar.html">📡 Scrap Radar</a>
+    </div>
 </header>
 <main id="content">
 <section id="harbor-elevator" class="panel">
-    <h2>🛗 Harbor Elevator</h2>
+    <h2>🛗 Board Sense Controls</h2>
     <div class="button-row">
         <button id="dashboardBtn">Dashboard</button>
         <button id="scanBtn">Scan Board</button>
@@ -27,12 +32,12 @@
     <h2>📷 Two-Sided Board Scan</h2>
     <p id="scanInstruction"><strong>Step 1:</strong> Photograph or choose Side A of the board.</p>
     <label for="boardImageA"><strong>Side A</strong></label><br>
-    <input type="file" id="boardImageA" accept="image/*" capture="environment">
+    <input type="file" id="boardImageA" accept="image/*">
     <div id="sideAStatus">Waiting for Side A...</div>
     <div id="sideBControls" style="display:none; margin-top:16px;">
         <p><strong>Step 2:</strong> 🔄 Flip the SAME board and photograph Side B.</p>
         <label for="boardImageB"><strong>Side B</strong></label><br>
-        <input type="file" id="boardImageB" accept="image/*" capture="environment">
+        <input type="file" id="boardImageB" accept="image/*">
         <div id="sideBStatus">Waiting for Side B...</div>
     </div>
     <div style="margin-top:16px;">
