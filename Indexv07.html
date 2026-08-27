@@ -3,67 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <title>Board Sense Harbor Edition v0.7</title>
-
     <link rel="stylesheet" href="Static/Style_v07.css">
 </head>
-
 <body>
-
-    <div id="app">
-
-        <header id="header">
+<div id="app">
+<header id="header">
     <h1>🧠 Board Sense</h1>
     <p>⚓ Harbor Edition v0.7 | Clean Build</p>
- </header>
-
-        <main id="content">
-
+</header>
+<main id="content">
 <section id="harbor-elevator" class="panel">
     <h2>🛗 Harbor Elevator</h2>
     <div class="button-row">
         <button id="dashboardBtn">Dashboard</button>
         <button id="scanBtn">Scan Board</button>
-             <button id="recoveryBtn">Recovery</button>
+        <button id="recoveryBtn">Recovery</button>
         <button id="knowledgeBtn">Knowledge</button>
         <button id="spyglassBtn">Spyglass</button>
     </div>
 </section>
-
 <section id="scan-board" class="panel">
-    <h2>📷 Scan Board</h2>
-
-    <input type="file" id="boardImage" accept="image/*">
-
-    <button id="analyzeBtn">Analyze Board</button>
-
-    <div id="uploadStatus">
-        Waiting for board image...
+    <h2>📷 Two-Sided Board Scan</h2>
+    <p id="scanInstruction"><strong>Step 1:</strong> Photograph or choose Side A of the board.</p>
+    <label for="boardImageA"><strong>Side A</strong></label><br>
+    <input type="file" id="boardImageA" accept="image/*" capture="environment">
+    <div id="sideAStatus">Waiting for Side A...</div>
+    <div id="sideBControls" style="display:none; margin-top:16px;">
+        <p><strong>Step 2:</strong> 🔄 Flip the SAME board and photograph Side B.</p>
+        <label for="boardImageB"><strong>Side B</strong></label><br>
+        <input type="file" id="boardImageB" accept="image/*" capture="environment">
+        <div id="sideBStatus">Waiting for Side B...</div>
     </div>
+    <div style="margin-top:16px;">
+        <button id="analyzeBtn">Analyze Side A</button>
+        <button id="resetScanBtn" type="button">Start New Board</button>
+    </div>
+    <div id="uploadStatus">Waiting for Side A image...</div>
 </section>
-
 <section id="investigation-report" class="panel">
     <h2>📊 Investigation Report</h2>
-
-    <div id="predictionBox">
-        No analysis yet.
-    </div>
+    <div id="predictionBox">No analysis yet.</div>
 </section>
-
 <section id="developer-console" class="panel">
     <h2>⚙️ Harbor Developer Console</h2>
-
-    <div id="dev-console">
-        Harbor initialized...
-    </div>
+    <div id="dev-console">Harbor initialized...</div>
 </section>
-
 </main>
-
-    </div>
-
-    <script src="Static/app_v07.js"></script>
-
+</div>
+<script src="Static/app_v07.js"></script>
 </body>
 </html>
