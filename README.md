@@ -111,3 +111,5 @@ Instead of a plain magnifying glass, we could use a brass nautical spyglass that
 That would become a signature interaction for the Scrap Radar Family.
 
 I think that’s one of those details people would remember. Not because it’s flashy, but because it fits the story of the Harbor and gives the tool its own identity. ⚓🔭🌴
+
+<!-- deployment trigger: 2026-08-27 -->
