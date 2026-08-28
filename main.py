@@ -8,6 +8,7 @@ import uvicorn
 
 from ecosystem import get_ecosystem
 from routes.board_analyzer import analyze_board
+from routes.pair_reasoner import reconcile_pair
 from routes.grade import router as grade_router
 from routes.irm_core import router as irm_router
 from routes.market_bridge import router as market_router
@@ -59,16 +60,46 @@ def ecosystem_data():
     return get_ecosystem()
 
 
+def _save_upload(upload: UploadFile, target: Path):
+    with open(target, "wb") as buffer:
+        shutil.copyfileobj(upload.file, buffer)
+
+
 @app.post("/analyze")
 async def analyze_board_route(file: UploadFile = File(...)):
     file_path = IMAGE_DIR / file.filename
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    _save_upload(file, file_path)
 
     result = analyze_board(str(file_path))
     result["status"] = "success"
     result["board"] = file.filename
     return result
+
+
+@app.post("/analyze-pair")
+async def analyze_board_pair_route(
+    side_a: UploadFile = File(...),
+    side_b: UploadFile = File(...),
+):
+    """Analyze two photos as the two faces of one physical circuit board."""
+    side_a_name = f"side_a_{side_a.filename}"
+    side_b_name = f"side_b_{side_b.filename}"
+    side_a_path = IMAGE_DIR / side_a_name
+    side_b_path = IMAGE_DIR / side_b_name
+    _save_upload(side_a, side_a_path)
+    _save_upload(side_b, side_b_path)
+
+    result_a = analyze_board(str(side_a_path))
+    result_b = analyze_board(str(side_b_path))
+    paired = reconcile_pair(result_a, result_b)
+
+    return {
+        "status": "success",
+        "mode": "two_sided_same_board",
+        "side_a": result_a,
+        "side_b": result_b,
+        "paired": paired,
+    }
 
 
 if __name__ == "__main__":
