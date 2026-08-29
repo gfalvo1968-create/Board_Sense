@@ -9,6 +9,8 @@ import uvicorn
 from ecosystem import get_ecosystem
 from routes.board_analyzer import analyze_board
 from routes.pair_reasoner import reconcile_pair
+from routes.pair_decision_guard import guard_pair
+from routes.spike_evidence_packet import build_evidence_packet
 from routes.grade import router as grade_router
 from routes.irm_core import router as irm_router
 from routes.market_bridge import router as market_router
@@ -73,6 +75,7 @@ async def analyze_board_route(file: UploadFile = File(...)):
     result = analyze_board(str(file_path))
     result["status"] = "success"
     result["board"] = file.filename
+    result["spike_evidence"] = build_evidence_packet(result)
     return result
 
 
@@ -91,7 +94,13 @@ async def analyze_board_pair_route(
 
     result_a = analyze_board(str(side_a_path))
     result_b = analyze_board(str(side_b_path))
+    result_a["spike_evidence"] = build_evidence_packet(result_a)
+    result_b["spike_evidence"] = build_evidence_packet(result_b)
+
     paired = reconcile_pair(result_a, result_b)
+    paired = guard_pair(result_a, result_b, paired)
+    paired["spike_evidence"] = build_evidence_packet(paired)
+    paired["model"] = "Board Sense v2.2 + SPIKE Decision Guard v1.0 + Pair Reasoner v1.1"
 
     return {
         "status": "success",
