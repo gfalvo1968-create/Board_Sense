@@ -1,7 +1,8 @@
-"""SPIKE structural decision guard.
+"""SPIKE structural + condition decision guard.
 
-Defining architecture outranks generic component counts. This helper is kept
-small so both single-image and paired reasoning can use the same rules.
+Defining architecture outranks generic component counts. Condition evidence is
+kept separate from identity so SPIKE can recognize what a board started as while
+pricing only the recoverable material that is still physically present.
 """
 
 
@@ -46,7 +47,61 @@ def strong_structural_family(result):
     return None
 
 
-def decision_trace(winner, hard=None, supporting=None, weak=None, contradictions=None):
+def condition_harvest_check(result, observations=None):
+    """Build a conservative buying-condition packet.
+
+    Observations may later come from vision, blueprint, a web/reference match, or
+    user-confirmed inspection. Missing value is never assumed from an unseen
+    camera angle. Only explicit removed/cut evidence reduces the value factor.
+    """
+    observations = observations or {}
+    fam = family(result.get("board_type"))
+    items = []
+
+    def add(name, status, impact="unknown", note=""):
+        items.append({"feature": name, "status": status, "value_impact": impact, "note": note})
+
+    for name, value in observations.items():
+        if isinstance(value, dict):
+            add(name, value.get("status", "unknown"), value.get("value_impact", "unknown"), value.get("note", ""))
+        else:
+            add(name, str(value), "unknown", "")
+
+    confirmed_loss = [x for x in items if str(x["status"]).lower() in ("removed", "cut", "harvested", "missing_confirmed")]
+    uncertain = [x for x in items if str(x["status"]).lower() in ("not_visible", "uncertain", "unknown", "expected_not_visible")]
+
+    severe = sum(1 for x in confirmed_loss if str(x["value_impact"]).lower() in ("high", "major", "severe"))
+    moderate = sum(1 for x in confirmed_loss if str(x["value_impact"]).lower() in ("medium", "moderate"))
+    minor = max(0, len(confirmed_loss) - severe - moderate)
+
+    factor = max(0.20, 1.0 - severe * 0.25 - moderate * 0.12 - minor * 0.05)
+    if severe >= 2 or factor <= 0.55:
+        condition = "HEAVILY HARVESTED"
+    elif confirmed_loss:
+        condition = "HARVESTED / MODIFIED"
+    elif uncertain:
+        condition = "INSPECTION NEEDED"
+    else:
+        condition = "NO CONFIRMED HARVESTING"
+
+    return {
+        "mode": "Condition & Harvest Check v0.1",
+        "board_family": fam,
+        "condition": condition,
+        "confirmed_value_losses": confirmed_loss,
+        "uncertain_or_not_visible": uncertain,
+        "remaining_value_factor": round(factor, 2),
+        "buying_guidance": (
+            "Reduce the offer from intact-board value when confirmed valuable features were removed."
+            if confirmed_loss else
+            "Do not reduce the offer for a feature that is merely outside the photo or uncertain."
+        ),
+        "pricing_rule": "price what is physically present; web/reference identity is advisory",
+        "final_authority": "SPIKE",
+    }
+
+
+def decision_trace(winner, hard=None, supporting=None, weak=None, contradictions=None, condition=None):
     hard = hard or []
     supporting = supporting or []
     weak = weak or []
@@ -55,7 +110,7 @@ def decision_trace(winner, hard=None, supporting=None, weak=None, contradictions
         reason = f"{winner} wins because defining structural anchors outweigh generic visual hints."
     else:
         reason = f"{winner} is the best supported family from the available evidence."
-    return {
+    trace = {
         "final_authority": "SPIKE",
         "winner": winner,
         "hard_evidence": hard,
@@ -65,3 +120,6 @@ def decision_trace(winner, hard=None, supporting=None, weak=None, contradictions
         "reason": reason,
         "web_evidence_policy": "advisory_only",
     }
+    if condition is not None:
+        trace["condition_and_harvest"] = condition
+    return trace
