@@ -1,13 +1,15 @@
-"""SPIKE Multi-Photo Case Reasoner v0.4.
+"""SPIKE Multi-Photo Case Reasoner v0.5.
 
 Combines several photographs of one physical board. Strong structural evidence
-outranks repeated weak hints, repeated views have diminishing authority, and
-condition evidence is reconciled across views before any value deduction.
+outranks repeated weak hints, repeated views have diminishing authority,
+condition evidence is reconciled across views, and confirmed condition feeds a
+transparent recovery-economics packet without inventing prices.
 """
 from copy import deepcopy
 from routes.decision_guard import strong_structural_family, condition_harvest_check
 from routes.equipment_subtype import infer_equipment_subtype
 from routes.recovery_grade_guard import apply_recovery_grade_guard
+from recovery_lab.core.time_value import compare_paths
 
 LOSS={"removed","cut","harvested","missing_confirmed","clearly_cut","clearly_harvested"}
 PRESENT={"present","confirmed_present","visible","retained"}
@@ -26,29 +28,31 @@ def _view_role(r):
     return "whole_board_or_general_view"
 
 def _merge_observation(store,name,obs,view):
-    """Cross-view rule: visible evidence cancels mere absence, but not a truly
-    confirmed physical cut/removal. Repeated uncertainty never becomes damage."""
     if not isinstance(obs,dict): obs={"status":str(obs)}
-    incoming=dict(obs); incoming["source"]=f"view_{view}"
-    state=str(incoming.get("status","unknown")).lower()
-    old=store.get(name)
-    if old is None:
-        store[name]=incoming; return
+    incoming=dict(obs); incoming["source"]=f"view_{view}"; state=str(incoming.get("status","unknown")).lower(); old=store.get(name)
+    if old is None: store[name]=incoming; return
     oldstate=str(old.get("status","unknown")).lower()
-    if state in LOSS:
-        store[name]=incoming
-    elif state in PRESENT and oldstate not in LOSS:
-        store[name]=incoming
-    elif oldstate in PRESENT:
-        return
-    elif oldstate in LOSS:
-        return
-    elif state in UNCERTAIN:
-        # uncertainty corroborates an inspection prompt but never escalates it
-        old["note"]=(old.get("note","")+" Seen as uncertain/not visible in another view.").strip()
+    if state in LOSS: store[name]=incoming
+    elif state in PRESENT and oldstate not in LOSS: store[name]=incoming
+    elif oldstate in PRESENT or oldstate in LOSS: return
+    elif state in UNCERTAIN: old["note"]=(old.get("note","")+" Seen as uncertain/not visible in another view.").strip()
+
+def _economics_inputs(result):
+    """Accept economics only from explicit/verified fields. Vision never creates dollars."""
+    raw=result.get("economics_inputs") or result.get("recovery_economics_inputs") or {}
+    return {
+        "sell_whole_value":raw.get("sell_whole_value"),
+        "partial_recovered_value":raw.get("partial_recovered_value"),
+        "partial_residual_value":raw.get("partial_residual_value"),
+        "partial_minutes":raw.get("partial_minutes"),
+        "partial_costs":raw.get("partial_costs"),
+        "full_recovery_value":raw.get("full_recovery_value"),
+        "full_minutes":raw.get("full_minutes"),
+        "full_costs":raw.get("full_costs"),
+    }
 
 def reconcile_case(results):
-    if not results:return {"board_type":"Unknown Board","confidence":0,"model":"SPIKE Multi-Photo Case Reasoner v0.4"}
+    if not results:return {"board_type":"Unknown Board","confidence":0,"model":"SPIKE Multi-Photo Case Reasoner v0.5"}
     hard=[]
     for i,r in enumerate(results):
         s=strong_structural_family(r)
@@ -68,9 +72,12 @@ def reconcile_case(results):
     cs=combined.setdefault("signals",{})
     for key in ("processor","large_ic_chips","dense_component_board","gold_fingers","gold_finger_edge"):
         cs[key]=bool(cs.get(key) or any((r.get("signals") or {}).get(key) for r in results))
-    combined["condition_and_harvest"]=condition_harvest_check(combined,observations)
+    condition=condition_harvest_check(combined,observations);combined["condition_and_harvest"]=condition
     combined["equipment_subtype"]=infer_equipment_subtype(combined)
     combined=apply_recovery_grade_guard(combined)
+    econ=_economics_inputs(combined)
+    combined["recovery_economics"]=compare_paths(condition_factor=condition.get("remaining_value_factor",1.0),**econ)
+    combined["recovery_economics"]["condition_link"]={"condition":condition.get("condition"),"remaining_value_factor":condition.get("remaining_value_factor"),"confirmed_losses":len(condition.get("confirmed_value_losses") or []),"remaining_opportunity":condition.get("remaining_recovery_opportunity"),"rule":"Confirmed harvesting may reduce intact-board sale value. Remaining material is valued separately; uncertain absence creates no deduction."}
     unique=len(signatures);combined["case_analysis"]={"mode":"same_board_multi_photo","views_analyzed":len(results),"independent_evidence_patterns":unique,"view_summaries":view_summaries,"duplicate_evidence_guard":{"active":True,"rule":"Repeated equivalent views corroborate but do not multiply authority at full weight."},"condition_reconciliation":{"active":True,"rule":"A feature visible in one view defeats mere not-visible evidence in another. Only confirmed physical removal creates a deduction."},"message":"Multiple photographs were treated as one physical board case. Structural evidence outranks repeated weak hints; view diversity outranks photo count."}
-    best=max(float(r.get("confidence",0) or 0) for r in results);combined["confidence"]=min(98,max(float(combined.get("confidence",0) or 0),best));combined["model"]="Board Sense v2.7 + SPIKE Multi-Photo Case Reasoner v0.4 + Condition & Harvest v0.2 + Recovery Grade Guard v0.1 + Equipment Subtype v0.1 + Verification v0.1"
+    best=max(float(r.get("confidence",0) or 0) for r in results);combined["confidence"]=min(98,max(float(combined.get("confidence",0) or 0),best));combined["model"]="Board Sense v2.8 + SPIKE Multi-Photo Case Reasoner v0.5 + Condition & Harvest v0.2 + Recovery Economics v0.2 + Verification v0.1"
     return combined
