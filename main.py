@@ -1,9 +1,9 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 import shutil
 import uvicorn
 
@@ -13,6 +13,7 @@ from routes.pair_reasoner import reconcile_pair
 from routes.pair_decision_guard import guard_pair
 from routes.spike_evidence_packet import build_evidence_packet
 from routes.case_reasoner import reconcile_case
+from recovery_lab.core.time_value import compare_paths
 from routes.grade import router as grade_router
 from routes.irm_core import router as irm_router
 from routes.market_bridge import router as market_router
@@ -39,6 +40,9 @@ def ecosystem_data(): return get_ecosystem()
 def _save_upload(upload:UploadFile,target:Path):
     with open(target,"wb") as buffer: shutil.copyfileobj(upload.file,buffer)
 
+def _economics_payload(**values):
+    return {k:v for k,v in values.items() if v is not None}
+
 @app.post("/analyze")
 async def analyze_board_route(file:UploadFile=File(...)):
     file_path=IMAGE_DIR/file.filename; _save_upload(file,file_path)
@@ -55,8 +59,19 @@ async def analyze_board_pair_route(side_a:UploadFile=File(...),side_b:UploadFile
     return {"status":"success","mode":"two_sided_same_board","side_a":result_a,"side_b":result_b,"paired":paired}
 
 @app.post("/analyze-case")
-async def analyze_board_case_route(files:List[UploadFile]=File(...)):
-    """Analyze 2-6 photographs as one physical board investigation."""
+async def analyze_board_case_route(
+    files:List[UploadFile]=File(...),
+    current_sell_whole_value:Optional[float]=Form(None),
+    intact_sell_whole_value:Optional[float]=Form(None),
+    partial_recovered_value:Optional[float]=Form(None),
+    partial_residual_value:Optional[float]=Form(None),
+    partial_minutes:Optional[float]=Form(None),
+    partial_costs:Optional[float]=Form(None),
+    full_recovery_value:Optional[float]=Form(None),
+    full_minutes:Optional[float]=Form(None),
+    full_costs:Optional[float]=Form(None)
+):
+    """Analyze 2-6 photographs as one board investigation, with optional verified economics inputs."""
     if len(files)<2 or len(files)>6:
         return {"status":"error","message":"Choose between 2 and 6 photos of the same board."}
     results=[]
@@ -65,7 +80,36 @@ async def analyze_board_case_route(files:List[UploadFile]=File(...)):
         path=IMAGE_DIR/safe_name; _save_upload(upload,path)
         result=analyze_board(str(path)); result["board"]=upload.filename; result["view_number"]=i; result["spike_evidence"]=build_evidence_packet(result)
         results.append(result)
-    combined=reconcile_case(results); combined["spike_evidence"]=build_evidence_packet(combined,condition_observations=(combined.get("condition_and_harvest") or {}).get("observations"))
+    combined=reconcile_case(results)
+    econ=_economics_payload(
+        sell_whole_value=intact_sell_whole_value,
+        partial_recovered_value=partial_recovered_value,
+        partial_residual_value=partial_residual_value,
+        partial_minutes=partial_minutes,
+        partial_costs=partial_costs,
+        full_recovery_value=full_recovery_value,
+        full_minutes=full_minutes,
+        full_costs=full_costs
+    )
+    condition=combined.get("condition_and_harvest") or {}
+    factor=condition.get("remaining_value_factor",1.0)
+    if current_sell_whole_value is not None:
+        # A current-condition offer is already discounted by the buyer. Never apply the harvest factor twice.
+        econ["sell_whole_value"]=current_sell_whole_value
+        factor=1.0
+        sell_basis="CURRENT CONDITION OFFER"
+    elif intact_sell_whole_value is not None:
+        sell_basis="INTACT BOARD BASELINE"
+    else:
+        sell_basis="NOT PROVIDED"
+    combined["recovery_economics"]=compare_paths(condition_factor=factor,**econ)
+    combined["recovery_economics"]["sell_value_basis"]=sell_basis
+    combined["recovery_economics"]["condition_link"]={
+        "condition":condition.get("condition"),
+        "remaining_value_factor":condition.get("remaining_value_factor",1.0),
+        "rule":"Current-condition offers are never discounted twice. Intact-board baselines may be reduced only by confirmed harvesting. Uncertain absence creates no deduction."
+    }
+    combined["spike_evidence"]=build_evidence_packet(combined,condition_observations=condition.get("observations"))
     return {"status":"success","mode":"same_board_multi_photo","photo_count":len(results),"views":results,"combined":combined}
 
 if __name__=="__main__": uvicorn.run(app,host="0.0.0.0",port=8080)
