@@ -1,11 +1,30 @@
-"""Board Blueprint v0.3: prioritize useful/value-bearing structures over repetitive shapes."""
+"""Board Blueprint v0.4: useful structures with conservative context-aware labels.
+
+Blueprint is an evidence map, not an equipment-family oracle. Generic connector
+geometry must not be promoted to PC-specific DIMM/rear-I/O terminology unless a
+future detector independently proves that subtype.
+"""
 from pathlib import Path
 import math
 import cv2
 from routes.board_motherboard import detect_motherboard
 
-LABELS={"IC-like package":"IC / Logic Package","Power block / transformer / relay-like":"Power / Transformer / Relay","Capacitor-like round component":"Capacitor / Power Component","Plated contact / keypad pad":"Likely Plated Contact Zone","Gold finger / edge contact":"Gold Finger / Edge Contact","Motherboard slot / socket bank":"DIMM / Expansion Slot Bank","Rear I/O / connector bank":"Rear I/O / Gold-Bearing Connector Zone"}
+LABELS={
+ "IC-like package":"IC / Logic Package",
+ "Power block / transformer / relay-like":"Power / Transformer / Relay",
+ "Capacitor-like round component":"Capacitor / Power Component",
+ "Plated contact / keypad pad":"Likely Plated Contact Zone",
+ "Gold finger / edge contact":"Gold Finger / Edge Contact",
+ "Motherboard slot / socket bank":"Long Board Connector / Slot",
+ "Rear I/O / connector bank":"Board Edge Connector Zone",
+}
 TYPE_PRIORITY={"Motherboard slot / socket bank":9.0,"Rear I/O / connector bank":8.5,"Gold finger / edge contact":8.0,"Plated contact / keypad pad":7.0,"IC-like package":5.0,"Power block / transformer / relay-like":4.5,"Capacitor-like round component":1.0}
+
+CONTEXT_NOTES={
+ "Motherboard slot / socket bank":"Repeated long connector geometry detected. PC context is not independently strong enough to call this a DIMM or expansion slot.",
+ "Rear I/O / connector bank":"Dense edge connector geometry detected. Kept generic because edge connectors also occur on telecom, console, industrial, server, and proprietary logic boards.",
+ "Gold finger / edge contact":"Contact geometry is a recovery cue only; metal content is not visually assayed.",
+}
 
 def _confidence(r):
  try:v=float(r.get("confidence",0))
@@ -33,14 +52,14 @@ def _rank_regions(regions,image_area,limit=8):
 def generate_blueprint(image_path,component_regions,output_dir):
  image=cv2.imread(str(image_path))
  if image is None:return {"available":False,"message":"Blueprint could not read the uploaded image."}
- # Pull PC-specific structure regions directly from the motherboard detector so
- # DIMM/expansion banks and rear-I/O zones compete with ordinary components.
  motherboard=detect_motherboard(str(image_path));all_regions=list(component_regions or [])+list(motherboard.get("structure_regions",[]))
  output_dir=Path(output_dir);output_dir.mkdir(parents=True,exist_ok=True);output_name=f"{Path(image_path).stem}_blueprint.png";output_path=output_dir/output_name
  h,w=image.shape[:2];area=w*h;thickness=max(2,int(max(w,h)/720));fs=max(.55,min(1.05,max(w,h)/1500));radius=max(15,int(max(w,h)/62));selected=_rank_regions(all_regions,area);index=[]
  for n,r in enumerate(selected,1):
   x=min(w-1,r["x"]);y=min(h-1,r["y"]);rw=min(r["w"],max(1,w-x));rh=min(r["h"],max(1,h-y));cx=min(w-radius-2,max(radius+2,x+rw//2));cy=min(h-radius-2,max(radius+2,y+rh//2))
   cv2.circle(image,(cx,cy),radius,(0,0,0),-1);cv2.circle(image,(cx,cy),radius,(0,255,255),thickness);text=str(n);(tw,th),_=cv2.getTextSize(text,cv2.FONT_HERSHEY_SIMPLEX,fs,thickness);cv2.putText(image,text,(cx-tw//2,cy+th//2),cv2.FONT_HERSHEY_SIMPLEX,fs,(0,255,255),thickness,cv2.LINE_AA)
-  t=r.get("type","Detected region");index.append({"number":n,"label":LABELS.get(t,t),"detector_label":t,"confidence":r.get("confidence"),"importance":round(r.get("_blueprint_score",0),2),"box":{"x":x,"y":y,"w":rw,"h":rh}})
+  t=r.get("type","Detected region");item={"number":n,"label":LABELS.get(t,t),"detector_label":t,"confidence":r.get("confidence"),"importance":round(r.get("_blueprint_score",0),2),"box":{"x":x,"y":y,"w":rw,"h":rh}}
+  if t in CONTEXT_NOTES:item["context_guard"]=CONTEXT_NOTES[t]
+  index.append(item)
  cv2.imwrite(str(output_path),image)
- return {"available":True,"image_filename":output_name,"component_index":index,"marker_count":len(index),"candidate_region_count":len(all_regions),"mode":"Board Blueprint v0.3","note":"Blueprint prioritizes board-defining and likely value-bearing structures. Gold-bearing connector zones are geometry-based recovery cues, not an assay of metal content."}
+ return {"available":True,"image_filename":output_name,"component_index":index,"marker_count":len(index),"candidate_region_count":len(all_regions),"mode":"Board Blueprint v0.4 + Context Guard v0.1","context_guard":{"active":True,"rule":"Generic geometry stays generic until equipment-specific evidence independently earns a subtype label.","motherboard_structure_score":motherboard.get("motherboard_structure_score",0)},"note":"Blueprint prioritizes board-defining and likely value-bearing structures. Connector and contact labels describe visible geometry only; they do not prove PC subtype or assay metal content."}
