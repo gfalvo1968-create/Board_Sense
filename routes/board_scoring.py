@@ -2,17 +2,15 @@
 
 
 def calculate_score(features):
-    """Calculate recovery score from detected board features.
+    """Calculate a recovery score from recovery-bearing observations only.
 
-    A structurally confirmed motherboard gets a medium-grade floor. Power
-    circuitry on a motherboard is a subsystem, so it must not drag the whole
-    board back into the low-grade power-board bucket.
+    Board identity and equipment geometry are intentionally excluded. Being a
+    motherboard can help answer what the board is, but it cannot by itself add
+    economic recovery points. Recovery score asks a different question: what
+    value-bearing material/features are physically supported?
     """
     score = 0
-    is_motherboard = bool(features.get("motherboard"))
 
-    if is_motherboard:
-        score += 9
     if features.get("memory_module") or features.get("ram"):
         score += 5
     if features.get("gold_fingers"):
@@ -24,9 +22,10 @@ def calculate_score(features):
     if features.get("processor"):
         score += 6
 
-    # Only penalize a power-board signal when the board has not already been
-    # structurally identified as a motherboard/main logic board.
-    if features.get("power_board") and not is_motherboard:
+    # Power-heavy topology can lower recovery attractiveness, but identity does
+    # not cancel that penalty. If valuable logic/material evidence is also
+    # present, its positive evidence remains in the score above.
+    if features.get("power_board"):
         score -= 3
 
     return max(int(score), 0)
