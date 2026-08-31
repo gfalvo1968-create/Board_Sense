@@ -1,8 +1,4 @@
-"""SPIKE Multi-Photo Case Reasoner v0.6.
-
-Reconciles several photographs only after the Same-Board Verification Gate
-checks the case for strong contradictory physical-board evidence.
-"""
+"""SPIKE Multi-Photo Case Reasoner v0.7."""
 from copy import deepcopy
 from routes.decision_guard import strong_structural_family, condition_harvest_check
 from routes.equipment_subtype import infer_equipment_subtype
@@ -31,10 +27,10 @@ def _merge_observation(store,name,obs,view):
 def _economics_inputs(result):
  raw=result.get("economics_inputs") or result.get("recovery_economics_inputs") or {};return {"sell_whole_value":raw.get("sell_whole_value"),"partial_recovered_value":raw.get("partial_recovered_value"),"partial_residual_value":raw.get("partial_residual_value"),"partial_minutes":raw.get("partial_minutes"),"partial_costs":raw.get("partial_costs"),"full_recovery_value":raw.get("full_recovery_value"),"full_minutes":raw.get("full_minutes"),"full_costs":raw.get("full_costs")}
 def reconcile_case(results):
- if not results:return {"board_type":"Unknown Board","confidence":0,"model":"SPIKE Multi-Photo Case Reasoner v0.6"}
+ if not results:return {"board_type":"Unknown Board","confidence":0,"model":"SPIKE Multi-Photo Case Reasoner v0.7"}
  identity=verify_same_board(results)
  if identity.get("block_reconciliation"):
-  return {"status":"case_identity_failed","board_type":"Multiple Boards / Case Split Required","grade":"UNRESOLVED","confidence":0,"score":0,"recommendation":"Do not combine these photos. Separate them into one case per physical board and analyze again.","same_board_verification":identity,"case_analysis":{"mode":"multi_photo_identity_blocked","views_analyzed":len(results),"message":"SPIKE stopped before classification because the case contains strong contradictory board evidence."},"recovery_economics":{"needs_values":True,"message":"Economics withheld because board-case identity failed."},"model":"Board Sense v2.9 + SPIKE Multi-Photo Case Reasoner v0.6 + Same-Board Verification Gate v0.1"}
+  return {"status":"case_identity_failed","board_type":"Multiple Boards / Case Split Required","grade":"UNRESOLVED","confidence":0,"score":0,"recommendation":"Do not combine these photos. Separate them into one case per physical board and analyze again.","same_board_verification":identity,"case_analysis":{"mode":"multi_photo_identity_blocked","views_analyzed":len(results),"message":"SPIKE stopped before classification because the case contains strong contradictory board evidence."},"recovery_economics":{"needs_values":True,"message":"Economics withheld because board-case identity failed."},"model":"Board Sense v3.0 + SPIKE Multi-Photo Case Reasoner v0.7 + Same-Board Verification Gate v0.2"}
  hard=[]
  for i,r in enumerate(results):
   s=strong_structural_family(r)
@@ -53,4 +49,8 @@ def reconcile_case(results):
  cs=combined.setdefault("signals",{})
  for key in ("processor","large_ic_chips","dense_component_board","gold_fingers","gold_finger_edge"):cs[key]=bool(cs.get(key) or any((r.get("signals") or {}).get(key) for r in results))
  condition=condition_harvest_check(combined,observations);combined["condition_and_harvest"]=condition;combined["equipment_subtype"]=infer_equipment_subtype(combined);combined=apply_recovery_grade_guard(combined);econ=_economics_inputs(combined);combined["recovery_economics"]=compare_paths(condition_factor=condition.get("remaining_value_factor",1.0),**econ);combined["recovery_economics"]["condition_link"]={"condition":condition.get("condition"),"remaining_value_factor":condition.get("remaining_value_factor"),"confirmed_losses":len(condition.get("confirmed_value_losses") or []),"remaining_opportunity":condition.get("remaining_recovery_opportunity"),"rule":"Confirmed harvesting may reduce intact-board sale value. Remaining material is valued separately; uncertain absence creates no deduction."}
- unique=len(signatures);combined["same_board_verification"]=identity;combined["case_analysis"]={"mode":"same_board_multi_photo","views_analyzed":len(results),"independent_evidence_patterns":unique,"view_summaries":view_summaries,"identity_gate":identity,"duplicate_evidence_guard":{"active":True,"rule":"Repeated equivalent views corroborate but do not multiply authority at full weight."},"condition_reconciliation":{"active":True,"rule":"A feature visible in one view defeats mere not-visible evidence in another. Only confirmed physical removal creates a deduction."},"message":"Case identity was checked before evidence reconciliation. Structural evidence outranks repeated weak hints; view diversity outranks photo count."};best=max(float(r.get("confidence",0) or 0) for r in results);combined["confidence"]=min(98,max(float(combined.get("confidence",0) or 0),best));combined["model"]="Board Sense v2.9 + SPIKE Multi-Photo Case Reasoner v0.6 + Same-Board Verification Gate v0.1 + Condition & Harvest v0.2 + Recovery Economics v0.2 + Verification v0.1";return combined
+ unique=len(signatures);combined["same_board_verification"]=identity;combined["case_analysis"]={"mode":"same_board_multi_photo","views_analyzed":len(results),"independent_evidence_patterns":unique,"view_summaries":view_summaries,"identity_gate":identity,"duplicate_evidence_guard":{"active":True,"rule":"Repeated equivalent views corroborate but do not multiply authority at full weight."},"condition_reconciliation":{"active":True,"rule":"A feature visible in one view defeats mere not-visible evidence in another. Only confirmed physical removal creates a deduction."},"message":"Case identity was checked before evidence reconciliation. Structural evidence outranks repeated weak hints; view diversity outranks photo count."}
+ best=max(float(r.get("confidence",0) or 0) for r in results);combined["confidence"]=min(98,max(float(combined.get("confidence",0) or 0),best))
+ if identity.get("status")=="IDENTITY_UNCERTAIN":
+  combined["confidence"]=min(combined["confidence"],65);combined["case_analysis"]["identity_warning"]="Same-board identity is uncertain, so combined confidence is capped until a clearer whole-board view is supplied.";combined["recommendation"]="Identity uncertain: add a clear full-board photo before using this result for a buying or recovery decision."
+ combined["model"]="Board Sense v3.0 + SPIKE Multi-Photo Case Reasoner v0.7 + Same-Board Verification Gate v0.2 + Physical Fingerprint v0.1 + Condition & Harvest v0.2 + Recovery Economics v0.2";return combined
