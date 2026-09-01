@@ -1,14 +1,14 @@
 """Visual component-family discrimination for Board Sense.
 
-SPIKE Vision v0.9 keeps body-before-label filtering and adds conservative cues for
-large power packages and copper-wound magnetic components. Neither cue proves a
-power stage alone; both remain corroborating structural evidence.
+SPIKE Vision v1.0 keeps body-before-label filtering and conservative power cues.
+Copper-wound magnetic candidates are now suppressed on solder/trace-side views so
+copper-colored damage or exposed traces cannot masquerade as a winding.
 """
 import cv2
 import numpy as np
 
 def _board_mask(image):
-    h,w=image.shape[:2];gray=cv2.cvtColor(image,cv2.COLOR_BGR2GRAY);band_h,band_w=max(2,h//20),max(2,w//20);border=np.concatenate([gray[:band_h,:].ravel(),gray[-band_h:,:].ravel(),gray[:,:band_w].ravel(),gray[:,-band_w:].ravel()]);bg=int(np.median(border));diff=cv2.absdiff(gray,np.full_like(gray,bg));_,fg=cv2.threshold(diff,22,255,cv2.THRESH_BINARY);fg=cv2.morphologyEx(fg,cv2.MORPH_CLOSE,np.ones((13,13),np.uint8));contours,_=cv2.findContours(fg,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+    h,w=image.shape[:2];gray=cv2.cvtColor(image,cv2.COLOR_BGR2GRAY);bh,bw=max(2,h//20),max(2,w//20);border=np.concatenate([gray[:bh,:].ravel(),gray[-bh:,:].ravel(),gray[:,:bw].ravel(),gray[:,-bw:].ravel()]);bg=int(np.median(border));diff=cv2.absdiff(gray,np.full_like(gray,bg));_,fg=cv2.threshold(diff,22,255,cv2.THRESH_BINARY);fg=cv2.morphologyEx(fg,cv2.MORPH_CLOSE,np.ones((13,13),np.uint8));contours,_=cv2.findContours(fg,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
     if not contours:return np.full((h,w),255,dtype=np.uint8)
     mask=np.zeros((h,w),dtype=np.uint8);cv2.drawContours(mask,[max(contours,key=cv2.contourArea)],-1,255,-1);return cv2.morphologyEx(mask,cv2.MORPH_CLOSE,np.ones((19,19),np.uint8))
 def _inside(mask,cx,cy,radius=0):
@@ -41,31 +41,11 @@ def discriminate_components(image_path):
             x,y,w,h=cv2.boundingRect(c);cx,cy=x+w//2,y+h//2
             if not _inside(mask,cx,cy):continue
             ar=area/board_area;rect=area/max(w*h,1);aspect=max(w,h)/max(min(w,h),1);roi=gray[y:y+h,x:x+w];roi_edges=edges[y:y+h,x:x+w];darkness=float(np.mean(roi<108)) if roi.size else 0.;ed=float(cv2.countNonZero(roi_edges)/max(roi_edges.size,1)) if roi_edges.size else 0.
-            if .030<=ar<=.20 and rect>=.48 and aspect<=4.8 and darkness>=.48 and ed>=.035:
-                power_package_like+=1;conf=min(88,int(50+rect*20+min(ed,.18)*65+min(ar,.10)*80));regions.append({"type":"Large power package / module candidate","x":int(x*inv),"y":int(y*inv),"w":int(w*inv),"h":int(h*inv),"confidence":conf})
-            elif .001<=ar<=.040 and rect>=.70 and aspect<=3.6 and darkness>=.58 and ed>=.05:
-                ic_like+=1;conf=min(91,int(52+rect*24+min(ed,.18)*70))
-                if conf>=62:regions.append({"type":"IC-like package","x":int(x*inv),"y":int(y*inv),"w":int(w*inv),"h":int(h*inv),"confidence":conf})
-            elif .012<=ar<=.15 and rect>=.58 and aspect<=3.8 and darkness>=.28 and ed>=.045:
-                block_like+=1;conf=min(86,int(47+rect*23+min(ed,.18)*60))
-                if conf>=62:regions.append({"type":"Power block / transformer / relay-like","x":int(x*inv),"y":int(y*inv),"w":int(w*inv),"h":int(h*inv),"confidence":conf})
+            if .030<=ar<=.20 and rect>=.48 and aspect<=4.8 and darkness>=.48 and ed>=.035:power_package_like+=1;conf=min(88,int(50+rect*20+min(ed,.18)*65+min(ar,.10)*80));regions.append({"type":"Large power package / module candidate","x":int(x*inv),"y":int(y*inv),"w":int(w*inv),"h":int(h*inv),"confidence":conf})
+            elif .001<=ar<=.040 and rect>=.70 and aspect<=3.6 and darkness>=.58 and ed>=.05:ic_like+=1;conf=min(91,int(52+rect*24+min(ed,.18)*70));regions.append({"type":"IC-like package","x":int(x*inv),"y":int(y*inv),"w":int(w*inv),"h":int(h*inv),"confidence":conf}) if conf>=62 else None
+            elif .012<=ar<=.15 and rect>=.58 and aspect<=3.8 and darkness>=.28 and ed>=.045:block_like+=1;conf=min(86,int(47+rect*23+min(ed,.18)*60));regions.append({"type":"Power block / transformer / relay-like","x":int(x*inv),"y":int(y*inv),"w":int(w*inv),"h":int(h*inv),"confidence":conf}) if conf>=62 else None
             elif .00008<=ar<.001:small_like+=1
             elif .008<=ar<=.20 and rect>=.50:uncertain_like+=1
-        # Copper-wound magnetic cue. Require a compact copper-coloured region with
-        # substantial internal edge density, which is characteristic of repeated
-        # visible windings. Copper colour without winding texture earns no vote.
-        copper=cv2.inRange(hsv,np.array([4,90,55]),np.array([24,255,245]));copper=cv2.bitwise_and(copper,mask);copper=cv2.morphologyEx(copper,cv2.MORPH_CLOSE,np.ones((5,5),np.uint8));cc,_=cv2.findContours(copper,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE);winding_like=0
-        for c in cc:
-            area=cv2.contourArea(c);ar=area/board_area
-            if not .0025<=ar<=.10:continue
-            x,y,w,h=cv2.boundingRect(c);cx,cy=x+w//2,y+h//2
-            if not _inside(mask,cx,cy):continue
-            aspect=max(w,h)/max(1,min(w,h));rect=area/max(1,w*h)
-            if aspect>5.0 or rect<.28:continue
-            roi_edges=edges[y:y+h,x:x+w];edge_density=cv2.countNonZero(roi_edges)/max(1,roi_edges.size)
-            if edge_density<.105:continue
-            winding_like+=1;conf=min(88,int(56+edge_density*160+min(ar,.06)*120));regions.append({"type":"Copper-wound magnetic candidate","x":int(x*inv),"y":int(y*inv),"w":int(w*inv),"h":int(h*inv),"confidence":conf})
-        winding_like=min(winding_like,4)
         circle_blur=cv2.GaussianBlur(gray,(9,9),1.5);min_r=max(5,int(min(width,height)*.008));max_r=max(min_r+2,int(min(width,height)*.065));circles=cv2.HoughCircles(circle_blur,cv2.HOUGH_GRADIENT,dp=1.2,minDist=max(16,min_r*2.4),param1=115,param2=30,minRadius=min_r,maxRadius=max_r);caps=[];contacts=[];solder=[]
         if circles is not None:
             for cx,cy,r in np.round(circles[0]).astype(int):
@@ -83,9 +63,23 @@ def discriminate_components(image_path):
         if pattern_score<.60:contacts=[]
         solder_count=min(len(solder),80);board_edge_density=cv2.countNonZero(cv2.bitwise_and(edges,mask))/max(board_area,1);solder_side_likelihood=int(min(100,solder_count*2+max(0,board_edge_density-.06)*240))
         if solder_count>=10 and board_edge_density>=.055:solder_side_likelihood=max(solder_side_likelihood,72)
-        suppressed_caps=0
+        # Windings are evaluated only after solder-side context is known.
+        winding_like=0
+        if solder_side_likelihood<65:
+            copper=cv2.inRange(hsv,np.array([4,90,55]),np.array([24,255,245]));copper=cv2.bitwise_and(copper,mask);copper=cv2.morphologyEx(copper,cv2.MORPH_CLOSE,np.ones((5,5),np.uint8));cc,_=cv2.findContours(copper,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+            for c in cc:
+                area=cv2.contourArea(c);ar=area/board_area
+                if not .0025<=ar<=.10:continue
+                x,y,w,h=cv2.boundingRect(c);cx,cy=x+w//2,y+h//2
+                if not _inside(mask,cx,cy):continue
+                aspect=max(w,h)/max(1,min(w,h));rect=area/max(1,w*h)
+                if aspect>5.0 or rect<.28:continue
+                roi_edges=edges[y:y+h,x:x+w];edge_density=cv2.countNonZero(roi_edges)/max(1,roi_edges.size)
+                if edge_density<.105:continue
+                winding_like+=1;conf=min(88,int(56+edge_density*160+min(ar,.06)*120));regions.append({"type":"Copper-wound magnetic candidate","x":int(x*inv),"y":int(y*inv),"w":int(w*inv),"h":int(h*inv),"confidence":conf})
+            winding_like=min(winding_like,4)
+        caps=sorted(caps,key=lambda c:c[2],reverse=True)[:12];contacts=sorted(contacts,key=lambda c:c[2],reverse=True)[:24];suppressed_caps=0
         if solder_side_likelihood>=65 and caps:suppressed_caps=len(caps);caps=[]
-        caps=sorted(caps,key=lambda c:c[2],reverse=True)[:12];contacts=sorted(contacts,key=lambda c:c[2],reverse=True)[:24]
         for cx,cy,r,ed,ms,mv in caps:
             conf=min(84,int(48+ed*150+min(10,r/max(min_r,1)*3)))
             if conf>=64:regions.append({"type":"Capacitor-like round component","x":int((cx-r)*inv),"y":int((cy-r)*inv),"w":int(r*2*inv),"h":int(r*2*inv),"confidence":conf})
@@ -96,12 +90,9 @@ def discriminate_components(image_path):
         if ic_like>=3 and ic_like>capacitor_like+block_like+power_package_like+winding_like:result["dominant_family"]="logic_ic"
         elif capacitor_like+block_like+power_package_like+winding_like>=4 and capacitor_like+block_like+power_package_like+winding_like>ic_like*1.35:result["dominant_family"]="power_components"
         elif ic_like or capacitor_like or block_like or power_package_like or winding_like:result["dominant_family"]="mixed"
-        result["notes"].append("SPIKE Vision v0.9 body-before-label filtering is active.")
-        if power_package_like:result["notes"].append(f"Found {power_package_like} large package/module candidate(s); topology cue only.")
-        if winding_like:result["notes"].append(f"Found {winding_like} copper-wound magnetic candidate(s); copper colour alone was not sufficient.")
-        if solder_side_likelihood>=65:result["notes"].append(f"PCB solder/trace-side pattern detected ({solder_side_likelihood}% likelihood); round metallic features were not promoted to capacitor bodies.")
+        result["notes"].append("SPIKE Vision v1.0 body-before-label filtering is active.")
+        if solder_side_likelihood>=65:result["notes"].append(f"PCB solder/trace-side pattern detected ({solder_side_likelihood}% likelihood); capacitor and copper-winding promotion is suppressed on this view.")
+        if winding_like:result["notes"].append(f"Found {winding_like} copper-wound magnetic candidate(s) on a component-side-compatible view.")
         if suppressed_caps:result["notes"].append(f"Suppressed {suppressed_caps} round capacitor candidates because solder-side context was stronger.")
-        if contacts:result["notes"].append(f"Accepted {len(contacts)} intentional plated/contact pads with pattern score {pattern_score:.2f}.")
-        if uncertain_like:result["notes"].append(f"Suppressed {uncertain_like} weak rectangular candidates rather than naming them confidently.")
     except Exception as exc:print(f"[Component Discriminator Error] {exc}")
     return result
