@@ -31,6 +31,7 @@ def fetch_scrap_radar_market():
             "message": "Set SCRAP_RADAR_API_URL in the Board Sense deployment environment.",
             "metals": {},
             "scrap_grades": {},
+            "materials": [],
         }
 
     try:
@@ -44,6 +45,7 @@ def fetch_scrap_radar_market():
             "updated_at": data.get("updated_at"),
             "metals": data.get("metals", {}),
             "scrap_grades": data.get("scrap_grades", {}),
+            "materials": data.get("materials", []),
             "note": data.get("note"),
         }
     except (HTTPError, URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
@@ -54,6 +56,7 @@ def fetch_scrap_radar_market():
             "error_type": type(exc).__name__,
             "metals": {},
             "scrap_grades": {},
+            "materials": [],
         }
 
 
