@@ -1,8 +1,8 @@
 """Visual component-family discrimination for Board Sense.
 
-SPIKE Vision v0.8 keeps body-before-label filtering and adds a conservative
-large-package cue for power-stage reasoning. A large dark package is not called a
-power device by itself; it is exposed only as corroborating evidence for topology.
+SPIKE Vision v0.9 keeps body-before-label filtering and adds conservative cues for
+large power packages and copper-wound magnetic components. Neither cue proves a
+power stage alone; both remain corroborating structural evidence.
 """
 import cv2
 import numpy as np
@@ -27,7 +27,7 @@ def _contact_pattern_score(candidates,width,height):
     if len(candidates)>=6:score+=.15
     return min(score,1.0)
 def discriminate_components(image_path):
-    result={"ic_like":0,"capacitor_like":0,"contact_pad_like":0,"solder_joint_like":0,"solder_side_likelihood":0,"contact_pattern_score":0.0,"transformer_relay_like":0,"large_power_package_like":0,"small_component_like":0,"uncertain_like":0,"dominant_family":"unknown","logic_component_ratio":0.0,"power_component_ratio":0.0,"regions":[],"notes":[]}
+    result={"ic_like":0,"capacitor_like":0,"contact_pad_like":0,"solder_joint_like":0,"solder_side_likelihood":0,"contact_pattern_score":0.0,"transformer_relay_like":0,"large_power_package_like":0,"magnetic_winding_like":0,"small_component_like":0,"uncertain_like":0,"dominant_family":"unknown","logic_component_ratio":0.0,"power_component_ratio":0.0,"regions":[],"notes":[]}
     try:
         image=cv2.imread(image_path)
         if image is None:return result
@@ -41,9 +41,6 @@ def discriminate_components(image_path):
             x,y,w,h=cv2.boundingRect(c);cx,cy=x+w//2,y+h//2
             if not _inside(mask,cx,cy):continue
             ar=area/board_area;rect=area/max(w*h,1);aspect=max(w,h)/max(min(w,h),1);roi=gray[y:y+h,x:x+w];roi_edges=edges[y:y+h,x:x+w];darkness=float(np.mean(roi<108)) if roi.size else 0.;ed=float(cv2.countNonZero(roi_edges)/max(roi_edges.size,1)) if roi_edges.size else 0.
-            # Very large dark rectangular packages are exposed as a generic power-
-            # package cue. This does not name the part and is never sufficient by
-            # itself for a power-board call.
             if .030<=ar<=.20 and rect>=.48 and aspect<=4.8 and darkness>=.48 and ed>=.035:
                 power_package_like+=1;conf=min(88,int(50+rect*20+min(ed,.18)*65+min(ar,.10)*80));regions.append({"type":"Large power package / module candidate","x":int(x*inv),"y":int(y*inv),"w":int(w*inv),"h":int(h*inv),"confidence":conf})
             elif .001<=ar<=.040 and rect>=.70 and aspect<=3.6 and darkness>=.58 and ed>=.05:
@@ -54,6 +51,21 @@ def discriminate_components(image_path):
                 if conf>=62:regions.append({"type":"Power block / transformer / relay-like","x":int(x*inv),"y":int(y*inv),"w":int(w*inv),"h":int(h*inv),"confidence":conf})
             elif .00008<=ar<.001:small_like+=1
             elif .008<=ar<=.20 and rect>=.50:uncertain_like+=1
+        # Copper-wound magnetic cue. Require a compact copper-coloured region with
+        # substantial internal edge density, which is characteristic of repeated
+        # visible windings. Copper colour without winding texture earns no vote.
+        copper=cv2.inRange(hsv,np.array([4,90,55]),np.array([24,255,245]));copper=cv2.bitwise_and(copper,mask);copper=cv2.morphologyEx(copper,cv2.MORPH_CLOSE,np.ones((5,5),np.uint8));cc,_=cv2.findContours(copper,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE);winding_like=0
+        for c in cc:
+            area=cv2.contourArea(c);ar=area/board_area
+            if not .0025<=ar<=.10:continue
+            x,y,w,h=cv2.boundingRect(c);cx,cy=x+w//2,y+h//2
+            if not _inside(mask,cx,cy):continue
+            aspect=max(w,h)/max(1,min(w,h));rect=area/max(1,w*h)
+            if aspect>5.0 or rect<.28:continue
+            roi_edges=edges[y:y+h,x:x+w];edge_density=cv2.countNonZero(roi_edges)/max(1,roi_edges.size)
+            if edge_density<.105:continue
+            winding_like+=1;conf=min(88,int(56+edge_density*160+min(ar,.06)*120));regions.append({"type":"Copper-wound magnetic candidate","x":int(x*inv),"y":int(y*inv),"w":int(w*inv),"h":int(h*inv),"confidence":conf})
+        winding_like=min(winding_like,4)
         circle_blur=cv2.GaussianBlur(gray,(9,9),1.5);min_r=max(5,int(min(width,height)*.008));max_r=max(min_r+2,int(min(width,height)*.065));circles=cv2.HoughCircles(circle_blur,cv2.HOUGH_GRADIENT,dp=1.2,minDist=max(16,min_r*2.4),param1=115,param2=30,minRadius=min_r,maxRadius=max_r);caps=[];contacts=[];solder=[]
         if circles is not None:
             for cx,cy,r in np.round(circles[0]).astype(int):
@@ -80,12 +92,13 @@ def discriminate_components(image_path):
         for cx,cy,r,ed,gold in contacts:
             conf=min(90,int(58+gold*45+pattern_score*18))
             if conf>=66:regions.append({"type":"Plated contact / keypad pad","x":int((cx-r)*inv),"y":int((cy-r)*inv),"w":int(r*2*inv),"h":int(r*2*inv),"confidence":conf})
-        capacitor_like,contact_pad_like=len(caps),len(contacts);result.update({"ic_like":ic_like,"capacitor_like":capacitor_like,"contact_pad_like":contact_pad_like,"solder_joint_like":solder_count,"solder_side_likelihood":solder_side_likelihood,"contact_pattern_score":round(pattern_score,3),"transformer_relay_like":block_like,"large_power_package_like":power_package_like,"small_component_like":small_like,"uncertain_like":uncertain_like});result["regions"]=sorted(regions,key=lambda i:(i["confidence"],i["w"]*i["h"]),reverse=True)[:24];total=max(ic_like+capacitor_like+block_like+power_package_like,1);result["logic_component_ratio"]=round(ic_like/total,3);result["power_component_ratio"]=round((capacitor_like+block_like+power_package_like)/total,3)
-        if ic_like>=3 and ic_like>capacitor_like+block_like+power_package_like:result["dominant_family"]="logic_ic"
-        elif capacitor_like+block_like+power_package_like>=4 and capacitor_like+block_like+power_package_like>ic_like*1.35:result["dominant_family"]="power_components"
-        elif ic_like or capacitor_like or block_like or power_package_like:result["dominant_family"]="mixed"
-        result["notes"].append("SPIKE Vision v0.8 body-before-label filtering is active.")
-        if power_package_like:result["notes"].append(f"Found {power_package_like} large package/module candidate(s); these are topology cues only and require corroborating power components before a power-stage call.")
+        capacitor_like,contact_pad_like=len(caps),len(contacts);result.update({"ic_like":ic_like,"capacitor_like":capacitor_like,"contact_pad_like":contact_pad_like,"solder_joint_like":solder_count,"solder_side_likelihood":solder_side_likelihood,"contact_pattern_score":round(pattern_score,3),"transformer_relay_like":block_like,"large_power_package_like":power_package_like,"magnetic_winding_like":winding_like,"small_component_like":small_like,"uncertain_like":uncertain_like});result["regions"]=sorted(regions,key=lambda i:(i["confidence"],i["w"]*i["h"]),reverse=True)[:24];total=max(ic_like+capacitor_like+block_like+power_package_like+winding_like,1);result["logic_component_ratio"]=round(ic_like/total,3);result["power_component_ratio"]=round((capacitor_like+block_like+power_package_like+winding_like)/total,3)
+        if ic_like>=3 and ic_like>capacitor_like+block_like+power_package_like+winding_like:result["dominant_family"]="logic_ic"
+        elif capacitor_like+block_like+power_package_like+winding_like>=4 and capacitor_like+block_like+power_package_like+winding_like>ic_like*1.35:result["dominant_family"]="power_components"
+        elif ic_like or capacitor_like or block_like or power_package_like or winding_like:result["dominant_family"]="mixed"
+        result["notes"].append("SPIKE Vision v0.9 body-before-label filtering is active.")
+        if power_package_like:result["notes"].append(f"Found {power_package_like} large package/module candidate(s); topology cue only.")
+        if winding_like:result["notes"].append(f"Found {winding_like} copper-wound magnetic candidate(s); copper colour alone was not sufficient.")
         if solder_side_likelihood>=65:result["notes"].append(f"PCB solder/trace-side pattern detected ({solder_side_likelihood}% likelihood); round metallic features were not promoted to capacitor bodies.")
         if suppressed_caps:result["notes"].append(f"Suppressed {suppressed_caps} round capacitor candidates because solder-side context was stronger.")
         if contacts:result["notes"].append(f"Accepted {len(contacts)} intentional plated/contact pads with pattern score {pattern_score:.2f}.")
