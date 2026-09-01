@@ -1,9 +1,27 @@
 def classify_board_type(features, visual, motherboard, power):
-    """Return a human-readable board type from combined detector evidence."""
+    """Return a human-readable board type from combined detector evidence.
+
+    Broad identity follows structural topology. A weak gold-coloured edge signal
+    must not outrank substantial power hardware plus control/logic evidence.
+    Recovery material observations remain separate from equipment identity.
+    """
     features = features or {}
     visual = visual or {}
     motherboard = motherboard or {}
     power = power or {}
+
+    power_score = int(power.get("power_score", 0) or 0)
+    power_blocks = int(power.get("large_component_regions", 0) or 0)
+    power_round = int(power.get("large_round_components", 0) or 0)
+    logic_evidence = bool(
+        features.get("processor")
+        or features.get("dense_component_board")
+        or features.get("large_ic_chips")
+    )
+    substantial_power_topology = bool(
+        power_blocks >= 1
+        and (power_score >= 3 or power_round >= 2 or power_blocks >= 2)
+    )
 
     if features.get("ram") or visual.get("possible_ram"):
         return {
@@ -11,10 +29,18 @@ def classify_board_type(features, visual, motherboard, power):
             "reason": "Long narrow geometry and memory-module signals detected.",
         }
 
+    # Mixed power + logic is a controller family, not a pure PSU and not an
+    # expansion card merely because a bright/plated-looking edge was observed.
+    if substantial_power_topology and logic_evidence:
+        return {
+            "type": "Power-Control / Controller Board",
+            "reason": "Substantial power-stage hardware and control/logic evidence are both present; this mixed topology outranks a weak edge-connector signal.",
+        }
+
     if power.get("possible_power_board"):
         return {
             "type": "Power / Supply Board",
-            "reason": "Large round components and sparse high-power component layout detected.",
+            "reason": "Power-stage topology is dominant without enough confirmed control logic to classify the board as a mixed power controller.",
         }
 
     if features.get("motherboard") or motherboard.get("possible_motherboard"):
@@ -38,7 +64,7 @@ def classify_board_type(features, visual, motherboard, power):
     if features.get("gold_fingers") or visual.get("gold_finger_edge"):
         return {
             "type": "Edge-Connector Expansion Board",
-            "reason": "Gold-bearing connector material detected near the board edge.",
+            "reason": "A board-edge connector signal is present and no stronger structural topology has been confirmed.",
         }
 
     return {
