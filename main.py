@@ -12,6 +12,7 @@ from routes.pair_reasoner import reconcile_pair
 from routes.pair_decision_guard import guard_pair
 from routes.spike_evidence_packet import build_evidence_packet
 from routes.case_reasoner import reconcile_case
+from routes.inspection_target import parse_inspection_target, apply_inspection_target
 from recovery_lab.core.time_value import compare_paths
 from routes.grade import router as grade_router
 from routes.irm_core import router as irm_router
@@ -30,8 +31,10 @@ def _save_upload(upload:UploadFile,target:Path):
  with open(target,"wb") as buffer:shutil.copyfileobj(upload.file,buffer)
 def _economics_payload(**values):return {k:v for k,v in values.items() if v is not None}
 @app.post("/analyze")
-async def analyze_board_route(file:UploadFile=File(...)):
- file_path=IMAGE_DIR/file.filename;_save_upload(file,file_path);result=analyze_board(str(file_path));result["status"]="success";result["board"]=file.filename;result["spike_evidence"]=build_evidence_packet(result);return result
+async def analyze_board_route(file:UploadFile=File(...),inspection_target:Optional[str]=Form(None)):
+ file_path=IMAGE_DIR/file.filename;_save_upload(file,file_path);result=analyze_board(str(file_path));target_packet=parse_inspection_target(inspection_target)
+ if target_packet:result=apply_inspection_target(result,target_packet)
+ result["status"]="success";result["board"]=file.filename;result["spike_evidence"]=build_evidence_packet(result);return result
 @app.post("/analyze-pair")
 async def analyze_board_pair_route(side_a:UploadFile=File(...),side_b:UploadFile=File(...)):
  side_a_path=IMAGE_DIR/f"side_a_{side_a.filename}";side_b_path=IMAGE_DIR/f"side_b_{side_b.filename}";_save_upload(side_a,side_a_path);_save_upload(side_b,side_b_path);result_a=analyze_board(str(side_a_path));result_b=analyze_board(str(side_b_path));result_a["spike_evidence"]=build_evidence_packet(result_a);result_b["spike_evidence"]=build_evidence_packet(result_b);paired=guard_pair(result_a,result_b,reconcile_pair(result_a,result_b));paired["spike_evidence"]=build_evidence_packet(paired);paired["model"]="Board Sense v2.3 + SPIKE Verification v0.1 + Pair Reasoner v1.1";return {"status":"success","mode":"two_sided_same_board","side_a":result_a,"side_b":result_b,"paired":paired}
