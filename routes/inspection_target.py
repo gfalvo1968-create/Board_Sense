@@ -1,10 +1,10 @@
 """Target-aware SPIKE inspection context.
 
 This layer never changes ordinary board grading. It only tells SPIKE whether the
-current generic visual recognition actually supports the inspection mission that
-came from Scrap Radar.
+current recognition supports the inspection mission that came from Scrap Radar.
 """
 import json
+from routes.target_visual import inspect_target_visual
 
 SOURCE_SUPPORT = {
     "hard-drive": ("magnet", "actuator", "hard drive", "voice coil"),
@@ -41,7 +41,7 @@ def _text(*values):
     return " ".join(str(v or "") for v in values).lower()
 
 
-def apply_inspection_target(result, packet):
+def apply_inspection_target(result, packet, image_path=None):
     packet = parse_inspection_target(packet)
     if not packet:
         return result
@@ -51,6 +51,21 @@ def apply_inspection_target(result, packet):
     source_id = str(packet.get("sourceId") or "").strip()
     source_name = str(packet.get("sourceName") or "Scrap Radar source")
     target = str(packet.get("target") or "Saved inspection target")
+
+    visual_target = {"applicable": False, "status": "not_applicable", "confidence": 0, "evidence": []}
+    if image_path:
+        try:
+            visual_target = inspect_target_visual(image_path, source_id, target)
+        except Exception as exc:
+            visual_target = {
+                "applicable": True,
+                "status": "target_not_confirmed",
+                "confidence": 0,
+                "evidence": [],
+                "message": "Target-specific visual geometry could not complete safely.",
+                "error": str(exc),
+            }
+
     haystack = _text(
         top.get("label"),
         top.get("family"),
@@ -58,9 +73,15 @@ def apply_inspection_target(result, packet):
         (result.get("object_gate") or {}).get("label"),
     )
     support_terms = SOURCE_SUPPORT.get(source_id, ())
-    supported = bool(support_terms and any(term in haystack for term in support_terms))
+    text_supported = bool(support_terms and any(term in haystack for term in support_terms))
 
-    if supported:
+    if visual_target.get("status") == "target_area_candidate":
+        status = "target_area_candidate"
+        message = visual_target.get("message") or (
+            "Target-specific geometry found the expected inspection area. "
+            "Use a closer view before treating the component itself as confirmed."
+        )
+    elif text_supported:
         status = "target_candidate"
         message = (
             "Current visual recognition overlaps the saved inspection mission. "
@@ -69,11 +90,14 @@ def apply_inspection_target(result, packet):
     else:
         status = "target_not_confirmed"
         generic = top.get("label") or result.get("board_type") or "generic visual features"
-        message = (
-            f"Current image produced generic recognition '{generic}', but that does not confirm "
-            f"the saved target '{target}'. Reframe closer on the target area and include enough "
-            "surrounding context to place it on the item."
-        )
+        if visual_target.get("applicable") and visual_target.get("message"):
+            message = visual_target.get("message")
+        else:
+            message = (
+                f"Current image produced generic recognition '{generic}', but that does not confirm "
+                f"the saved target '{target}'. Reframe closer on the target area and include enough "
+                "surrounding context to place it on the item."
+            )
 
     target_result = {
         "status": status,
@@ -86,6 +110,7 @@ def apply_inspection_target(result, packet):
         "watch": packet.get("watch") or "",
         "materials": packet.get("materials") if isinstance(packet.get("materials"), list) else [],
         "message": message,
+        "visual_target": visual_target,
         "generic_top_match": {
             "label": top.get("label"),
             "family": top.get("family"),
