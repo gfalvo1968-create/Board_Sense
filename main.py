@@ -33,7 +33,7 @@ def _economics_payload(**values):return {k:v for k,v in values.items() if v is n
 @app.post("/analyze")
 async def analyze_board_route(file:UploadFile=File(...),inspection_target:Optional[str]=Form(None)):
  file_path=IMAGE_DIR/file.filename;_save_upload(file,file_path);result=analyze_board(str(file_path));target_packet=parse_inspection_target(inspection_target)
- if target_packet:result=apply_inspection_target(result,target_packet)
+ if target_packet:result=apply_inspection_target(result,target_packet,str(file_path))
  result["status"]="success";result["board"]=file.filename;result["spike_evidence"]=build_evidence_packet(result);return result
 @app.post("/analyze-pair")
 async def analyze_board_pair_route(side_a:UploadFile=File(...),side_b:UploadFile=File(...)):
