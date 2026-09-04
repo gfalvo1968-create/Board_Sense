@@ -181,6 +181,12 @@ def apply_inspection_target(result, packet, image_path=None):
             "Target-specific geometry found the expected inspection area. "
             "Use a closer view before treating the component itself as confirmed."
         )
+    elif visual_target.get("applicable"):
+        status = "target_not_confirmed"
+        message = visual_target.get("message") or (
+            "Target-specific visual evidence did not confirm the saved inspection target. "
+            "Reframe on the expected component and preserve enough surrounding context to place it."
+        )
     elif text_supported:
         status = "target_candidate"
         message = (
