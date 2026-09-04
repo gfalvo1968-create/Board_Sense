@@ -46,21 +46,28 @@ def _text(*values):
 def _annotate_blueprint_target(result, visual_target, image_path, target, status):
     """Draw a navigation-only cyan marker onto the existing Blueprint image.
 
+    A precise marker is intentionally reserved for component-level
+    TARGET CANDIDATE results. Area-only evidence can prove the user is in the
+    right neighborhood without proving an exact point, so TARGET AREA CANDIDATE
+    never receives a precise crosshair.
+
     Geometry comes from the target detector's resized working image. The Board
     Blueprint preserves the uploaded image's aspect ratio, so coordinates are
     scaled back to the Blueprint dimensions before drawing. This marker locates
-    the inspection neighborhood or component candidate only. It is never a
-    composition or value claim.
+    the component candidate only. It is never a composition or value claim.
     """
+    if status != "target_candidate":
+        return result
+
     try:
         geometry = (visual_target or {}).get("geometry") or {}
         metrics = (visual_target or {}).get("metrics") or {}
         src_w = float(metrics.get("image_width") or 0)
         src_h = float(metrics.get("image_height") or 0)
 
-        point = geometry.get("plate") if status == "target_candidate" else None
+        point = geometry.get("plate") or {}
         if not point:
-            point = geometry.get("pivot") or {}
+            return result
         px = float(point.get("x"))
         py = float(point.get("y"))
         if src_w <= 0 or src_h <= 0:
@@ -99,7 +106,7 @@ def _annotate_blueprint_target(result, visual_target, image_path, target, status
         cv2.line(image, (x, max(0, y - arm)), (x, max(0, y - radius - 8)), cyan, thickness, cv2.LINE_AA)
         cv2.line(image, (x, min(h - 1, y + radius + 8)), (x, min(h - 1, y + arm)), cyan, thickness, cv2.LINE_AA)
 
-        label = "TARGET CANDIDATE" if status == "target_candidate" else "ZOOM HERE"
+        label = "TARGET CANDIDATE"
         font = cv2.FONT_HERSHEY_SIMPLEX
         fs = max(0.7, min(1.6, base / 1100.0))
         tw, th = cv2.getTextSize(label, font, fs, thickness)[0]
@@ -119,7 +126,7 @@ def _annotate_blueprint_target(result, visual_target, image_path, target, status
             "confidence": visual_target.get("confidence"),
             "x": x,
             "y": y,
-            "geometry_source": "plate" if status == "target_candidate" and geometry.get("plate") else "pivot",
+            "geometry_source": "plate",
             "rule": "Navigation marker only; it does not prove composition, recoverable mass, or value.",
         }
         result["board_blueprint"] = blueprint
@@ -217,6 +224,6 @@ def apply_inspection_target(result, packet, image_path=None):
     spike["target_name"] = target
     result["spike_glass"] = spike
 
-    if status in ("target_area_candidate", "target_candidate") and image_path:
+    if status == "target_candidate" and image_path:
         result = _annotate_blueprint_target(result, visual_target, image_path, target, status)
     return result
