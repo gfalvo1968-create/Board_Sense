@@ -161,10 +161,12 @@ def _hard_drive_actuator_geometry(image_path):
                 local += 5
             pivot_candidates.append((local, c))
 
-        # Calculate line geometry only once. The previous version recomputed Hough
-        # lines for every pivot candidate, which was unnecessarily heavy on deploys.
+        # Calculate line geometry only once. A broad actuator arm can sometimes fail
+        # to produce a clean Hough segment, so line support strengthens the area call
+        # but is no longer the only route to the middle "target area" state.
         lines = _detect_lines(gray, diagnostics)
         pivot = None
+        pivot_geometry_score = 0
         line_count = 0
         if pivot_candidates:
             best = None
@@ -174,8 +176,8 @@ def _hard_drive_actuator_geometry(image_path):
                 if best is None or combined > best[0]:
                     best = (combined, local, lc, candidate)
             if best:
-                _, local, line_count, pivot = best
-                score += int(local)
+                _, pivot_geometry_score, line_count, pivot = best
+                score += int(pivot_geometry_score)
                 evidence.append("secondary pivot-scale circular structure detected near the platter")
                 if line_count:
                     score += min(22, line_count * 6)
@@ -192,8 +194,11 @@ def _hard_drive_actuator_geometry(image_path):
         result["confidence"] = score
         result["evidence"] = evidence
         result["metrics"] = {
+            "image_width": int(w),
+            "image_height": int(h),
             "large_circle_count": len(large),
             "pivot_candidate_count": len(pivot_candidates),
+            "pivot_geometry_score": int(pivot_geometry_score),
             "line_candidate_count": len(lines),
             "arm_line_support": int(line_count),
             "neutral_metallic_ratio": round(metallic, 3),
@@ -212,9 +217,27 @@ def _hard_drive_actuator_geometry(image_path):
                 "Opened hard-drive geometry is consistent with the actuator pivot/voice-coil area. "
                 "Treat this as the correct target area for a closer magnet-assembly inspection; the magnet material itself is not proven."
             )
+        elif (
+            score >= 66
+            and pivot is not None
+            and pivot_geometry_score >= 24
+            and metallic >= 0.22
+        ):
+            # TARGET AREA is intentionally a navigation result, not a component or
+            # chemistry claim. Strong platter-to-pivot geometry is enough to guide
+            # the next close-up even when a broad actuator arm does not yield a
+            # clean line segment.
+            result["status"] = "target_area_candidate"
+            evidence.append("platter-to-pivot geometry is strong enough to locate the actuator neighborhood")
+            result["evidence"] = evidence
+            result["message"] = (
+                "SPIKE located the opened-drive actuator neighborhood from the platter, pivot-scale structure, "
+                "and mechanical context. Move closer to the pivot and nearby metal-backed plate for component-level confirmation. "
+                "This does not prove neodymium or recoverable mass."
+            )
         elif score >= 61 and pivot is not None:
             result["message"] = (
-                "SPIKE sees opened hard-drive and pivot-scale geometry, but the actuator-arm relationship is still incomplete. "
+                "SPIKE sees opened hard-drive and pivot-scale geometry, but the actuator neighborhood is still incomplete. "
                 "Keep the pivot and nearby metal-backed plate in frame and move closer."
             )
         return result
