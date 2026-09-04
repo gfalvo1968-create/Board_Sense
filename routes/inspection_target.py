@@ -6,7 +6,7 @@ current recognition supports the inspection mission that came from Scrap Radar.
 import json
 from pathlib import Path
 import cv2
-from routes.target_visual import inspect_target_visual
+from routes.target_visual_refined import inspect_target_visual
 
 SOURCE_SUPPORT = {
     "hard-drive": ("magnet", "actuator", "hard drive", "voice coil"),
