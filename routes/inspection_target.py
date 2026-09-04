@@ -4,6 +4,8 @@ This layer never changes ordinary board grading. It only tells SPIKE whether the
 current recognition supports the inspection mission that came from Scrap Radar.
 """
 import json
+from pathlib import Path
+import cv2
 from routes.target_visual import inspect_target_visual
 
 SOURCE_SUPPORT = {
@@ -39,6 +41,88 @@ def parse_inspection_target(raw):
 
 def _text(*values):
     return " ".join(str(v or "") for v in values).lower()
+
+
+def _annotate_blueprint_target(result, visual_target, image_path, target, status):
+    """Draw a navigation-only cyan marker onto the existing Blueprint image.
+
+    Geometry comes from the target detector's resized working image. The Board
+    Blueprint preserves the uploaded image's aspect ratio, so coordinates are
+    scaled back to the Blueprint dimensions before drawing. This marker locates
+    the inspection neighborhood only. It is not a composition or value claim.
+    """
+    try:
+        geometry = (visual_target or {}).get("geometry") or {}
+        pivot = geometry.get("pivot") or {}
+        metrics = (visual_target or {}).get("metrics") or {}
+        src_w = float(metrics.get("image_width") or 0)
+        src_h = float(metrics.get("image_height") or 0)
+        px = float(pivot.get("x"))
+        py = float(pivot.get("y"))
+        if src_w <= 0 or src_h <= 0:
+            return result
+
+        blueprint = result.get("board_blueprint") or {}
+        filename = blueprint.get("image_filename")
+        if not filename or not image_path:
+            return result
+        blueprint_path = Path(image_path).resolve().parent.parent / "Blueprints" / filename
+        image = cv2.imread(str(blueprint_path))
+        if image is None:
+            return result
+
+        h, w = image.shape[:2]
+        x = int(round(px * w / src_w))
+        y = int(round(py * h / src_h))
+        x = max(0, min(w - 1, x))
+        y = max(0, min(h - 1, y))
+
+        base = max(w, h)
+        radius = max(34, int(base / 18))
+        thickness = max(4, int(base / 420))
+        arm = max(radius + 18, int(base / 11))
+        cyan = (255, 255, 0)  # BGR
+        black = (0, 0, 0)
+
+        # High-contrast halo, cyan target ring and crosshair.
+        cv2.circle(image, (x, y), radius + thickness * 2, black, thickness * 2, cv2.LINE_AA)
+        cv2.circle(image, (x, y), radius, cyan, thickness, cv2.LINE_AA)
+        cv2.line(image, (max(0, x - arm), y), (max(0, x - radius - 8), y), black, thickness * 2, cv2.LINE_AA)
+        cv2.line(image, (min(w - 1, x + radius + 8), y), (min(w - 1, x + arm), y), black, thickness * 2, cv2.LINE_AA)
+        cv2.line(image, (x, max(0, y - arm)), (x, max(0, y - radius - 8)), black, thickness * 2, cv2.LINE_AA)
+        cv2.line(image, (x, min(h - 1, y + radius + 8)), (x, min(h - 1, y + arm)), black, thickness * 2, cv2.LINE_AA)
+        cv2.line(image, (max(0, x - arm), y), (max(0, x - radius - 8), y), cyan, thickness, cv2.LINE_AA)
+        cv2.line(image, (min(w - 1, x + radius + 8), y), (min(w - 1, x + arm), y), cyan, thickness, cv2.LINE_AA)
+        cv2.line(image, (x, max(0, y - arm)), (x, max(0, y - radius - 8)), cyan, thickness, cv2.LINE_AA)
+        cv2.line(image, (x, min(h - 1, y + radius + 8)), (x, min(h - 1, y + arm)), cyan, thickness, cv2.LINE_AA)
+
+        label = "ZOOM HERE"
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        fs = max(0.7, min(1.6, base / 1100.0))
+        tw, th = cv2.getTextSize(label, font, fs, thickness)[0]
+        tx = max(8, min(w - tw - 8, x - tw // 2))
+        ty = y - radius - 18
+        if ty < th + 10:
+            ty = min(h - 10, y + radius + th + 18)
+        cv2.putText(image, label, (tx, ty), font, fs, black, thickness * 3, cv2.LINE_AA)
+        cv2.putText(image, label, (tx, ty), font, fs, cyan, thickness, cv2.LINE_AA)
+        cv2.imwrite(str(blueprint_path), image)
+
+        blueprint["target_marker"] = {
+            "active": True,
+            "label": "ZOOM HERE",
+            "target": target,
+            "status": status,
+            "confidence": visual_target.get("confidence"),
+            "x": x,
+            "y": y,
+            "rule": "Navigation marker only; it does not prove composition, recoverable mass, or value.",
+        }
+        result["board_blueprint"] = blueprint
+    except Exception:
+        # The inspection answer must survive even if the optional visual marker fails.
+        pass
+    return result
 
 
 def apply_inspection_target(result, packet, image_path=None):
@@ -123,4 +207,7 @@ def apply_inspection_target(result, packet, image_path=None):
     spike["target_status"] = status
     spike["target_name"] = target
     result["spike_glass"] = spike
+
+    if status in ("target_area_candidate", "target_candidate") and image_path:
+        result = _annotate_blueprint_target(result, visual_target, image_path, target, status)
     return result
