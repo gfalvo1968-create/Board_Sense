@@ -32,8 +32,8 @@ def _save_upload(upload:UploadFile,target:Path):
 def _economics_payload(**values):return {k:v for k,v in values.items() if v is not None}
 def _spike_target_rank(result):
  t=(result or {}).get("inspection_target") or {};status=t.get("status");rank={"target_candidate":3,"target_area_candidate":2,"target_not_confirmed":1}.get(status,0)
- vt=t.get("visual_target") or {};visual=float(vt.get("confidence") or 0);spike=(result or {}).get("spike_glass") or {};generic=float(spike.get("confidence") or 0)
- return (rank,visual,generic)
+ vt=t.get("visual_target") or {};visual=float(vt.get("confidence") or 0);role_bonus=1 if (result or {}).get("spike_role")=="closeup" else 0;spike=(result or {}).get("spike_glass") or {};generic=float(spike.get("confidence") or 0)
+ return (rank,visual,role_bonus,generic)
 @app.post("/analyze")
 async def analyze_board_route(file:UploadFile=File(...),inspection_target:Optional[str]=Form(None)):
  file_path=IMAGE_DIR/file.filename;_save_upload(file,file_path);result=analyze_board(str(file_path));target_packet=parse_inspection_target(inspection_target)
