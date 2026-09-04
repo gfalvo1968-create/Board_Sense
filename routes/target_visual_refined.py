@@ -19,6 +19,7 @@ import cv2
 import numpy as np
 
 from routes.target_visual import inspect_target_visual as _legacy_inspect_target_visual
+from routes.speaker_target_visual import inspect_speaker_target_visual
 
 
 def _resize(image, max_side=1100):
@@ -74,8 +75,6 @@ def _component_refinement(image_path):
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-    # Find copper/bronze regions that are large enough to be real mechanical
-    # features but not so large that warm reflections dominate the frame.
     copper = cv2.inRange(hsv, np.array([3, 55, 45]), np.array([32, 255, 245]))
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
     copper = cv2.morphologyEx(copper, cv2.MORPH_OPEN, kernel, iterations=1)
@@ -117,14 +116,7 @@ def _component_refinement(image_path):
             if radius_ratio < 0.025 or radius_ratio > 0.095:
                 continue
 
-            # A real actuator bearing normally sits about one-and-a-half to a
-            # little over two bearing radii from the exposed voice-coil cue.
             distance_per_radius = distance / max(pr, 1.0)
-
-            # Project from the pivot through the copper cue. The backing/magnet
-            # plate occupies that side of the voice-coil assembly. We validate
-            # that the projected point is actually over neutral metal before it
-            # is allowed to become the Blueprint navigation point.
             vx, vy = cx - px, cy - py
             tx, ty = cx + 0.55 * vx, cy + 0.55 * vy
             if tx < 0 or ty < 0 or tx >= w or ty >= h:
@@ -186,9 +178,6 @@ def _component_refinement(image_path):
         }
     )
 
-    # Promotion requires all three local cues to be strong enough. The score
-    # threshold was tested against both a tight actuator photo and a wider drive
-    # view; only a legacy component candidate reaches this refinement gate.
     if best["score"] < 78 or best["neutral_ratio"] < 0.45:
         return out
 
@@ -221,15 +210,17 @@ def _component_refinement(image_path):
 
 
 def inspect_target_visual(image_path, source_id, target):
-    base = _legacy_inspect_target_visual(image_path, source_id, target)
     source_id = str(source_id or "").strip().lower()
     target_text = str(target or "").strip().lower()
+
+    if source_id == "speaker" and "magnet" in target_text:
+        return inspect_speaker_target_visual(image_path, source_id, target)
+
+    base = _legacy_inspect_target_visual(image_path, source_id, target)
 
     if source_id != "hard-drive" or "actuator" not in target_text or "magnet" not in target_text:
         return base
 
-    # Area-level results remain the legacy detector's job. Only a proposed
-    # component-level promotion must survive the local refinement guard.
     if (base or {}).get("status") != "target_candidate":
         return base
 
