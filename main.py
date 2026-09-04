@@ -30,11 +30,30 @@ def ecosystem_data():return get_ecosystem()
 def _save_upload(upload:UploadFile,target:Path):
  with open(target,"wb") as buffer:shutil.copyfileobj(upload.file,buffer)
 def _economics_payload(**values):return {k:v for k,v in values.items() if v is not None}
+def _spike_target_rank(result):
+ t=(result or {}).get("inspection_target") or {};status=t.get("status");rank={"target_candidate":3,"target_area_candidate":2,"target_not_confirmed":1}.get(status,0)
+ vt=t.get("visual_target") or {};visual=float(vt.get("confidence") or 0);spike=(result or {}).get("spike_glass") or {};generic=float(spike.get("confidence") or 0)
+ return (rank,visual,generic)
 @app.post("/analyze")
 async def analyze_board_route(file:UploadFile=File(...),inspection_target:Optional[str]=Form(None)):
  file_path=IMAGE_DIR/file.filename;_save_upload(file,file_path);result=analyze_board(str(file_path));target_packet=parse_inspection_target(inspection_target)
  if target_packet:result=apply_inspection_target(result,target_packet,str(file_path))
  result["status"]="success";result["board"]=file.filename;result["spike_evidence"]=build_evidence_packet(result);return result
+@app.post("/analyze-spike-pair")
+async def analyze_spike_pair_route(context:UploadFile=File(...),closeup:Optional[UploadFile]=File(None),inspection_target:Optional[str]=Form(None)):
+ target_packet=parse_inspection_target(inspection_target);uploads=[("context",context)]
+ if closeup is not None:uploads.append(("closeup",closeup))
+ views=[]
+ for role,upload in uploads:
+  path=IMAGE_DIR/f"spike_{role}_{upload.filename}";_save_upload(upload,path);result=analyze_board(str(path))
+  if target_packet:result=apply_inspection_target(result,target_packet,str(path))
+  result["status"]="success";result["board"]=upload.filename;result["spike_role"]=role;result["spike_evidence"]=build_evidence_packet(result);views.append(result)
+ selected=max(views,key=_spike_target_rank) if target_packet else max(views,key=lambda r:float(((r.get("spike_glass") or {}).get("confidence")) or 0))
+ summary=[]
+ for view in views:
+  spike=view.get("spike_glass") or {};top=spike.get("top_match") or {};target=view.get("inspection_target") or {}
+  summary.append({"role":view.get("spike_role"),"board":view.get("board"),"generic_label":top.get("label"),"generic_confidence":spike.get("confidence"),"target_status":target.get("status"),"target_confidence":((target.get("visual_target") or {}).get("confidence"))})
+ return {"status":"success","mode":"spike_two_photo","photo_count":len(views),"views":views,"combined":selected,"selected_role":selected.get("spike_role"),"pair_summary":summary,"integrity_rule":"Two-photo Spike Glass compares context and close-up evidence for one inspection target. It does not merge board economics or manufacture composition/value."}
 @app.post("/analyze-pair")
 async def analyze_board_pair_route(side_a:UploadFile=File(...),side_b:UploadFile=File(...)):
  side_a_path=IMAGE_DIR/f"side_a_{side_a.filename}";side_b_path=IMAGE_DIR/f"side_b_{side_b.filename}";_save_upload(side_a,side_a_path);_save_upload(side_b,side_b_path);result_a=analyze_board(str(side_a_path));result_b=analyze_board(str(side_b_path));result_a["spike_evidence"]=build_evidence_packet(result_a);result_b["spike_evidence"]=build_evidence_packet(result_b);paired=guard_pair(result_a,result_b,reconcile_pair(result_a,result_b));paired["spike_evidence"]=build_evidence_packet(paired);paired["model"]="Board Sense v2.3 + SPIKE Verification v0.1 + Pair Reasoner v1.1";return {"status":"success","mode":"two_sided_same_board","side_a":result_a,"side_b":result_b,"paired":paired}
@@ -46,8 +65,6 @@ async def analyze_board_case_route(files:List[UploadFile]=File(...),current_sell
  for i,upload in enumerate(files,1):
   safe_name=f"case_{i}_{upload.filename}";path=IMAGE_DIR/safe_name;_save_upload(upload,path);result=analyze_board(str(path));result["board"]=upload.filename;result["view_number"]=i;result["spike_evidence"]=build_evidence_packet(result);results.append(result)
  combined=reconcile_case(results)
- # Identity failure is a hard gate. Do not manufacture economics, recovery evidence,
- # grade, or a merged confidence after SPIKE has decided the case must be split.
  if combined.get("status")=="case_identity_failed" or (combined.get("same_board_verification") or {}).get("block_reconciliation"):
   return {"status":"success","mode":"multi_photo_identity_blocked","photo_count":len(results),"views":results,"combined":combined,"case_warning":"MULTIPLE BOARDS DETECTED - split these photos into one case per physical board."}
  econ=_economics_payload(sell_whole_value=intact_sell_whole_value,partial_recovered_value=partial_recovered_value,partial_residual_value=partial_residual_value,partial_minutes=partial_minutes,partial_costs=partial_costs,full_recovery_value=full_recovery_value,full_minutes=full_minutes,full_costs=full_costs);condition=combined.get("condition_and_harvest") or {};factor=condition.get("remaining_value_factor",1.0)
