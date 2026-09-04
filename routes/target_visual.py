@@ -48,7 +48,6 @@ def _safe_circles(gray, min_r, max_r, param2, min_dist, diagnostics):
 def _metallic_ratio(image, diagnostics):
     try:
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-        # Broad neutral/metallic support only. This is context, never proof of metal type.
         mask = cv2.inRange(hsv, np.array([0, 0, 45]), np.array([179, 85, 245]))
         return float(cv2.countNonZero(mask) / max(mask.size, 1))
     except Exception as exc:
@@ -57,7 +56,6 @@ def _metallic_ratio(image, diagnostics):
 
 
 def _detect_lines(gray, diagnostics):
-    """Run expensive line detection once per image and reuse the result."""
     try:
         edges = cv2.Canny(cv2.GaussianBlur(gray, (5, 5), 0), 55, 145)
         short = min(gray.shape[:2])
@@ -124,8 +122,6 @@ def _hard_drive_actuator_geometry(image_path):
             result["diagnostics"] = diagnostics
             return result
 
-        # Favor the largest platter/spindle-scale circle. This is scene geometry,
-        # not proof that the shiny object is itself the target material.
         platter = max(large, key=lambda c: c[2])
         cx, cy, cr = platter
         if cr < short * 0.17:
@@ -161,9 +157,6 @@ def _hard_drive_actuator_geometry(image_path):
                 local += 5
             pivot_candidates.append((local, c))
 
-        # Calculate line geometry only once. A broad actuator arm can sometimes fail
-        # to produce a clean Hough segment, so line support strengthens the area call
-        # but is no longer the only route to the middle "target area" state.
         lines = _detect_lines(gray, diagnostics)
         pivot = None
         pivot_geometry_score = 0
@@ -211,22 +204,27 @@ def _hard_drive_actuator_geometry(image_path):
                 "pivot": {"x": round(pivot[0], 1), "y": round(pivot[1], 1), "r": round(pivot[2], 1)},
             }
 
-        if score >= 68 and pivot is not None and line_count >= 1:
+        high_geometry = score >= 68 and pivot is not None and line_count >= 1
+        strong_pivot_context = (
+            score >= 66
+            and pivot is not None
+            and pivot_geometry_score >= 24
+            and metallic >= 0.22
+        )
+        strong_open_drive_context = (
+            score >= 61
+            and pivot is not None
+            and pivot_geometry_score >= 17
+            and metallic >= 0.34
+        )
+
+        if high_geometry:
             result["status"] = "target_area_candidate"
             result["message"] = (
                 "Opened hard-drive geometry is consistent with the actuator pivot/voice-coil area. "
                 "Treat this as the correct target area for a closer magnet-assembly inspection; the magnet material itself is not proven."
             )
-        elif (
-            score >= 66
-            and pivot is not None
-            and pivot_geometry_score >= 24
-            and metallic >= 0.22
-        ):
-            # TARGET AREA is intentionally a navigation result, not a component or
-            # chemistry claim. Strong platter-to-pivot geometry is enough to guide
-            # the next close-up even when a broad actuator arm does not yield a
-            # clean line segment.
+        elif strong_pivot_context or strong_open_drive_context:
             result["status"] = "target_area_candidate"
             evidence.append("platter-to-pivot geometry is strong enough to locate the actuator neighborhood")
             result["evidence"] = evidence
@@ -242,7 +240,6 @@ def _hard_drive_actuator_geometry(image_path):
             )
         return result
     except Exception as exc:
-        # Target-specific inspection must fail closed without taking down Board Sense.
         result["message"] = "Target geometry detector recovered safely from an internal vision error."
         result["diagnostics"] = diagnostics + ["target detector recovered: " + type(exc).__name__]
         return result
