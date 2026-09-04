@@ -49,16 +49,20 @@ def _annotate_blueprint_target(result, visual_target, image_path, target, status
     Geometry comes from the target detector's resized working image. The Board
     Blueprint preserves the uploaded image's aspect ratio, so coordinates are
     scaled back to the Blueprint dimensions before drawing. This marker locates
-    the inspection neighborhood only. It is not a composition or value claim.
+    the inspection neighborhood or component candidate only. It is never a
+    composition or value claim.
     """
     try:
         geometry = (visual_target or {}).get("geometry") or {}
-        pivot = geometry.get("pivot") or {}
         metrics = (visual_target or {}).get("metrics") or {}
         src_w = float(metrics.get("image_width") or 0)
         src_h = float(metrics.get("image_height") or 0)
-        px = float(pivot.get("x"))
-        py = float(pivot.get("y"))
+
+        point = geometry.get("plate") if status == "target_candidate" else None
+        if not point:
+            point = geometry.get("pivot") or {}
+        px = float(point.get("x"))
+        py = float(point.get("y"))
         if src_w <= 0 or src_h <= 0:
             return result
 
@@ -84,7 +88,6 @@ def _annotate_blueprint_target(result, visual_target, image_path, target, status
         cyan = (255, 255, 0)  # BGR
         black = (0, 0, 0)
 
-        # High-contrast halo, cyan target ring and crosshair.
         cv2.circle(image, (x, y), radius + thickness * 2, black, thickness * 2, cv2.LINE_AA)
         cv2.circle(image, (x, y), radius, cyan, thickness, cv2.LINE_AA)
         cv2.line(image, (max(0, x - arm), y), (max(0, x - radius - 8), y), black, thickness * 2, cv2.LINE_AA)
@@ -96,7 +99,7 @@ def _annotate_blueprint_target(result, visual_target, image_path, target, status
         cv2.line(image, (x, max(0, y - arm)), (x, max(0, y - radius - 8)), cyan, thickness, cv2.LINE_AA)
         cv2.line(image, (x, min(h - 1, y + radius + 8)), (x, min(h - 1, y + arm)), cyan, thickness, cv2.LINE_AA)
 
-        label = "ZOOM HERE"
+        label = "TARGET CANDIDATE" if status == "target_candidate" else "ZOOM HERE"
         font = cv2.FONT_HERSHEY_SIMPLEX
         fs = max(0.7, min(1.6, base / 1100.0))
         tw, th = cv2.getTextSize(label, font, fs, thickness)[0]
@@ -110,17 +113,17 @@ def _annotate_blueprint_target(result, visual_target, image_path, target, status
 
         blueprint["target_marker"] = {
             "active": True,
-            "label": "ZOOM HERE",
+            "label": label,
             "target": target,
             "status": status,
             "confidence": visual_target.get("confidence"),
             "x": x,
             "y": y,
+            "geometry_source": "plate" if status == "target_candidate" and geometry.get("plate") else "pivot",
             "rule": "Navigation marker only; it does not prove composition, recoverable mass, or value.",
         }
         result["board_blueprint"] = blueprint
     except Exception:
-        # The inspection answer must survive even if the optional visual marker fails.
         pass
     return result
 
@@ -159,7 +162,13 @@ def apply_inspection_target(result, packet, image_path=None):
     support_terms = SOURCE_SUPPORT.get(source_id, ())
     text_supported = bool(support_terms and any(term in haystack for term in support_terms))
 
-    if visual_target.get("status") == "target_area_candidate":
+    if visual_target.get("status") == "target_candidate":
+        status = "target_candidate"
+        message = visual_target.get("message") or (
+            "Target-specific component geometry supports the saved inspection target as a candidate. "
+            "Composition and recoverable mass remain unproven."
+        )
+    elif visual_target.get("status") == "target_area_candidate":
         status = "target_area_candidate"
         message = visual_target.get("message") or (
             "Target-specific geometry found the expected inspection area. "
