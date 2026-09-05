@@ -1,10 +1,12 @@
 """Conservative first-stage object gate for Board Sense.
 
-SPIKE Object Gate v0.3 answers whether an upload is a PCB, loose component, or
-unknown. PCB construction is now judged from structure first, not solder-mask
-color, so tan/brown, blue, red and black boards can pass alongside green boards.
+SPIKE Object Gate v0.4 answers whether an upload is a PCB, loose component,
+speaker/audio driver, or unknown. PCB construction is judged from structure
+first, not solder-mask color, so tan/brown, blue, red and black boards can pass
+alongside green boards.
 """
 
+import math
 import cv2
 import numpy as np
 from routes.component_discriminator import discriminate_components
@@ -43,10 +45,70 @@ def _pcb_color_ratio(hsv):
     return float(cv2.countNonZero(combined)/max(combined.size,1))
 
 
+def _speaker_signature(gray, board_score, foreground_ratio):
+    """Conservative loudspeaker geometry check.
+
+    The guard looks for a large centered circular driver/magnet structure with
+    concentric intensity changes. A strong PCB score suppresses this path so a
+    large round capacitor or fan on a board does not become a speaker.
+    """
+    h,w=gray.shape[:2]
+    min_dim=max(1,min(h,w))
+    blur=cv2.GaussianBlur(gray,(9,9),1.6)
+    min_r=max(20,int(min_dim*.18));max_r=max(min_r+5,int(min_dim*.48))
+    circles=cv2.HoughCircles(blur,cv2.HOUGH_GRADIENT,dp=1.2,
+                             minDist=max(30,int(min_dim*.14)),param1=120,param2=45,
+                             minRadius=min_r,maxRadius=max_r)
+    if circles is None:
+        return 0,[],{}
+
+    yy,xx=np.ogrid[:h,:w]
+    best=None
+    for x,y,r in circles[0]:
+        x=float(x);y=float(y);r=float(r)
+        center_dist=math.hypot(x-w/2,y-h/2)/max(1.0,math.hypot(w/2,h/2))
+        if center_dist>.30:
+            continue
+        mask=(xx-x)**2+(yy-y)**2<=r*r
+        inner=(xx-x)**2+(yy-y)**2<=(r*.60)**2
+        ring=((xx-x)**2+(yy-y)**2<=(r*.95)**2)&((xx-x)**2+(yy-y)**2>=(r*.75)**2)
+        if not np.any(mask) or not np.any(inner) or not np.any(ring):
+            continue
+        candidate={
+            "x":round(x,1),"y":round(y,1),"radius":round(r,1),
+            "center_distance":round(center_dist,3),
+            "mean":float(gray[mask].mean()),
+            "inner_mean":float(gray[inner].mean()),
+            "ring_mean":float(gray[ring].mean()),
+        }
+        key=(1.0-center_dist)+(r/min_dim)
+        if best is None or key>best[0]:
+            best=(key,candidate)
+    if best is None:
+        return 0,[],{}
+
+    m=best[1];score=30;evidence=["Large centered circular driver/magnet geometry detected"]
+    radius_ratio=float(m["radius"])/min_dim
+    if radius_ratio>=.24:score+=15
+    elif radius_ratio>=.20:score+=10
+    if m["mean"]<=110:
+        score+=25;evidence.append("Dark cone-like circular surface detected")
+    elif m["mean"]<=135:
+        score+=12
+    if m["ring_mean"]<=105:
+        score+=10;evidence.append("Concentric surround/ring pattern supports loudspeaker geometry")
+    if abs(m["inner_mean"]-m["ring_mean"])>=18:
+        score+=8;evidence.append("Center-to-surround contrast supports a driver or magnet assembly")
+    if board_score<58:score+=10
+    else:score-=18
+    if .12<=foreground_ratio<=.75:score+=5
+    return max(0,min(100,int(score))),evidence,m
+
+
 def classify_object(image_path):
     result={"mode":"unknown","label":"Unknown object","confidence":35,
             "board_likelihood":0,"component_likelihood":0,"camera_module_likelihood":0,
-            "evidence":[],"message":"Not enough evidence to run board grading safely."}
+            "speaker_likelihood":0,"evidence":[],"message":"Not enough evidence to run board grading safely."}
     try:
         image=cv2.imread(image_path)
         if image is None:
@@ -110,6 +172,8 @@ def classify_object(image_path):
         if foreground_ratio<0.10: component_score+=10
         component_score=min(component_score,100)
 
+        speaker_score,speaker_evidence,speaker_metrics=_speaker_signature(gray,board_score,foreground_ratio)
+
         blur=cv2.GaussianBlur(gray,(9,9),1.6)
         min_r=max(5,int(min(h,w)*0.012)); max_r=max(min_r+2,int(min(h,w)*0.11))
         circles=cv2.HoughCircles(blur,cv2.HOUGH_GRADIENT,dp=1.2,minDist=max(18,min_r*2),param1=100,param2=26,minRadius=min_r,maxRadius=max_r)
@@ -122,12 +186,21 @@ def classify_object(image_path):
         camera_score=max(0,min(camera_score,100))
 
         result.update({"board_likelihood":int(board_score),"component_likelihood":int(component_score),
-                       "camera_module_likelihood":int(camera_score),
+                       "camera_module_likelihood":int(camera_score),"speaker_likelihood":int(speaker_score),
                        "metrics":{"pcb_color_support_ratio":round(color_ratio,4),"foreground_ratio":round(foreground_ratio,4),
                                   "edge_ratio":round(edge_ratio,4),"foreground_rectangularity":round(rectangularity,3),
-                                  "circle_count":int(circle_count),"ic_like":ic,"capacitor_like":cap,
-                                  "contact_pad_like":contact,"solder_joint_like":solder,
-                                  "solder_side_likelihood":solder_side,"power_block_like":block}})
+                                  "circle_count":int(circle_count),"speaker_signature":speaker_metrics,
+                                  "ic_like":ic,"capacitor_like":cap,"contact_pad_like":contact,
+                                  "solder_joint_like":solder,"solder_side_likelihood":solder_side,"power_block_like":block}})
+
+        # Speaker guard runs before PCB/component routing, but only on a strong
+        # large-scale circular signature. It deliberately makes no magnet-chemistry claim.
+        if speaker_score>=82 and speaker_score>=max(component_score,board_score-5):
+            result.update({"mode":"component","label":"Speaker / audio driver",
+                           "confidence":max(82,min(97,speaker_score)),
+                           "evidence":speaker_evidence,
+                           "message":"Speaker/audio-driver geometry is stronger than PCB evidence. Board grading was intentionally skipped; magnet chemistry remains unverified."})
+            return result
 
         if board_score>=58 and board_score>=component_score+3:
             result["mode"]="board"; result["label"]="Circuit board / PCB"; result["confidence"]=max(60,min(97,board_score))
@@ -151,7 +224,7 @@ def classify_object(image_path):
                            "evidence":["Compact foreground object detected","Insufficient whole-PCB structural evidence"],
                            "message":"Component mode selected; board-specific grading was intentionally skipped."})
             return result
-        result["confidence"]=max(30,min(57,max(board_score,component_score)))
+        result["confidence"]=max(30,min(57,max(board_score,component_score,speaker_score)))
         result["evidence"]=["Input does not yet meet the confidence threshold for board or component mode."]
         return result
     except Exception as exc:
