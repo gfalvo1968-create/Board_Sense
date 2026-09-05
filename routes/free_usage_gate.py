@@ -7,13 +7,16 @@ import json
 import os
 from pathlib import Path
 from threading import Lock
-from typing import Optional
+from urllib import parse, request as urlrequest
 
 from fastapi import Request
 
 
 DAILY_FREE_BOARD_LIMIT = int(os.getenv("BOARD_SENSE_DAILY_FREE_BOARD_LIMIT", "1"))
 USAGE_FILE = Path(os.getenv("BOARD_SENSE_USAGE_FILE", "data/free_usage.json"))
+SUPABASE_URL = os.getenv("SUPABASE_URL", "https://plcecfxejriiorzwqbfc.supabase.co").rstrip("/")
+SUPABASE_SECRET = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_SECRET_KEY") or ""
+BOARD_SENSE_ENV = os.getenv("BOARD_SENSE_ENV", "development").lower()
 _USAGE_LOCK = Lock()
 
 
@@ -44,8 +47,6 @@ def _utc_day() -> str:
 
 
 def _client_ip(request: Request) -> str:
-    # Prefer a trusted reverse-proxy forwarding header when present.
-    # Railway and similar hosts commonly forward the original client IP.
     forwarded = request.headers.get("x-forwarded-for", "")
     if forwarded:
         return forwarded.split(",", 1)[0].strip()
@@ -56,12 +57,8 @@ def _client_ip(request: Request) -> str:
 
 
 def _visitor_id(request: Request) -> str:
-    # A privacy-conscious anonymous identifier. Raw IP/User-Agent are not stored.
-    # The server-side salt should be set in Railway as BOARD_SENSE_VISITOR_SALT.
     salt = os.getenv("BOARD_SENSE_VISITOR_SALT", "board-sense-dev-salt-change-me")
-    ip = _client_ip(request)
-    ua = request.headers.get("user-agent", "unknown")
-    raw = f"{salt}|{ip}|{ua}".encode("utf-8", errors="ignore")
+    raw = f"{salt}|{_client_ip(request)}|{request.headers.get('user-agent', 'unknown')}".encode("utf-8", errors="ignore")
     return sha256(raw).hexdigest()[:32]
 
 
@@ -77,13 +74,62 @@ def _referral_source(request: Request) -> str:
 
 
 def _coarse_region(request: Request) -> dict:
-    # Populate only from headers a deployment proxy/CDN may already provide.
-    # No external geolocation lookup is performed and precise coordinates are not stored.
     return {
         "country": (request.headers.get("cf-ipcountry") or request.headers.get("x-country") or "").strip()[:8],
         "region": (request.headers.get("x-region") or "").strip()[:80],
         "city": (request.headers.get("x-city") or "").strip()[:80],
     }
+
+
+def _supabase_headers() -> dict:
+    return {
+        "apikey": SUPABASE_SECRET,
+        "Authorization": f"Bearer {SUPABASE_SECRET}",
+        "Content-Type": "application/json",
+    }
+
+
+def _supabase_ready() -> bool:
+    return bool(SUPABASE_URL and SUPABASE_SECRET)
+
+
+def _supabase_get_used(day: str, visitor: str) -> int:
+    query = parse.urlencode({
+        "select": "board_count",
+        "usage_date": f"eq.{day}",
+        "visitor_hash": f"eq.{visitor}",
+        "limit": "1",
+    })
+    req = urlrequest.Request(
+        f"{SUPABASE_URL}/rest/v1/board_sense_public_daily_usage?{query}",
+        headers=_supabase_headers(),
+        method="GET",
+    )
+    with urlrequest.urlopen(req, timeout=5) as response:
+        rows = json.loads(response.read().decode("utf-8"))
+    return int(rows[0].get("board_count", 0)) if rows else 0
+
+
+def _supabase_claim(request: Request, visitor: str) -> tuple[bool, int]:
+    location = _coarse_region(request)
+    payload = {
+        "p_visitor_hash": visitor,
+        "p_limit": DAILY_FREE_BOARD_LIMIT,
+        "p_referral_source": _referral_source(request),
+        "p_country_code": location.get("country") or None,
+        "p_region_code": location.get("region") or None,
+        "p_city_name": location.get("city") or None,
+    }
+    req = urlrequest.Request(
+        f"{SUPABASE_URL}/rest/v1/rpc/claim_board_sense_free_use",
+        data=json.dumps(payload).encode("utf-8"),
+        headers=_supabase_headers(),
+        method="POST",
+    )
+    with urlrequest.urlopen(req, timeout=5) as response:
+        rows = json.loads(response.read().decode("utf-8"))
+    row = rows[0] if isinstance(rows, list) and rows else rows
+    return bool(row.get("allowed")), int(row.get("used_today", 0))
 
 
 def _load_usage() -> dict:
@@ -109,12 +155,57 @@ def _save_usage(payload: dict) -> None:
     temp.replace(USAGE_FILE)
 
 
+def _local_check(day: str, visitor: str) -> int:
+    with _USAGE_LOCK:
+        payload = _load_usage()
+        return int(payload.get("days", {}).get(day, {}).get(visitor, {}).get("boards", 0))
+
+
+def _local_claim(request: Request, day: str, visitor: str, mode: str) -> tuple[bool, int]:
+    with _USAGE_LOCK:
+        payload = _load_usage()
+        days = payload.setdefault("days", {})
+        today = days.setdefault(day, {})
+        record = today.setdefault(visitor, {
+            "boards": 0,
+            "first_seen": datetime.now(timezone.utc).isoformat(),
+            "source": _referral_source(request),
+            "location": _coarse_region(request),
+            "modes": {},
+        })
+        used = int(record.get("boards", 0))
+        if used >= DAILY_FREE_BOARD_LIMIT:
+            return False, used
+        used += 1
+        record["boards"] = used
+        modes = record.setdefault("modes", {})
+        modes[mode] = int(modes.get(mode, 0)) + 1
+        record["last_seen"] = datetime.now(timezone.utc).isoformat()
+        _save_usage(payload)
+        return True, used
+
+
+def _backend_unavailable(day: str, visitor: str) -> GateDecision:
+    return GateDecision(
+        allowed=False,
+        visitor_id=visitor,
+        used_today=0,
+        limit=DAILY_FREE_BOARD_LIMIT,
+        remaining=0,
+        day_utc=day,
+        reason="usage_backend_unavailable",
+    )
+
+
 def check_free_board_allowance(request: Request) -> GateDecision:
     day = _utc_day()
     visitor = _visitor_id(request)
-    with _USAGE_LOCK:
-        payload = _load_usage()
-        used = int(payload.get("days", {}).get(day, {}).get(visitor, {}).get("boards", 0))
+    try:
+        used = _supabase_get_used(day, visitor) if _supabase_ready() else _local_check(day, visitor)
+    except Exception:
+        if BOARD_SENSE_ENV == "production":
+            return _backend_unavailable(day, visitor)
+        used = _local_check(day, visitor)
     remaining = max(0, DAILY_FREE_BOARD_LIMIT - used)
     return GateDecision(
         allowed=used < DAILY_FREE_BOARD_LIMIT,
@@ -130,37 +221,32 @@ def check_free_board_allowance(request: Request) -> GateDecision:
 def record_free_board_use(request: Request, mode: str) -> GateDecision:
     day = _utc_day()
     visitor = _visitor_id(request)
-    with _USAGE_LOCK:
-        payload = _load_usage()
-        days = payload.setdefault("days", {})
-        today = days.setdefault(day, {})
-        record = today.setdefault(visitor, {
-            "boards": 0,
-            "first_seen": datetime.now(timezone.utc).isoformat(),
-            "source": _referral_source(request),
-            "location": _coarse_region(request),
-            "modes": {},
-        })
-        record["boards"] = int(record.get("boards", 0)) + 1
-        modes = record.setdefault("modes", {})
-        modes[mode] = int(modes.get(mode, 0)) + 1
-        record["last_seen"] = datetime.now(timezone.utc).isoformat()
-        _save_usage(payload)
-        used = int(record["boards"])
+    try:
+        allowed, used = _supabase_claim(request, visitor) if _supabase_ready() else _local_claim(request, day, visitor, mode)
+    except Exception:
+        if BOARD_SENSE_ENV == "production":
+            return _backend_unavailable(day, visitor)
+        allowed, used = _local_claim(request, day, visitor, mode)
     return GateDecision(
-        allowed=used < DAILY_FREE_BOARD_LIMIT,
+        allowed=allowed,
         visitor_id=visitor,
         used_today=used,
         limit=DAILY_FREE_BOARD_LIMIT,
         remaining=max(0, DAILY_FREE_BOARD_LIMIT - used),
         day_utc=day,
-        reason="recorded",
+        reason="recorded" if allowed else "daily_free_board_limit_reached",
     )
 
 
 def free_gate_payload(decision: GateDecision) -> dict:
+    if decision.reason == "usage_backend_unavailable":
+        message = "Board Sense public access is temporarily unavailable. Please try again shortly."
+        status = "temporarily_unavailable"
+    else:
+        message = "Your free Board Sense board analysis for today has already been used. Come back tomorrow for another free board."
+        status = "limit_reached"
     return {
-        "status": "limit_reached",
-        "message": "Your free Board Sense board analysis for today has already been used. Come back tomorrow for another free board.",
+        "status": status,
+        "message": message,
         "free_usage": decision.as_dict(),
     }
