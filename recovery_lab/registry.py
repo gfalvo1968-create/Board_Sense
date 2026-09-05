@@ -16,6 +16,7 @@ RECOVERY_LABS = {
     "processors": {"label": "Processor Lab", "path": "recovery_lab/processors", "focus": ["CPUs", "BGAs", "ceramic packages"]},
     "ram": {"label": "RAM Lab", "path": "recovery_lab/ram", "focus": ["memory modules", "gold fingers", "IC population"]},
     "circuit_boards": {"label": "Circuit Board Lab", "path": "recovery_lab/circuit_boards", "focus": ["whole-board sale", "depopulation", "sorting", "grade comparison"]},
+    "speakers": {"label": "Speaker / Audio Driver Lab", "path": "recovery_lab/speakers", "focus": ["voice-coil copper", "steel basket and frame", "magnet assembly", "terminals and lead wire"]},
 }
 
 
