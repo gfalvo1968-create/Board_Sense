@@ -62,7 +62,10 @@ def ecosystem_data():
 @app.get("/free-usage")
 def free_usage(request: Request):
     """Return today's anonymous free-board allowance without consuming it."""
-    return {"status": "success", "free_usage": check_free_board_allowance(request).as_dict()}
+    decision = check_free_board_allowance(request)
+    if decision.reason == "usage_backend_unavailable":
+        return JSONResponse(status_code=503, content=free_gate_payload(decision))
+    return {"status": "success", "free_usage": decision.as_dict()}
 
 
 def _save_upload(upload: UploadFile, target: Path):
@@ -90,11 +93,15 @@ def _gate_or_block(request: Request):
     decision = check_free_board_allowance(request)
     if decision.allowed:
         return None
-    return JSONResponse(status_code=429, content=free_gate_payload(decision))
+    status_code = 503 if decision.reason == "usage_backend_unavailable" else 429
+    return JSONResponse(status_code=status_code, content=free_gate_payload(decision))
 
 
-def _attach_usage(result: dict, request: Request, mode: str) -> dict:
+def _attach_usage(result: dict, request: Request, mode: str):
     usage = record_free_board_use(request, mode)
+    if not usage.allowed:
+        status_code = 503 if usage.reason == "usage_backend_unavailable" else 429
+        return JSONResponse(status_code=status_code, content=free_gate_payload(usage))
     result["free_usage"] = usage.as_dict()
     return result
 
