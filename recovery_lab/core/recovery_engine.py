@@ -1,9 +1,20 @@
 """Shared Recovery Lab decision engine."""
 
+import re
+
 from recovery_lab.registry import RECOVERY_LABS
 from recovery_lab.core.safety_rules import classify_recovery_risk
 from recovery_lab.core.time_value import compare_recovery_to_sale
 from recovery_lab.core.workflow_loader import attach_workflows
+
+
+def _keyword_present(text, keyword):
+    """Match whole words/phrases so short labels do not fire inside other words.
+
+    Example: the RAM lab must not trigger from the word "frame" on a speaker.
+    """
+    pattern = r"(?<![a-z0-9])" + re.escape(str(keyword).lower()) + r"(?![a-z0-9])"
+    return re.search(pattern, text) is not None
 
 
 def choose_labs(spike_glass, board_result):
@@ -31,7 +42,7 @@ def choose_labs(spike_glass, board_result):
     }
 
     for lab_key, words in keyword_map.items():
-        if any(word in text for word in words):
+        if any(_keyword_present(text, word) for word in words):
             labels.append(lab_key)
 
     # Only true PCB results get the automatic Circuit Board Lab fallback.
