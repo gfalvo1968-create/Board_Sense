@@ -1,0 +1,21 @@
+{
+  "title": "Speaker / Audio Driver Recovery",
+  "scope": "Mechanical sorting and value triage for loudspeaker drivers.",
+  "steps": [
+    "Confirm the item is a speaker or audio driver before assigning recovery value.",
+    "Separate lead wire and accessible copper voice-coil material only when removal is practical and does not destroy a higher-value intact unit.",
+    "Sort the stamped or cast frame/basket with the appropriate ferrous or nonferrous metal stream after confirming the metal.",
+    "Keep the magnet assembly separate until its type is known. Do not infer neodymium, ferrite, or recoverable rare-earth content from appearance alone.",
+    "Sort terminals and small hardware by confirmed material where worthwhile, then compare labor time with intact sale or bulk scrap value."
+  ],
+  "safety": [
+    "Strong magnets can pinch fingers and attract tools unexpectedly.",
+    "Ferrite magnets can chip or shatter; use eye protection during mechanical disassembly.",
+    "Do not grind, burn, dissolve, or chemically process an unidentified magnet assembly."
+  ],
+  "value_notes": [
+    "Copper is commonly present in the voice coil and lead wire, but accessible mass varies widely by driver size and construction.",
+    "Steel frames and magnet back plates usually contribute bulk ferrous value.",
+    "Magnet chemistry and rare-earth content require separate evidence; photographs alone do not prove neodymium."
+  ]
+}
