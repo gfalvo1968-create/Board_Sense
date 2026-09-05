@@ -11,6 +11,9 @@ def detect_board_features(image_path):
     the analysis pipeline. This module deliberately avoids using filenames as
     evidence so a photo named IMG_1234.jpg is treated the same as one named
     motherboard.jpg.
+
+    Density thresholds are intentionally board-relative so older dense logic
+    boards with many smaller packages are not treated like sparse modern PCBs.
     """
 
     features = {
@@ -49,10 +52,9 @@ def detect_board_features(image_path):
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
-        # Dark, reasonably rectangular regions are useful proxies for IC
-        # packages. This is intentionally conservative because shadows and PCB
-        # substrate can also be dark.
-        _, dark_mask = cv2.threshold(gray, 78, 255, cv2.THRESH_BINARY_INV)
+        # Use a slightly more permissive threshold than the old detector.
+        # The old 0.0008 minimum area missed rows of smaller legacy ICs.
+        _, dark_mask = cv2.threshold(gray, 86, 255, cv2.THRESH_BINARY_INV)
         kernel = np.ones((3, 3), np.uint8)
         dark_mask = cv2.morphologyEx(dark_mask, cv2.MORPH_OPEN, kernel)
 
@@ -73,7 +75,7 @@ def detect_board_features(image_path):
                 continue
 
             area_ratio = area / image_area
-            if area_ratio < 0.0008 or area_ratio > 0.12:
+            if area_ratio < 0.00025 or area_ratio > 0.12:
                 continue
 
             x, y, w, h = cv2.boundingRect(contour)
@@ -81,7 +83,9 @@ def detect_board_features(image_path):
             rectangularity = area / rect_area
             aspect = max(w, h) / max(min(w, h), 1)
 
-            if rectangularity < 0.52 or aspect > 4.5:
+            # Legacy logic packages can be small, slightly worn, or partially
+            # obscured, so do not require near-perfect rectangles.
+            if rectangularity < 0.46 or aspect > 5.2:
                 continue
 
             chip_like_count += 1
@@ -100,19 +104,22 @@ def detect_board_features(image_path):
         features["component_count"] = int(chip_like_count)
         features["component_density"] = round(float(component_density), 4)
 
-        if chip_like_count >= 2:
+        if chip_like_count >= 3:
             features["large_ic_chips"] = True
 
-        if chip_like_count >= 5 or component_density >= 0.035:
+        # A board can be dense because of many small packages even when their
+        # combined dark area is modest.
+        if chip_like_count >= 8 or component_density >= 0.025:
             features["dense_component_board"] = True
 
         # A single dominant, centrally located package can be CPU/processor-like.
-        # We keep the threshold high to avoid promoting ordinary ICs too easily.
-        if largest_chip_centered and largest_chip_ratio >= 0.025:
+        # Keep this conservative; the package is a candidate, not chemistry/value.
+        if largest_chip_centered and largest_chip_ratio >= 0.018:
             features["processor"] = True
 
         # Gold-like material close to an outside edge can indicate connector
-        # fingers. The dedicated visual detector also checks this independently.
+        # fingers. The dedicated visual detector still performs the stricter
+        # repeated-contact geometry confirmation.
         gold_lower = np.array([10, 75, 90], dtype=np.uint8)
         gold_upper = np.array([38, 255, 255], dtype=np.uint8)
         gold_mask = cv2.inRange(hsv, gold_lower, gold_upper)
