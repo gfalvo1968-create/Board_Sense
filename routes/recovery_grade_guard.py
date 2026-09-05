@@ -1,9 +1,13 @@
-"""SPIKE Recovery Grade Guard v0.4.
+"""SPIKE Recovery Grade Guard v0.5.
 
 Economic grade promotion is anchored to directly observed recovery evidence.
 Derived identity/classifier signals may explain a board, but cannot promote its
 grade by themselves. Density-aware population evidence is now a valid recovery
 anchor when it is supported by the image.
+
+Pay Dirt is an inspection gate, not a claim of precious-metal chemistry or cash
+value. MEDIUM logic boards can qualify only when dense population and large/
+multiple IC evidence corroborate one another.
 """
 
 def apply_recovery_grade_guard(result):
@@ -51,6 +55,35 @@ def apply_recovery_grade_guard(result):
         ]))
         out["grade_notes"]="Recovery Grade Guard raised LOW to MEDIUM only after multiple recovery-bearing observations corroborated the broad logic context."
 
+    final_grade=str(out.get("grade",grade)).upper()
+    existing_pay_dirt=bool(out.get("pay_dirt_ready",False))
+
+    # Evidence-driven MEDIUM exception. A logic-rich board that has both a
+    # dense component population and corroborated large/multiple IC evidence
+    # deserves the Pay Dirt inspection route even though MEDIUM by itself does
+    # not. This opens investigation only; it does not claim gold, bond-wire
+    # chemistry, recoverable mass, or dollar value from the photo.
+    medium_logic_pay_dirt=bool(
+        not existing_pay_dirt
+        and final_grade=="MEDIUM"
+        and logic_family
+        and dense
+        and large_ic
+        and recovery_anchors>=2
+    )
+
+    if medium_logic_pay_dirt:
+        out["pay_dirt_ready"]=True
+        out["pay_dirt_reason"]="Dense logic-board population plus corroborated large/multiple IC evidence qualifies this board for Pay Dirt inspection. Precious-metal chemistry, recoverable mass, and cash value remain unverified."
+        out["recovery_signals"]=list(dict.fromkeys((out.get("recovery_signals") or [])+[
+            "dense IC population warrants Pay Dirt inspection"
+        ]))
+    elif existing_pay_dirt:
+        out["pay_dirt_ready"]=True
+        out.setdefault("pay_dirt_reason","Reference grade already qualifies this board for Pay Dirt inspection; material chemistry and value still require separate evidence.")
+    else:
+        out["pay_dirt_ready"]=False
+
     out["recovery_grade_guard"]={
         "active":True,
         "raised_grade":raised,
@@ -62,7 +95,9 @@ def apply_recovery_grade_guard(result):
         "component_population":{"count":component_count,"density":component_density,"dense":dense},
         "identity_context":{"possible_motherboard":motherboard_context,"confirmed_slot_bank":confirmed_slot_context},
         "rule":"Identity and structural labels never raise economic grade. A floor requires corroborated recovery-bearing evidence.",
-        "pay_dirt_policy":"Grade floor does not automatically set Pay Dirt Ready. Pay Dirt remains evidence-driven.",
-        "model":"SPIKE Recovery Grade Guard v0.4",
+        "pay_dirt_policy":"HIGH/VERY HIGH retain their reference Pay Dirt status. MEDIUM qualifies only when logic context is backed by both dense population and large/multiple IC recovery evidence. Pay Dirt opens an inspection route; it does not prove precious-metal chemistry or value.",
+        "pay_dirt_promoted":medium_logic_pay_dirt,
+        "pay_dirt_ready":bool(out.get("pay_dirt_ready",False)),
+        "model":"SPIKE Recovery Grade Guard v0.5",
     }
     return out
