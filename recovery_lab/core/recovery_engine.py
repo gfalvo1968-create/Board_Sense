@@ -16,15 +16,16 @@ def choose_labs(spike_glass, board_result):
     ]).lower()
 
     keyword_map = {
+        "speakers": ["speaker", "audio driver", "loudspeaker", "voice coil"],
         "ram": ["ram", "memory"],
         "processors": ["processor", "cpu", "bga", "ceramic"],
         "gold_fingers": ["gold finger", "edge connector"],
         "transformers": ["transformer", "power board", "supply board"],
         "relays_contacts": ["relay", "contact", "switchgear"],
-        "circuit_boards": ["board", "pcb", "motherboard", "logic"],
+        "circuit_boards": ["circuit board", "pcb", "motherboard", "logic board"],
         "gold": ["gold"],
         "silver": ["silver"],
-        "copper": ["copper", "winding", "bus bar"],
+        "copper": ["copper", "winding", "voice coil", "bus bar"],
         "aluminum": ["aluminum", "heat sink"],
         "brass": ["brass", "terminal"],
     }
@@ -33,10 +34,23 @@ def choose_labs(spike_glass, board_result):
         if any(word in text for word in words):
             labels.append(lab_key)
 
-    if "circuit_boards" not in labels and board_result.get("board_type"):
+    # Only true PCB results get the automatic Circuit Board Lab fallback.
+    # Component/object routes such as speakers must never be pushed into a
+    # whole-board recovery plan just because board_type contains a label.
+    object_mode=((board_result.get("object_gate") or {}).get("mode") or "").lower()
+    board_type=str(board_result.get("board_type","")).lower()
+    if object_mode=="board" and "circuit_boards" not in labels:
+        labels.append("circuit_boards")
+    elif not object_mode and "circuit_boards" not in labels and any(k in board_type for k in ("board","pcb","motherboard")):
         labels.append("circuit_boards")
 
-    labs = [RECOVERY_LABS[key] | {"key": key} for key in labels if key in RECOVERY_LABS]
+    # Preserve order while preventing duplicate lab buttons.
+    seen=set();ordered=[]
+    for key in labels:
+        if key not in seen:
+            seen.add(key);ordered.append(key)
+
+    labs = [RECOVERY_LABS[key] | {"key": key} for key in ordered if key in RECOVERY_LABS]
     return attach_workflows(labs)
 
 
