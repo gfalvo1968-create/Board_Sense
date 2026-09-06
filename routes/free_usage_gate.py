@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
+import hmac
 import json
 import os
 from pathlib import Path
@@ -17,6 +18,7 @@ USAGE_FILE = Path(os.getenv("BOARD_SENSE_USAGE_FILE", "data/free_usage.json"))
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://plcecfxejriiorzwqbfc.supabase.co").rstrip("/")
 SUPABASE_SECRET = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_SECRET_KEY") or ""
 BOARD_SENSE_ENV = os.getenv("BOARD_SENSE_ENV", "development").lower()
+BOARD_SENSE_TESTER_KEY = os.getenv("BOARD_SENSE_TESTER_KEY", "").strip()
 _USAGE_LOCK = Lock()
 
 
@@ -60,6 +62,28 @@ def _visitor_id(request: Request) -> str:
     salt = os.getenv("BOARD_SENSE_VISITOR_SALT", "board-sense-dev-salt-change-me")
     raw = f"{salt}|{_client_ip(request)}|{request.headers.get('user-agent', 'unknown')}".encode("utf-8", errors="ignore")
     return sha256(raw).hexdigest()[:32]
+
+
+def _is_authorized_tester(request: Request) -> bool:
+    """Server-side tester bypass. Secret must come from an environment variable and request header."""
+    if not BOARD_SENSE_TESTER_KEY:
+        return False
+    supplied = request.headers.get("x-board-sense-tester-key", "").strip()
+    if not supplied:
+        return False
+    return hmac.compare_digest(supplied, BOARD_SENSE_TESTER_KEY)
+
+
+def _tester_decision() -> GateDecision:
+    return GateDecision(
+        allowed=True,
+        visitor_id="authorized_tester",
+        used_today=0,
+        limit=-1,
+        remaining=-1,
+        day_utc=_utc_day(),
+        reason="authorized_tester_bypass",
+    )
 
 
 def _referral_source(request: Request) -> str:
@@ -198,6 +222,8 @@ def _backend_unavailable(day: str, visitor: str) -> GateDecision:
 
 
 def check_free_board_allowance(request: Request) -> GateDecision:
+    if _is_authorized_tester(request):
+        return _tester_decision()
     day = _utc_day()
     visitor = _visitor_id(request)
     try:
@@ -219,6 +245,8 @@ def check_free_board_allowance(request: Request) -> GateDecision:
 
 
 def record_free_board_use(request: Request, mode: str) -> GateDecision:
+    if _is_authorized_tester(request):
+        return _tester_decision()
     day = _utc_day()
     visitor = _visitor_id(request)
     try:
