@@ -1,6 +1,7 @@
-"""SPIKE structural + condition decision guard v0.3.
+"""SPIKE structural + condition decision guard v0.4.
 Defining architecture outranks generic component counts. Hard motherboard authority
-requires corroborated geometry, not merely a prior classifier label.
+requires corroborated geometry, while dense processor-led main-logic boards may earn
+a separate structural veto against weak false power-board promotion.
 """
 def family(label):
     text=str(label or "").lower()
@@ -18,15 +19,20 @@ def motherboard_structure(result):
     if confirmed_slot:anchors.append("confirmed parallel slot-bank geometry")
     if edge_bank:anchors.append("board-edge connector bank")
     if possible:anchors.append("motherboard detector candidate")
-    # Reference hypotheses remain supporting evidence. Hard structural authority is
-    # earned only when the stricter detector confirms its defining geometry.
     geometry_confirmed=bool(confirmed_slot and edge_bank and detector_score>=9)
     if geometry_confirmed:score=max(score,9.0)
     return {"score":score,"anchors":list(dict.fromkeys(str(x) for x in anchors))[:8],"geometry_confirmed":geometry_confirmed,"confirmed_slot_bank":confirmed_slot,"edge_connector_bank":edge_bank,"detector_score":detector_score}
 def strong_structural_family(result):
-    mb=motherboard_structure(result);conf=float(result.get("confidence",0) or 0);fam=family(result.get("board_type"))
+    mb=motherboard_structure(result);conf=float(result.get("confidence",0) or 0);fam=family(result.get("board_type"));signals=result.get("signals") or {};power=result.get("power") or {}
     if fam=="motherboard" and conf>=80 and mb["geometry_confirmed"]:
         return {"family":"motherboard","strength":"hard","confidence":conf,"structural_score":mb["score"],"anchors":mb["anchors"],"vetoes":["generic capacitor count cannot rename board as power supply","generic long contours cannot establish a PC motherboard without corroborated slot and edge geometry"]}
+    processor=bool(signals.get("processor"));large_ic=bool(signals.get("large_ic_chips"));dense=bool(signals.get("dense_component_board"));logic_count=sum((processor,large_ic,dense));raw_power=max(int(signals.get("raw_power_score",0) or 0),int(signals.get("power_score",0) or 0),int(power.get("raw_power_score",0) or 0),int(power.get("power_score",0) or 0));power_blocks=max(int(signals.get("large_component_regions",0) or 0),int(power.get("large_component_regions",0) or 0));rounds=max(int(signals.get("large_round_components",0) or 0),int(power.get("large_round_components",0) or 0));packages=max(int(signals.get("large_power_package_like",0) or 0),int(power.get("large_power_package_like",0) or 0));strong_power=bool(raw_power>=5 and (power_blocks>=2 or rounds>=2 or packages>=2))
+    if fam=="motherboard" and conf>=80 and logic_count>=2 and not strong_power:
+        anchors=list(mb["anchors"])
+        if processor:anchors.append("processor/controller package evidence")
+        if large_ic:anchors.append("large logic IC population")
+        if dense:anchors.append("dense logic-component population")
+        return {"family":"main_logic","strength":"hard_logic","confidence":conf,"structural_score":max(mb["score"],float(logic_count+5)),"anchors":list(dict.fromkeys(anchors))[:8],"vetoes":["weak or generic power-component cues cannot rename a processor-led main logic board","mixed power-control identity requires corroborated strong power topology, not one ambiguous component cluster"]}
     return None
 def condition_harvest_check(result,observations=None):
     observations=observations or {};fam=family(result.get("board_type"));items=[]
