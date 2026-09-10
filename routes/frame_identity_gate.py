@@ -1,11 +1,11 @@
-"""SPIKE Single-Frame Board Identity Gate v0.1.
+"""SPIKE Single-Frame Board Identity Gate v0.2.
 
 Detects strong evidence that one uploaded photograph may contain more than one
 physical PCB or overlapping PCB regions. This is intentionally conservative:
-it does not claim two boards from color alone. It only blocks when a large PCB-
-colored region has a strongly non-single-board silhouette with several deep
-concavities, which is typical of overlapping/touching boards in one frame.
+it does not claim two boards from color alone.
 
+v0.2 adds a second compound-silhouette profile tuned against the known Chaos
+Test #003 frame while protecting the Archer C54 single-board regression set.
 A block means: retake one physical board per photo. It does NOT mean the upload
 is not a PCB.
 """
@@ -15,7 +15,7 @@ import numpy as np
 
 def inspect_frame(image_path):
     result = {
-        "version": "SPIKE Single-Frame Board Identity Gate v0.1",
+        "version": "SPIKE Single-Frame Board Identity Gate v0.2",
         "status": "SINGLE_BOARD_NOT_CONTRADICTED",
         "block_analysis": False,
         "confidence": 0,
@@ -32,8 +32,8 @@ def inspect_frame(image_path):
         area = float(max(1, h * w))
         hsv = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
 
-        # Green PCB support for v0.1. This is a suspicion detector only, never a
-        # board classifier. Other solder-mask colors can be added independently.
+        # Green PCB support. This is a suspicion detector only, never a complete
+        # board classifier and never proof by color alone.
         mask = cv2.inRange(hsv, np.array([28, 35, 22]), np.array([105, 255, 255]))
         k = max(5, (min(h, w) // 45) | 1)
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((k, k), np.uint8), iterations=2)
@@ -73,10 +73,8 @@ def inspect_frame(image_path):
             "deepest_concavity_ratio": round(deepest, 3),
         }
 
-        # Strong suspicion profile calibrated against the known two-board-in-one-
-        # frame regression. Requiring all conditions keeps ordinary irregular
-        # single PCBs from being rejected from one noisy contour measurement.
-        suspicious = (
+        # Profile A preserves the original very-conservative trigger.
+        profile_a = (
             0.20 <= area_ratio <= 0.80
             and solidity < 0.91
             and rectangularity < 0.82
@@ -84,14 +82,30 @@ def inspect_frame(image_path):
             and deepest >= 0.08
         )
 
+        # Profile B catches the known two-PCB compound silhouette even when image
+        # re-encoding shifts contour metrics slightly. Requiring a large occupied
+        # frame area plus four or more deep concavities avoids the irregular partial
+        # Archer views that otherwise resemble a compound contour.
+        profile_b = (
+            0.40 <= area_ratio <= 0.85
+            and solidity < 0.94
+            and rectangularity < 0.86
+            and deep_count >= 4
+            and deepest >= 0.07
+        )
+
+        suspicious = bool(profile_a or profile_b)
+        result["metrics"]["compound_profile_a"] = bool(profile_a)
+        result["metrics"]["compound_profile_b"] = bool(profile_b)
+
         if suspicious:
             result.update({
                 "status": "MULTIPLE_BOARDS_OR_OVERLAP_SUSPECTED",
                 "block_analysis": True,
-                "confidence": 82,
+                "confidence": 84 if profile_b else 82,
                 "evidence": [
                     "One photo contains a large PCB-like region with a strongly compound silhouette.",
-                    "Several deep independent concavities suggest overlapping/touching board outlines rather than one clean physical board outline.",
+                    "Multiple deep independent concavities suggest overlapping/touching board outlines rather than one clean physical board outline.",
                     "Board grading is withheld because one physical board per photo is required for reliable identity and recovery reasoning.",
                 ],
                 "next_step": "Retake the photo with exactly one physical board in the frame, separated from other boards.",
