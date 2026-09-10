@@ -1,12 +1,13 @@
-"""SPIKE Same-Board Verification Gate v0.8.
+"""SPIKE Same-Board Verification Gate v0.9.
 
 Checks semantic contradiction and physical geometry independently. Conflicting
 classifier labels from close-ups must not override compatible whole-board
 geometry. Color alone never proves identity.
 
-v0.8 rule: semantic disagreement alone can make identity uncertain, but it cannot
-prove multiple physical boards. A hard split requires corroborated physical
-geometry conflict.
+v0.9 rule: one compatible pair cannot prove an entire multi-photo case is one
+physical board. High-confidence SAME BOARD requires a coherent compatibility
+cluster covering every usable whole-board view. Corroborated physical conflicts
+still hard-split the case; incomplete coherence becomes IDENTITY_UNCERTAIN.
 """
 from routes.board_fingerprint import fingerprint_conflict
 
@@ -42,9 +43,21 @@ def _usable_whole(f):
     return f.get("coverage") == "whole_or_large_view" and f.get("geometry_quality") in ("good", "medium")
 
 
+def _connected_component(nodes, edges, start):
+    seen = {start}
+    stack = [start]
+    while stack:
+        cur = stack.pop()
+        for nxt in nodes:
+            if nxt not in seen and (min(cur, nxt), max(cur, nxt)) in edges:
+                seen.add(nxt)
+                stack.append(nxt)
+    return seen
+
+
 def verify_same_board(results):
     n = len(results or [])
-    version = "SPIKE Same-Board Verification Gate v0.8"
+    version = "SPIKE Same-Board Verification Gate v0.9"
     if n < 2:
         return {
             "version": version,
@@ -71,9 +84,6 @@ def verify_same_board(results):
     fps = [r.get("physical_fingerprint") or {} for r in results]
     whole_views = [i + 1 for i, f in enumerate(fps) if _usable_whole(f)]
 
-    # Semantic classifier disagreement is evidence, not proof of multiple boards.
-    # Close-ups and opposite sides of one physical board can legitimately look like
-    # different families.
     if len(unique) >= 2:
         ranked = sorted(counts.items(), key=lambda x: x[1], reverse=True)
         a, b = ranked[0], ranked[1]
@@ -89,11 +99,9 @@ def verify_same_board(results):
     power_views = sum(1 for a in anchors if a["power"] and not a["motherboard"])
     logic_views = sum(1 for a in anchors if a["motherboard"] or a["processor"] or a["ram"])
     if power_views >= 2 and logic_views >= 2 and len(unique) >= 2 and "power" in unique and "logic" in unique:
-        reasons.append(
-            "Power and logic structures coexist; treating topology as mixed until physical identity is checked rather than automatically splitting the case."
-        )
+        reasons.append("Power and logic structures coexist; treating topology as mixed until physical identity is checked rather than automatically splitting the case.")
 
-    # Physical geometry is evaluated independently of classifier family.
+    # Pairwise physical checks. Only usable whole-board pairs produce an entry.
     for i in range(n):
         for j in range(i + 1, n):
             c = fingerprint_conflict(fps[i], fps[j])
@@ -101,7 +109,8 @@ def verify_same_board(results):
                 physical.append({"views": [i + 1, j + 1], **c})
 
     conflicts = [p for p in physical if p.get("conflict")]
-    compatible_pairs = sum(1 for p in physical if not p.get("conflict"))
+    compatible = [p for p in physical if not p.get("conflict")]
+    compatible_pairs = len(compatible)
     conflict_views = {v for p in conflicts for v in p.get("views", [])}
     per_view = {i: 0 for i in range(1, n + 1)}
     for p in conflicts:
@@ -121,11 +130,24 @@ def verify_same_board(results):
         uncertain_physical = True
         reasons.append("Physical fingerprint disagreement exists, but it does not yet form a corroborated multiple-board cluster.")
 
-    positive_geometry = len(whole_views) >= 2 and compatible_pairs >= 1 and not uncertain_physical and not physical_outlier
+    # v0.9 coherence test: compatible evidence must connect EVERY usable whole-board
+    # view into one physical cluster. A single same-board pair inside a 2+2+2 mixed
+    # batch can no longer grant 94% identity to all six photos.
+    whole_set = set(whole_views)
+    compatible_edges = {
+        (min(p["views"]), max(p["views"]))
+        for p in compatible
+        if p["views"][0] in whole_set and p["views"][1] in whole_set
+    }
+    if whole_views:
+        linked = _connected_component(whole_set, compatible_edges, whole_views[0])
+    else:
+        linked = set()
+    coherent_geometry = len(whole_views) >= 2 and linked == whole_set
+    coherence_coverage = round(len(linked) / max(1, len(whole_views)), 3)
 
-    # v0.8: MULTIPLE_BOARDS_SUSPECTED is reserved for corroborated physical evidence.
-    # Semantic family disagreement by itself may lower confidence or require another
-    # identity photo, but it cannot hard-split a case.
+    positive_geometry = coherent_geometry and compatible_pairs >= 1 and not uncertain_physical and not physical_outlier
+
     hard_block = physical_outlier
     if hard_block:
         return {
@@ -142,17 +164,46 @@ def verify_same_board(results):
             "conflicting_views": sorted(conflict_views),
             "semantic_conflict": semantic_conflict,
             "positive_geometry_evidence": positive_geometry,
+            "coherent_geometry": coherent_geometry,
+            "coherence_coverage": coherence_coverage,
             "identity_next_step": "Split the photos by physical board and start a separate case for each board.",
             "reasons": reasons,
-            "rule": "Only corroborated physical geometry conflict can hard-split a multi-photo case. Semantic labels alone cannot prove different physical boards.",
+            "rule": "Only corroborated physical geometry conflict can hard-split a multi-photo case. One compatible pair never proves identity for the entire case.",
+        }
+
+    # If several usable whole-board photos do not form one compatibility cluster,
+    # do not combine downstream identity/recovery/economics. Ask for stronger proof.
+    incomplete_coherence = len(whole_views) >= 3 and not coherent_geometry
+    if incomplete_coherence:
+        reasons.append("Usable whole-board views do not form one coherent physical-geometry cluster across the complete case.")
+        reasons.append("A matching pair is not enough to prove that every uploaded photo belongs to the same board.")
+        return {
+            "version": version,
+            "status": "IDENTITY_UNCERTAIN",
+            "same_board": None,
+            "confidence": 45,
+            "block_reconciliation": True,
+            "families": families,
+            "whole_view_count": len(whole_views),
+            "whole_view_indices": whole_views,
+            "physical_pair_checks": physical,
+            "conflict_graph": conflict_graph,
+            "conflicting_views": sorted(conflict_views),
+            "semantic_conflict": semantic_conflict,
+            "positive_geometry_evidence": False,
+            "coherent_geometry": False,
+            "coherence_coverage": coherence_coverage,
+            "identity_next_step": "Add clear full-board views showing outline, mounting holes, and major connector positions, or split photos into separate board cases.",
+            "reasons": reasons,
+            "rule": "High-confidence same-board identity requires compatible physical evidence connecting every usable whole-board view in the case.",
         }
 
     if positive_geometry:
         status = "PROBABLY_SAME_BOARD"
         conf = min(94, 84 + min(10, (len(whole_views) - 2) * 3 + compatible_pairs))
         if semantic_conflict:
-            reasons.append("Conflicting classifier labels were treated as view-role differences because compatible whole-board geometry positively links the photos.")
-        reasons.append("Multiple usable whole-board views have compatible rotation-safe physical geometry with no corroborated outlier.")
+            reasons.append("Conflicting classifier labels were treated as view-role differences because coherent whole-board geometry positively links the complete usable-view set.")
+        reasons.append("All usable whole-board views belong to one connected compatibility cluster with no corroborated physical outlier.")
         next_step = "No extra identity photo required unless a later view introduces a physical contradiction."
     elif uncertain_physical or semantic_conflict or len(unique) > 1:
         status = "IDENTITY_UNCERTAIN"
@@ -181,5 +232,7 @@ def verify_same_board(results):
         "identity_next_step": next_step,
         "reasons": reasons,
         "positive_geometry_evidence": positive_geometry,
-        "rule": "Compatible geometry from multiple usable whole-board views is positive identity evidence; semantic labels, color, and absence of contradiction alone are not proof.",
+        "coherent_geometry": coherent_geometry,
+        "coherence_coverage": coherence_coverage,
+        "rule": "Compatible geometry must connect the complete usable whole-board set; semantic labels, color, and one matching pair alone are not proof.",
     }
