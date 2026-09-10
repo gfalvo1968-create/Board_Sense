@@ -1,6 +1,10 @@
-"""SPIKE Physical Board Fingerprint v0.3.
+"""SPIKE Physical Board Fingerprint v0.4.
 Board-shape evidence for multi-photo identity. Handles full boards that nearly fill
 the frame, where ordinary external-edge contours can fragment on components.
+
+v0.4 makes DIFFERENT-BOARD claims deliberately conservative: one noisy outline
+measurement is not enough. Strong aspect disagreement now needs corroborating
+geometry evidence before it can become a physical conflict.
 """
 import cv2
 import numpy as np
@@ -15,7 +19,7 @@ def _green_board_mask(im):
     return m
 
 def extract_board_fingerprint(image_path):
-    out={"version":"SPIKE Physical Board Fingerprint v0.3","available":False,"image_aspect":0.0,"board_aspect":None,"board_area_ratio":None,"rectangularity":None,"solidity":None,"corner_count":None,"hole_count":0,"landmark_count":0,"coverage":"unknown","geometry_quality":"low","coverage_basis":"none"}
+    out={"version":"SPIKE Physical Board Fingerprint v0.4","available":False,"image_aspect":0.0,"board_aspect":None,"board_area_ratio":None,"rectangularity":None,"solidity":None,"corner_count":None,"hole_count":0,"landmark_count":0,"coverage":"unknown","geometry_quality":"low","coverage_basis":"none"}
     try:
         im=cv2.imread(image_path)
         if im is None:return out
@@ -47,5 +51,9 @@ def fingerprint_conflict(a,b):
     if a.get("geometry_quality")=="low" or b.get("geometry_quality")=="low":return None
     aa=a.get("board_aspect");bb=b.get("board_aspect")
     if not aa or not bb:return None
-    ratio=max(aa,bb)/max(.01,min(aa,bb));hole_gap=abs(int(a.get("hole_count",0))-int(b.get("hole_count",0)));land_a=max(1,int(a.get("landmark_count",0)));land_b=max(1,int(b.get("landmark_count",0)));land_ratio=max(land_a,land_b)/min(land_a,land_b);rect_gap=abs(float(a.get("rectangularity") or 0)-float(b.get("rectangularity") or 0));solidity_gap=abs(float(a.get("solidity") or 0)-float(b.get("solidity") or 0));support=(hole_gap>=3)+(land_ratio>=1.8)+(rect_gap>=.22)+(solidity_gap>=.20);conflict=bool(ratio>=1.85 and support>=1)
-    return {"conflict":conflict,"aspect_mismatch":round(ratio,2),"hole_gap":hole_gap,"landmark_ratio":round(land_ratio,2),"rectangularity_gap":round(rect_gap,2),"solidity_gap":round(solidity_gap,2),"supporting_mismatches":int(support),"reason":"Rotation-safe large-view board geometry differs beyond conservative same-board tolerance." if conflict else "No strong physical geometry contradiction."}
+    ratio=max(aa,bb)/max(.01,min(aa,bb));hole_gap=abs(int(a.get("hole_count",0))-int(b.get("hole_count",0)));land_a=max(1,int(a.get("landmark_count",0)));land_b=max(1,int(b.get("landmark_count",0)));land_ratio=max(land_a,land_b)/min(land_a,land_b);rect_gap=abs(float(a.get("rectangularity") or 0)-float(b.get("rectangularity") or 0));solidity_gap=abs(float(a.get("solidity") or 0)-float(b.get("solidity") or 0));support=(hole_gap>=3)+(land_ratio>=1.8)+(rect_gap>=.22)+(solidity_gap>=.20)
+    # v0.4: avoid declaring different boards from one fragile contour mismatch.
+    # Either the aspect ratio is extremely different with one corroborator, or it is
+    # strongly different with at least two independent geometry mismatches.
+    conflict=bool((ratio>=2.60 and support>=1) or (ratio>=2.15 and support>=2))
+    return {"conflict":conflict,"aspect_mismatch":round(ratio,2),"hole_gap":hole_gap,"landmark_ratio":round(land_ratio,2),"rectangularity_gap":round(rect_gap,2),"solidity_gap":round(solidity_gap,2),"supporting_mismatches":int(support),"reason":"Rotation-safe large-view board geometry differs beyond conservative same-board tolerance with corroborating geometry evidence." if conflict else "No strong corroborated physical geometry contradiction."}
