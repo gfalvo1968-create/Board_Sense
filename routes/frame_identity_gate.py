@@ -1,12 +1,11 @@
-"""SPIKE Single-Frame Board Identity Gate v0.7.
+"""SPIKE Single-Frame Board Identity Gate v0.8.
 
 Blocks a single uploaded photograph when strong physical evidence says more than
 one PCB is present. PCB confirmation and board identity remain separate gates.
 Color is only used to find candidate PCB regions; geometry supplies the block.
 
-v0.7 measures a suspected neck against board-body shoulders farther away from
-the bridge. This avoids treating the bridge itself as a shoulder, which hid the
-touching-two-board regression fixture in v0.6.
+v0.8 fixes OpenCV convexity-defect indexing so the frame gate does not fall back
+to FRAME_GATE_UNCERTAIN before finishing its geometry decision.
 """
 import cv2
 import numpy as np
@@ -69,10 +68,6 @@ def _bottleneck_axis(mask, axis, image_area):
         balance = min(side1, side2) / max(max(side1, side2), 1.0)
         if small_ratio < 0.05 or large_ratio < 0.14 or balance < 0.14:
             continue
-
-        # Look beyond the local bridge for the actual board bodies. v0.6 used
-        # adjacent bands, so a wide bridge could become its own reference and
-        # make neck_ratio approximately 1.0 even with large boards on both sides.
         l0, l1 = max(lo, cut - far), max(lo, cut - near)
         r0, r1 = min(hi + 1, cut + near), min(hi + 1, cut + far)
         left_band, right_band = profile[l0:l1], profile[r0:r1]
@@ -100,7 +95,7 @@ def _bottleneck_split(mask, image_area):
 
 
 def inspect_frame(image_path):
-    result = {"version": "SPIKE Single-Frame Board Identity Gate v0.7", "status": "SINGLE_BOARD_NOT_CONTRADICTED", "block_analysis": False, "confidence": 0, "evidence": [], "next_step": "Continue normal board analysis."}
+    result = {"version": "SPIKE Single-Frame Board Identity Gate v0.8", "status": "SINGLE_BOARD_NOT_CONTRADICTED", "block_analysis": False, "confidence": 0, "evidence": [], "next_step": "Continue normal board analysis."}
     try:
         im = cv2.imread(image_path)
         if im is None:
@@ -147,9 +142,9 @@ def inspect_frame(image_path):
             defects = cv2.convexityDefects(c, hull_idx) if hull_idx is not None and len(hull_idx) >= 3 and len(c) >= 4 else None
             deep = []
             scale = max(rw, rh)
-            if defects is not None:
-                for d in defects[:, 0]:
-                    depth = float(d[3]) / 256.0
+            if defects is not None and np.asarray(defects).size >= 4:
+                for defect in np.asarray(defects).reshape(-1, 4):
+                    depth = float(defect[3]) / 256.0
                     if depth >= scale * 0.04:
                         deep.append(depth / scale)
             area_ratio, deep_count, deepest = board_area / area, len(deep), max(deep) if deep else 0.0
