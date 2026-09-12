@@ -5,7 +5,8 @@ These tests protect the decision contract learned from Public-Proofing:
 2) a 2+2+2 mixed-board case must never be reconciled as one board;
 3) a photo already flagged as containing multiple boards must stop reconciliation;
 4) a single clean rectangular PCB must not be blocked by the frame gate;
-5) two touching PCB bodies connected by a narrow bridge must be blocked.
+5) two touching PCB bodies connected by a narrow bridge must be blocked;
+6) one irregular smartphone PCB with narrow arms/notches must remain one board.
 
 The photographed Archer C54 and Chaos cases remain required live acceptance tests
 before production deployment.
@@ -129,3 +130,27 @@ def test_touching_two_board_frame_is_blocked():
     assert decision["block_analysis"] is True, diagnostic
     assert decision["status"] == "MULTIPLE_BOARDS_OR_OVERLAP_SUSPECTED", diagnostic
     assert decision["metrics"]["bottleneck_split_trigger"] is True, diagnostic
+
+
+def test_irregular_smartphone_single_board_is_not_blocked():
+    """One PCB may legitimately have a narrow arm, neck and stepped outline."""
+    image = np.zeros((800, 1000, 3), dtype=np.uint8)
+    image[:] = (35, 35, 35)
+    green = (45, 150, 55)
+    # Main phone logic-board body.
+    cv2.rectangle(image, (300, 160), (700, 610), green, -1)
+    # Legitimate integral PCB arms/projections, deliberately asymmetric.
+    cv2.rectangle(image, (210, 245), (330, 355), green, -1)
+    cv2.rectangle(image, (670, 430), (790, 515), green, -1)
+    # Small edge step/notch geometry common on compact device boards.
+    cv2.rectangle(image, (360, 610), (455, 665), green, -1)
+    cv2.rectangle(image, (545, 120), (625, 180), green, -1)
+    temp, path = _write_fixture(image)
+    try:
+        decision = inspect_frame(str(path))
+    finally:
+        temp.cleanup()
+    diagnostic = f"smartphone-single-board decision={decision!r}"
+    print("\nSPIKE SMARTPHONE DIAGNOSTIC:", diagnostic)
+    assert decision["block_analysis"] is False, diagnostic
+    assert decision["status"] == "SINGLE_BOARD_NOT_CONTRADICTED", diagnostic
