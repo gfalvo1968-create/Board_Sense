@@ -1,12 +1,12 @@
-"""SPIKE Single-Frame Board Identity Gate v0.6.
+"""SPIKE Single-Frame Board Identity Gate v0.7.
 
 Blocks a single uploaded photograph when strong physical evidence says more than
 one PCB is present. PCB confirmation and board identity remain separate gates.
 Color is only used to find candidate PCB regions; geometry supplies the block.
 
-v0.6 strengthens the touching-board test by probing narrow strips instead of a
-single profile column. This catches two substantial PCB bodies joined by a short,
-wide bridge while retaining the clean single-board guardrail.
+v0.7 measures a suspected neck against board-body shoulders farther away from
+the bridge. This avoids treating the bridge itself as a shoulder, which hid the
+touching-two-board regression fixture in v0.6.
 """
 import cv2
 import numpy as np
@@ -56,7 +56,8 @@ def _bottleneck_axis(mask, axis, image_area):
     start, end = lo + int(span * 0.12), lo + int(span * 0.88)
     total = float(binary.sum())
     best = None
-    shoulder_window = max(12, span // 8)
+    near = max(5, span // 24)
+    far = max(24, span // 5)
     strip_half = max(2, span // 120)
     for cut in range(start, end + 1):
         if axis == "x":
@@ -68,13 +69,17 @@ def _bottleneck_axis(mask, axis, image_area):
         balance = min(side1, side2) / max(max(side1, side2), 1.0)
         if small_ratio < 0.05 or large_ratio < 0.14 or balance < 0.14:
             continue
-        l0, l1 = max(lo, cut - shoulder_window), max(lo, cut - strip_half)
-        r0, r1 = min(hi + 1, cut + strip_half + 1), min(hi + 1, cut + shoulder_window + 1)
+
+        # Look beyond the local bridge for the actual board bodies. v0.6 used
+        # adjacent bands, so a wide bridge could become its own reference and
+        # make neck_ratio approximately 1.0 even with large boards on both sides.
+        l0, l1 = max(lo, cut - far), max(lo, cut - near)
+        r0, r1 = min(hi + 1, cut + near), min(hi + 1, cut + far)
         left_band, right_band = profile[l0:l1], profile[r0:r1]
         if not np.any(left_band > 0) or not np.any(right_band > 0):
             continue
-        left_ref = float(np.percentile(left_band[left_band > 0], 75))
-        right_ref = float(np.percentile(right_band[right_band > 0], 75))
+        left_ref = float(np.percentile(left_band[left_band > 0], 80))
+        right_ref = float(np.percentile(right_band[right_band > 0], 80))
         shoulder = min(left_ref, right_ref)
         if shoulder <= 0:
             continue
@@ -95,7 +100,7 @@ def _bottleneck_split(mask, image_area):
 
 
 def inspect_frame(image_path):
-    result = {"version": "SPIKE Single-Frame Board Identity Gate v0.6", "status": "SINGLE_BOARD_NOT_CONTRADICTED", "block_analysis": False, "confidence": 0, "evidence": [], "next_step": "Continue normal board analysis."}
+    result = {"version": "SPIKE Single-Frame Board Identity Gate v0.7", "status": "SINGLE_BOARD_NOT_CONTRADICTED", "block_analysis": False, "confidence": 0, "evidence": [], "next_step": "Continue normal board analysis."}
     try:
         im = cv2.imread(image_path)
         if im is None:
