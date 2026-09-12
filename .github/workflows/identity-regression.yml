@@ -13,6 +13,8 @@ on:
 jobs:
   identity-regression:
     runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}
     steps:
       - name: Check out regression branch
         uses: actions/checkout@v4
@@ -28,5 +30,11 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           pip install pytest
 
+      - name: Verify checkout path
+        run: |
+          pwd
+          ls
+          python -c "import routes; print('routes import OK')"
+
       - name: Run identity regression guardrails
-        run: pytest -q tests/test_identity_regressions.py
+        run: python -m pytest -q tests/test_identity_regressions.py
