@@ -1,0 +1,32 @@
+name: Identity Regression Lab
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - identity-regression-lab
+    paths:
+      - 'routes/**'
+      - 'tests/test_identity_regressions.py'
+      - '.github/workflows/identity-regression.yml'
+
+jobs:
+  identity-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out regression branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pytest
+
+      - name: Run identity regression guardrails
+        run: pytest -q tests/test_identity_regressions.py
