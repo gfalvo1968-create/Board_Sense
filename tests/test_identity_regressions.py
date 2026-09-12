@@ -109,24 +109,23 @@ def test_single_clean_pcb_frame_is_not_blocked():
         decision = inspect_frame(str(path))
     finally:
         temp.cleanup()
-    assert decision["block_analysis"] is False
+    assert decision["block_analysis"] is False, f"clean PCB unexpectedly blocked: {decision!r}"
     assert decision["status"] == "SINGLE_BOARD_NOT_CONTRADICTED"
 
 
 def test_touching_two_board_frame_is_blocked():
     image = np.zeros((700, 1000, 3), dtype=np.uint8)
     image[:] = (35, 35, 35)
-    # Large main board.
     cv2.rectangle(image, (390, 120), (900, 610), (45, 150, 55), -1)
-    # Smaller second board on the left.
     cv2.rectangle(image, (90, 250), (350, 520), (45, 150, 55), -1)
-    # Narrow physical overlap/bridge that makes the green mask one connected blob.
     cv2.rectangle(image, (345, 345), (410, 420), (45, 150, 55), -1)
     temp, path = _write_fixture(image)
     try:
         decision = inspect_frame(str(path))
     finally:
         temp.cleanup()
-    assert decision["block_analysis"] is True
-    assert decision["status"] == "MULTIPLE_BOARDS_OR_OVERLAP_SUSPECTED"
-    assert decision["metrics"]["bottleneck_split_trigger"] is True
+    diagnostic = f"touching-board decision={decision!r}"
+    print("\nSPIKE FRAME DIAGNOSTIC:", diagnostic)
+    assert decision["block_analysis"] is True, diagnostic
+    assert decision["status"] == "MULTIPLE_BOARDS_OR_OVERLAP_SUSPECTED", diagnostic
+    assert decision["metrics"]["bottleneck_split_trigger"] is True, diagnostic
