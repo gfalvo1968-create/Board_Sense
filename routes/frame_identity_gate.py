@@ -1,12 +1,11 @@
-"""SPIKE Single-Frame Board Identity Gate v0.9.
+"""SPIKE Single-Frame Board Identity Gate v0.10.
 
-Blocks a single uploaded photograph when strong physical evidence says more than
-one PCB is present. PCB confirmation and board identity remain separate gates.
-Color is only used to find candidate PCB regions; geometry supplies the block.
+Blocks a single uploaded photograph only when strong physical evidence says more
+than one PCB is present. PCB confirmation and board identity remain separate.
 
-v0.9 keeps compound silhouette profiles as supporting evidence only. Irregular
-single PCBs can have deep concavities, arms, and notches, so a compound profile
-alone may not block analysis without corroborating physical split evidence.
+v0.10 tightens bottleneck evidence after a real irregular Dell laptop motherboard
+was falsely split. A narrow neck alone is not enough: both sides must be substantial
+and reasonably balanced. Compound silhouette profiles remain advisory only.
 """
 import cv2
 import numpy as np
@@ -67,7 +66,11 @@ def _bottleneck_axis(mask, axis, image_area):
         small_ratio = min(side1, side2) / max(image_area, 1.0)
         large_ratio = max(side1, side2) / max(image_area, 1.0)
         balance = min(side1, side2) / max(max(side1, side2), 1.0)
-        if small_ratio < 0.05 or large_ratio < 0.14 or balance < 0.14:
+        # v0.10: a legitimate motherboard arm/wing can create a dramatic neck.
+        # Require two genuinely substantial bodies rather than one main body plus
+        # a large integral projection. The synthetic touching-board fixture still
+        # clears these thresholds comfortably.
+        if small_ratio < 0.075 or large_ratio < 0.14 or balance < 0.22:
             continue
         l0, l1 = max(lo, cut - far), max(lo, cut - near)
         r0, r1 = min(hi + 1, cut + near), min(hi + 1, cut + far)
@@ -96,7 +99,7 @@ def _bottleneck_split(mask, image_area):
 
 
 def inspect_frame(image_path):
-    result = {"version": "SPIKE Single-Frame Board Identity Gate v0.9", "status": "SINGLE_BOARD_NOT_CONTRADICTED", "block_analysis": False, "confidence": 0, "evidence": [], "next_step": "Continue normal board analysis."}
+    result = {"version": "SPIKE Single-Frame Board Identity Gate v0.10", "status": "SINGLE_BOARD_NOT_CONTRADICTED", "block_analysis": False, "confidence": 0, "evidence": [], "next_step": "Continue normal board analysis."}
     try:
         im = cv2.imread(image_path)
         if im is None:
@@ -152,14 +155,9 @@ def inspect_frame(image_path):
             profile_a = 0.20 <= area_ratio <= 0.80 and solidity < 0.91 and rectangularity < 0.82 and deep_count >= 5 and deepest >= 0.08
             profile_b = 0.40 <= area_ratio <= 0.85 and solidity < 0.94 and rectangularity < 0.86 and deep_count >= 4 and deepest >= 0.07
             profile_c = 0.28 <= area_ratio <= 0.88 and solidity < 0.90 and rectangularity < 0.80 and deep_count >= 2 and deepest >= 0.12
-
-        # Compound silhouette profiles are intentionally advisory. A single
-        # irregular PCB can satisfy them. Blocking requires independent physical
-        # evidence that the frame separates into multiple substantial bodies.
         strong_split_evidence = bool(two_regions or bottleneck_trigger or split_trigger)
         compound_support = bool(profile_a or profile_b or profile_c)
         suspicious = strong_split_evidence
-
         result["metrics"] = {"pcb_region_area_ratio": round(area_ratio, 3), "solidity": round(solidity, 3), "rectangularity": round(rectangularity, 3), "deep_concavity_count": int(deep_count), "deepest_concavity_ratio": round(deepest, 3), "base_independent_pcb_regions": len(base_regions), "base_two_region_trigger": bool(two_regions), "base_two_region_metrics": two_metrics, "bottleneck_split_trigger": bool(bottleneck_trigger), "bottleneck_split_metrics": bottleneck_metrics, "multiscale_split_trigger": bool(split_trigger), "multiscale_split_kernel": split_scale, "multiscale_split_metrics": split_metrics, "compound_profile_a": bool(profile_a), "compound_profile_b": bool(profile_b), "compound_profile_c": bool(profile_c), "compound_profile_support_only": compound_support}
         if suspicious:
             why = []
