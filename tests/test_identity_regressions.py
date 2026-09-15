@@ -20,6 +20,7 @@ import numpy as np
 
 from routes.case_identity_gate import verify_same_board
 from routes.frame_identity_gate import inspect_frame
+from routes.spike_tool_layer import investigate_identity
 
 
 def _result(board_type="Dense Logic Board", frame_block=False, fp_id="a"):
@@ -154,3 +155,39 @@ def test_irregular_smartphone_single_board_is_not_blocked():
     print("\nSPIKE SMARTPHONE DIAGNOSTIC:", diagnostic)
     assert decision["block_analysis"] is False, diagnostic
     assert decision["status"] == "SINGLE_BOARD_NOT_CONTRADICTED", diagnostic
+
+
+@patch("routes.spike_tool_layer.search_visual_matches")
+def test_spike_tool_layer_calls_web_match_without_overriding_identity(web_match):
+    web_match.side_effect = [
+        {
+            "status": "searched",
+            "matches": [
+                {"title": "Dell Latitude motherboard LA-J371P", "source": "example-a"},
+                {"title": "Dell Latitude system board LA-J371P", "source": "example-b"},
+            ],
+        },
+        {
+            "status": "searched",
+            "matches": [
+                {"title": "Dell Latitude motherboard LA-J371P reverse side", "source": "example-c"},
+                {"title": "Dell Latitude LA-J371P board", "source": "example-d"},
+            ],
+        },
+    ]
+    views = [
+        _result("Motherboard / Main Logic Board", fp_id="dell"),
+        _result("Motherboard / Main Logic Board", fp_id="dell"),
+    ]
+    views[0]["view_number"] = 1
+    views[1]["view_number"] = 2
+    identity = {
+        "status": "MULTIPLE_BOARDS_IN_FRAME_SUSPECTED",
+        "block_reconciliation": True,
+    }
+    packet = investigate_identity(views, ["/tmp/front.jpg", "/tmp/back.jpg"], identity)
+    assert web_match.call_count == 2
+    assert "spike_glass_web_match" in packet["tools_used"]
+    assert packet["reference_consensus"]["support"] == "reference_corroboration"
+    assert packet["identity_override"] is False
+    assert "manufacture identity" in packet["rule"].lower()
