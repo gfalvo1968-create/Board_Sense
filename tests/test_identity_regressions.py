@@ -191,3 +191,49 @@ def test_spike_tool_layer_calls_web_match_without_overriding_identity(web_match)
     assert packet["reference_consensus"]["support"] == "reference_corroboration"
     assert packet["identity_override"] is False
     assert "manufacture identity" in packet["rule"].lower()
+
+
+@patch("routes.spike_tool_layer.search_visual_matches")
+def test_spike_web_match_stays_image_first_without_specific_markings(web_match):
+    web_match.side_effect = [
+        {"status": "searched", "matches": [{"title": "Dell Latitude motherboard", "source": "example"}]},
+        {"status": "searched", "matches": [{"title": "Dell Latitude motherboard reverse", "source": "example"}]},
+    ]
+    views = [
+        _result("Power-Control / Controller Board", fp_id="dell"),
+        _result("Dense Logic / Controller Board", fp_id="dell"),
+    ]
+    views[0]["view_number"] = 1
+    views[1]["view_number"] = 2
+    identity = {"status": "MULTIPLE_BOARDS_IN_FRAME_SUSPECTED", "block_reconciliation": True}
+    investigate_identity(views, ["/tmp/front.jpg", "/tmp/back.jpg"], identity)
+    first = web_match.call_args_list[0].kwargs
+    second = web_match.call_args_list[1].kwargs
+    assert first["query"] is None
+    assert second["query"] is None
+
+
+@patch("routes.spike_tool_layer.search_visual_matches")
+def test_dell_brand_overlap_counts_as_reference_evidence_not_marketplace_noise(web_match):
+    web_match.side_effect = [
+        {
+            "status": "searched",
+            "matches": [
+                {"title": "Dell Inspiron 1150 Laptop Intel System Motherboard", "source": "eBay"},
+                {"title": "Dell Vostro motherboard", "source": "eBay"},
+            ],
+        },
+        {
+            "status": "searched",
+            "matches": [
+                {"title": "Dell Inspiron motherboard reverse side", "source": "marketplace"},
+                {"title": "Dell laptop mainboard", "source": "catalog"},
+            ],
+        },
+    ]
+    views = [_result(fp_id="dell"), _result(fp_id="dell")]
+    views[0]["view_number"] = 1
+    views[1]["view_number"] = 2
+    identity = {"status": "MULTIPLE_BOARDS_IN_FRAME_SUSPECTED", "block_reconciliation": True}
+    packet = investigate_identity(views, ["/tmp/front.jpg", "/tmp/back.jpg"], identity)
+    assert "dell" in packet["reference_consensus"]["common_tokens"]
