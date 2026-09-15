@@ -1,4 +1,4 @@
-"""SPIKE Tool-Use Layer v0.1.
+"""SPIKE Tool-Use Layer v0.2.
 
 SPIKE may call outside tools when first-pass evidence is uncertain. Tool output is
 kept separate from the physical identity decision so a web hit can corroborate but
@@ -13,8 +13,9 @@ from routes.spike_web_match import search_visual_matches
 
 
 _STOP = {
-    "board", "motherboard", "logic", "main", "pcb", "dell", "laptop", "system",
+    "board", "motherboard", "logic", "main", "pcb", "system",
     "replacement", "genuine", "new", "used", "for", "with", "and", "the", "a", "an",
+    "ebay", "amazon", "aliexpress", "walmart", "etsy", "tested", "dead",
 }
 
 
@@ -24,27 +25,30 @@ def _tokens(text: str) -> set[str]:
 
 
 def _query_for_result(result: dict) -> str:
+    """Use text filtering only when SPIKE has genuinely specific evidence.
+
+    Generic classifier labels such as "Dense Logic Board" or "IC / Logic Package"
+    are intentionally excluded because feeding them into Google Lens can suppress
+    the image-first visual matches we actually need for front/back identity work.
+    """
     bits = []
-    board_type = str(result.get("board_type") or "").strip()
-    if board_type:
-        bits.append(board_type)
-    spike = result.get("spike_glass") or {}
-    top = spike.get("top_match") or {}
-    label = str(top.get("label") or "").strip()
-    if label and label.lower() not in board_type.lower():
-        bits.append(label)
-    subtype = result.get("equipment_subtype") or {}
-    sub = str(subtype.get("subtype") or subtype.get("type") or "").strip()
-    if sub:
-        bits.append(sub)
-    # Future OCR/marking extractors can populate either field without changing
-    # this tool layer.
+
+    # OCR/marking extractors may populate these fields now or later. Those strings
+    # are strong enough to narrow a visual search because they came from the item.
     for key in ("visible_markings", "part_markings", "model_markings"):
         value = result.get(key)
         if isinstance(value, str) and value.strip():
             bits.append(value.strip())
         elif isinstance(value, (list, tuple)):
             bits.extend(str(x).strip() for x in value if str(x).strip())
+
+    # Equipment subtype is useful only when it looks like an actual model/part
+    # designation rather than another generic family label.
+    subtype = result.get("equipment_subtype") or {}
+    sub = str(subtype.get("subtype") or subtype.get("type") or "").strip()
+    if sub and (any(ch.isdigit() for ch in sub) or "-" in sub or "/" in sub):
+        bits.append(sub)
+
     query = " ".join(bits).strip()
     return query[:220]
 
@@ -82,7 +86,7 @@ def investigate_identity(results: list[dict], image_paths: list[str] | None, ide
     needs_tools = bool(identity.get("block_reconciliation")) or status == "IDENTITY_UNCERTAIN"
 
     packet = {
-        "version": "SPIKE Tool-Use Layer v0.1",
+        "version": "SPIKE Tool-Use Layer v0.2",
         "status": "not_needed" if not needs_tools else "tool_review_requested",
         "trigger": status or "unknown",
         "tools_considered": [
