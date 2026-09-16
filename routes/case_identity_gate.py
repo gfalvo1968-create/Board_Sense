@@ -1,4 +1,4 @@
-"""SPIKE Same-Board Verification Gate v1.1.
+"""SPIKE Same-Board Verification Gate v1.2.
 
 Checks single-frame identity safety first, then cross-photo semantic contradiction
 and physical geometry. Conflicting classifier labels from close-ups must not
@@ -57,7 +57,7 @@ def _connected_component(nodes, edges, start):
 
 def verify_same_board(results):
     n = len(results or [])
-    version = "SPIKE Same-Board Verification Gate v1.1"
+    version = "SPIKE Same-Board Verification Gate v1.2"
     if n < 2:
         return {
             "version": version,
@@ -84,6 +84,9 @@ def verify_same_board(results):
         if not fg.get("block_analysis"):
             continue
         packet = {"view": i, "frame_identity_gate": fg}
+        clarification_evidence = r.get("identity_clarification_evidence") or {}
+        if clarification_evidence.get("resolved"):
+            packet["identity_clarification_evidence"] = clarification_evidence
         frame_blocks.append(packet)
         m = fg.get("metrics") or {}
         has_metrics = bool(m)
@@ -93,6 +96,11 @@ def verify_same_board(results):
         # Missing diagnostics stay conservative and hard-block. Only the very
         # specific bottleneck-only pattern earns clarification mode.
         if has_metrics and bottleneck and not two_region and not multiscale:
+            if clarification_evidence.get("resolved"):
+                # A verified same-side close-up spans the reported neck, so this
+                # particular bottleneck-only warning no longer counts as an
+                # unresolved frame contradiction.
+                continue
             clarification_blocks.append(packet)
         else:
             hard_frame_blocks.append(packet)
@@ -150,6 +158,15 @@ def verify_same_board(results):
             ],
             "rule": "When evidence is insufficient, ask for the photo that can settle it. A bottleneck alone is not proof of two boards.",
         }
+
+    resolved_clarifications = [
+        {
+            "view": i,
+            "evidence": r.get("identity_clarification_evidence"),
+        }
+        for i, r in enumerate(results, 1)
+        if (r.get("identity_clarification_evidence") or {}).get("resolved")
+    ]
 
     families = [_family(r) for r in results]
     known = [f for f in families if f != "unknown"]
@@ -307,5 +324,6 @@ def verify_same_board(results):
         "positive_geometry_evidence": positive_geometry,
         "coherent_geometry": coherent_geometry,
         "coherence_coverage": coherence_coverage,
+        "resolved_clarifications": resolved_clarifications,
         "rule": "Compatible geometry must connect the complete usable whole-board set; semantic labels, color, and one matching pair alone are not proof.",
     }
