@@ -12,6 +12,7 @@ from routes.pair_reasoner import reconcile_pair
 from routes.pair_decision_guard import guard_pair
 from routes.spike_evidence_packet import build_evidence_packet
 from routes.spike_tool_layer import investigate_identity
+from routes.identity_clarification import apply_identity_clarifications
 from routes.case_reasoner import reconcile_case
 from routes.inspection_target import parse_inspection_target, apply_inspection_target
 from routes.free_usage_gate import check_free_board_allowance, record_free_board_use, free_gate_payload
@@ -239,6 +240,7 @@ async def analyze_board_case_route(
         result["spike_evidence"] = build_evidence_packet(result)
         results.append(result)
         image_paths.append(str(path))
+    apply_identity_clarifications(results, image_paths)
     combined = reconcile_case(results)
     identity = combined.get("same_board_verification") or {}
     combined["spike_tool_use"] = investigate_identity(results, image_paths, identity)
