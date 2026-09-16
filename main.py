@@ -242,14 +242,20 @@ async def analyze_board_case_route(
     combined = reconcile_case(results)
     identity = combined.get("same_board_verification") or {}
     combined["spike_tool_use"] = investigate_identity(results, image_paths, identity)
-    if combined.get("status") == "case_identity_failed" or (combined.get("same_board_verification") or {}).get("block_reconciliation"):
+    if combined.get("status") in {"case_identity_failed", "case_identity_clarification"} or (combined.get("same_board_verification") or {}).get("block_reconciliation"):
+        identity_status = (combined.get("same_board_verification") or {}).get("status")
+        clarification = identity_status == "IDENTITY_CLARIFICATION_NEEDED"
         return {
             "status": "success",
-            "mode": "multi_photo_identity_blocked",
+            "mode": "multi_photo_identity_clarification" if clarification else "multi_photo_identity_blocked",
             "photo_count": len(results),
             "views": results,
             "combined": combined,
-            "case_warning": "MULTIPLE BOARDS DETECTED - split these photos into one case per physical board.",
+            "case_warning": (
+                "IDENTITY CLARIFICATION NEEDED - add the targeted photo SPIKE requested."
+                if clarification
+                else "MULTIPLE BOARDS DETECTED - split these photos into one case per physical board."
+            ),
             "free_usage": check_free_board_allowance(request).as_dict(),
         }
     econ = _economics_payload(
