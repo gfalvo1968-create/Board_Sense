@@ -237,3 +237,52 @@ def test_dell_brand_overlap_counts_as_reference_evidence_not_marketplace_noise(w
     identity = {"status": "MULTIPLE_BOARDS_IN_FRAME_SUSPECTED", "block_reconciliation": True}
     packet = investigate_identity(views, ["/tmp/front.jpg", "/tmp/back.jpg"], identity)
     assert "dell" in packet["reference_consensus"]["common_tokens"]
+
+
+def test_bottleneck_only_frame_requests_targeted_photo_instead_of_claiming_multiple_boards():
+    flagged = _result(frame_block=False, fp_id="dell")
+    flagged["board_blueprint"]["frame_identity_gate"] = {
+        "block_analysis": True,
+        "confidence": 96,
+        "status": "MULTIPLE_BOARDS_OR_OVERLAP_SUSPECTED",
+        "metrics": {
+            "base_two_region_trigger": False,
+            "bottleneck_split_trigger": True,
+            "multiscale_split_trigger": False,
+            "bottleneck_split_metrics": {
+                "axis": "y",
+                "cut": 2145,
+                "neck_ratio": 0.351,
+                "side_balance": 0.472,
+            },
+        },
+    }
+    companion = _result(frame_block=False, fp_id="dell")
+    decision = verify_same_board([flagged, companion])
+    assert decision["status"] == "IDENTITY_CLARIFICATION_NEEDED"
+    assert decision["same_board"] is None
+    assert decision["block_reconciliation"] is True
+    assert decision["clarification_needed"] is True
+    assert decision["requested_photos"][0]["flagged_view"] == 1
+    assert "SAME SIDE" in decision["requested_photos"][0]["instruction"]
+    assert "bottleneck alone is not proof" in decision["rule"].lower()
+
+
+def test_independent_region_frame_remains_hard_block():
+    flagged = _result(frame_block=False, fp_id="board-a")
+    flagged["board_blueprint"]["frame_identity_gate"] = {
+        "block_analysis": True,
+        "confidence": 96,
+        "status": "MULTIPLE_BOARDS_OR_OVERLAP_SUSPECTED",
+        "metrics": {
+            "base_two_region_trigger": True,
+            "bottleneck_split_trigger": False,
+            "multiscale_split_trigger": False,
+        },
+    }
+    companion = _result(frame_block=False, fp_id="board-a")
+    decision = verify_same_board([flagged, companion])
+    assert decision["status"] == "MULTIPLE_BOARDS_IN_FRAME_SUSPECTED"
+    assert decision["same_board"] is False
+    assert decision["block_reconciliation"] is True
+    assert decision["clarification_needed"] is False
