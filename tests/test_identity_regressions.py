@@ -21,6 +21,7 @@ import numpy as np
 from routes.case_identity_gate import verify_same_board
 from routes.frame_identity_gate import inspect_frame
 from routes.spike_tool_layer import investigate_identity
+from routes.identity_clarification import _match_targeted_continuity
 
 
 def _result(board_type="Dense Logic Board", frame_block=False, fp_id="a"):
@@ -286,3 +287,70 @@ def test_independent_region_frame_remains_hard_block():
     assert decision["same_board"] is False
     assert decision["block_reconciliation"] is True
     assert decision["clarification_needed"] is False
+
+
+def test_resolved_targeted_closeup_clears_bottleneck_only_case_block():
+    flagged = _result(frame_block=False, fp_id="dell")
+    flagged["board_blueprint"]["frame_identity_gate"] = {
+        "block_analysis": True,
+        "confidence": 96,
+        "status": "MULTIPLE_BOARDS_OR_OVERLAP_SUSPECTED",
+        "metrics": {
+            "base_two_region_trigger": False,
+            "bottleneck_split_trigger": True,
+            "multiscale_split_trigger": False,
+            "bottleneck_split_metrics": {"axis": "y", "cut": 300},
+        },
+    }
+    flagged["identity_clarification_evidence"] = {
+        "resolved": True,
+        "matched_candidate_view": 2,
+        "status": "resolved",
+    }
+    companion = _result(frame_block=False, fp_id="dell")
+    decision = verify_same_board([flagged, companion])
+    assert decision["status"] == "PROBABLY_SAME_BOARD"
+    assert decision["same_board"] is True
+    assert decision["block_reconciliation"] is False
+
+
+def test_targeted_closeup_matcher_requires_same_side_features_across_neck():
+    rng = np.random.default_rng(7)
+    image = np.zeros((720, 920, 3), dtype=np.uint8)
+    image[:] = (35, 35, 35)
+    green = (45, 150, 55)
+    cv2.rectangle(image, (90, 80), (830, 640), green, -1)
+    # Make an irregular narrow-neck silhouette around y=360.
+    cv2.rectangle(image, (90, 315), (260, 405), (35, 35, 35), -1)
+    cv2.rectangle(image, (660, 315), (830, 405), (35, 35, 35), -1)
+    for _ in range(180):
+        x = int(rng.integers(150, 770))
+        y = int(rng.integers(160, 560))
+        radius = int(rng.integers(2, 7))
+        value = int(rng.integers(80, 245))
+        cv2.circle(image, (x, y), radius, (value, value, value), -1)
+    cv2.putText(image, "DELL-TEST-NECK", (300, 350), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (240, 240, 240), 2, cv2.LINE_AA)
+
+    closeup = image[230:500, 220:700].copy()
+    unrelated = np.zeros_like(closeup)
+    unrelated[:] = (35, 35, 35)
+    cv2.rectangle(unrelated, (20, 20), (460, 250), green, -1)
+    for _ in range(100):
+        x = int(rng.integers(30, 450))
+        y = int(rng.integers(30, 240))
+        cv2.circle(unrelated, (x, y), 3, (180, 180, 180), -1)
+
+    with TemporaryDirectory() as td:
+        full_path = Path(td) / "full.png"
+        close_path = Path(td) / "close.png"
+        other_path = Path(td) / "other.png"
+        cv2.imwrite(str(full_path), image)
+        cv2.imwrite(str(close_path), closeup)
+        cv2.imwrite(str(other_path), unrelated)
+        bottleneck = {"axis": "y", "cut": 360}
+        good = _match_targeted_continuity(str(full_path), str(close_path), bottleneck)
+        bad = _match_targeted_continuity(str(full_path), str(other_path), bottleneck)
+
+    assert good["matched"] is True, good
+    assert good["matches_side_a"] >= 4 and good["matches_side_b"] >= 4, good
+    assert bad["matched"] is False, bad
