@@ -373,6 +373,9 @@ def test_overlapping_secondary_rectangular_pcb_plane_is_blocked():
     # Strong physical outer edge on the main board remains visible across the
     # secondary PCB underneath it.
     cv2.rectangle(image, (140, 150), (960, 760), (15, 90, 25), 5)
+    # A small physical shadow/gap under the overlapping board edge makes the
+    # separate plane visible without creating a second huge disconnected blob.
+    cv2.rectangle(image, (430, 761), (700, 773), (35, 35, 35), -1)
 
     # Add board-like texture so Canny/Hough sees realistic internal detail too.
     for x in range(180, 930, 55):
