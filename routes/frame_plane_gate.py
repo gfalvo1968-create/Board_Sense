@@ -121,7 +121,7 @@ def inspect_secondary_board_plane(image, board_mask):
     h, w = image.shape[:2]
     image_area = float(max(1, h * w))
     result = {
-        "version": "SPIKE Secondary Board Plane Gate v0.1",
+        "version": "SPIKE Secondary Board Plane Gate v0.2",
         "trigger": False,
         "primary_core": None,
         "secondary_candidate": None,
@@ -134,7 +134,7 @@ def inspect_secondary_board_plane(image, board_mask):
 
     hs = _clusters(lines, "h", h, w)
     vs = _clusters(lines, "v", w, h)
-    best = None
+    cores = []
 
     for li in range(len(vs)):
         for ri in range(li + 1, len(vs)):
@@ -161,91 +161,106 @@ def inspect_secondary_board_plane(image, board_mask):
                         _coverage(lines, "v", x1, y1, y2, h, w),
                         _coverage(lines, "v", x2, y1, y2, h, w),
                     ]
-                    # Four-sided support is the Dell guardrail. Irregular single PCBs
-                    # often have strong internal lines but do not form one clean core.
                     if min(cov) < 0.30:
                         continue
                     score = ratio * fill * (0.5 + 0.5 * (sum(cov) / 4.0))
-                    candidate = {
-                        "box": [round(x1 / w, 3), round(y1 / h, 3), round(x2 / w, 3), round(y2 / h, 3)],
-                        "area_ratio": round(ratio, 3),
-                        "board_fill": round(fill, 3),
-                        "edge_coverage": [round(x, 3) for x in cov],
-                        "score": round(score, 3),
-                        "_px": (x1, y1, x2, y2),
-                    }
-                    if best is None or score > best["score"]:
-                        best = candidate
+                    if score < 0.18:
+                        continue
+                    cores.append(
+                        {
+                            "box": [round(x1 / w, 3), round(y1 / h, 3), round(x2 / w, 3), round(y2 / h, 3)],
+                            "area_ratio": round(ratio, 3),
+                            "board_fill": round(fill, 3),
+                            "edge_coverage": [round(x, 3) for x in cov],
+                            "score": round(score, 3),
+                            "_px": (x1, y1, x2, y2),
+                        }
+                    )
 
-    if best is None or best["score"] < 0.18:
+    if not cores:
         result["reason"] = "no_high_confidence_rectangular_core"
         return result
 
-    result["primary_core"] = {k: v for k, v in best.items() if k != "_px"}
-    x1, y1, x2, y2 = best["_px"]
+    cores.sort(key=lambda item: item["score"], reverse=True)
 
-    # Remove the rectangular core and inspect board-coloured material that remains
-    # outside it. A real second board should form a substantial, compact slab.
-    outside = (board_mask > 0).astype(np.uint8) * 255
-    outside[max(0, int(y1)):min(h, int(y2)), max(0, int(x1)):min(w, int(x2))] = 0
-    contours, _ = cv2.findContours(outside, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    def secondary_for_core(core):
+        x1, y1, x2, y2 = core["_px"]
+        outside = (board_mask > 0).astype(np.uint8) * 255
+        outside[max(0, int(y1)):min(h, int(y2)), max(0, int(x1)):min(w, int(x2))] = 0
+        contours, _ = cv2.findContours(outside, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        found = []
 
-    secondary = []
-    for contour in contours:
-        area = float(cv2.contourArea(contour))
-        area_ratio = area / image_area
-        if area_ratio < 0.025:
-            continue
-        x, y, bw, bh = cv2.boundingRect(contour)
-        rect = cv2.minAreaRect(contour)
-        rw, rh = rect[1]
-        rectangularity = area / max(float(rw) * float(rh), 1.0)
-        hull = cv2.convexHull(contour)
-        solidity = area / max(float(cv2.contourArea(hull)), 1.0)
-        if rectangularity < 0.62 or solidity < 0.78:
-            continue
+        for contour in contours:
+            area = float(cv2.contourArea(contour))
+            area_ratio = area / image_area
+            if area_ratio < 0.025:
+                continue
+            x, y, bw, bh = cv2.boundingRect(contour)
+            rect = cv2.minAreaRect(contour)
+            rw, rh = rect[1]
+            rectangularity = area / max(float(rw) * float(rh), 1.0)
+            hull = cv2.convexHull(contour)
+            solidity = area / max(float(cv2.contourArea(hull)), 1.0)
+            if rectangularity < 0.62 or solidity < 0.78:
+                continue
 
-        # Find which primary edge the outside slab meets, then demand a physical
-        # edge line across that shared interface. That is the key distinction
-        # between an overlapping second PCB and an integral motherboard wing.
-        X1, Y1, X2, Y2 = float(x), float(y), float(x + bw), float(y + bh)
-        adjacency = []
-        if Y1 >= y2 - h * 0.06:
-            adjacency.append(("bottom", abs(Y1 - y2), _coverage(lines, "h", y2, X1, X2, h, w)))
-        if Y2 <= y1 + h * 0.06:
-            adjacency.append(("top", abs(Y2 - y1), _coverage(lines, "h", y1, X1, X2, h, w)))
-        if X1 >= x2 - w * 0.06:
-            adjacency.append(("right", abs(X1 - x2), _coverage(lines, "v", x2, Y1, Y2, h, w)))
-        if X2 <= x1 + w * 0.06:
-            adjacency.append(("left", abs(X2 - x1), _coverage(lines, "v", x1, Y1, Y2, h, w)))
-        if not adjacency:
-            continue
-        side, distance, interface = max(adjacency, key=lambda item: item[2])
-        if interface < 0.50:
-            continue
+            X1, Y1, X2, Y2 = float(x), float(y), float(x + bw), float(y + bh)
+            adjacency = []
+            if Y1 >= y2 - h * 0.06:
+                adjacency.append(("bottom", abs(Y1 - y2), _coverage(lines, "h", y2, X1, X2, h, w)))
+            if Y2 <= y1 + h * 0.06:
+                adjacency.append(("top", abs(Y2 - y1), _coverage(lines, "h", y1, X1, X2, h, w)))
+            if X1 >= x2 - w * 0.06:
+                adjacency.append(("right", abs(X1 - x2), _coverage(lines, "v", x2, Y1, Y2, h, w)))
+            if X2 <= x1 + w * 0.06:
+                adjacency.append(("left", abs(X2 - x1), _coverage(lines, "v", x1, Y1, Y2, h, w)))
+            if not adjacency:
+                continue
+            side, distance, interface = max(adjacency, key=lambda item: item[2])
+            if interface < 0.50:
+                continue
 
-        secondary.append(
-            {
-                "area_ratio": round(area_ratio, 3),
-                "rectangularity": round(rectangularity, 3),
-                "solidity": round(solidity, 3),
-                "bbox": [round(x / w, 3), round(y / h, 3), round(bw / w, 3), round(bh / h, 3)],
-                "adjacent_edge": side,
-                "interface_edge_coverage": round(interface, 3),
-                "interface_distance_px": round(float(distance), 1),
-            }
+            found.append(
+                {
+                    "area_ratio": round(area_ratio, 3),
+                    "rectangularity": round(rectangularity, 3),
+                    "solidity": round(solidity, 3),
+                    "bbox": [round(x / w, 3), round(y / h, 3), round(bw / w, 3), round(bh / h, 3)],
+                    "adjacent_edge": side,
+                    "interface_edge_coverage": round(interface, 3),
+                    "interface_distance_px": round(float(distance), 1),
+                }
+            )
+        return found
+
+    # A single giant rectangle can swallow the smaller PCB into its union. Check
+    # several strong cores, not just the largest, and prefer the pairing with the
+    # clearest physical interface edge.
+    reviewed = []
+    for core in cores[:10]:
+        secondaries = secondary_for_core(core)
+        for secondary in secondaries:
+            reviewed.append((core, secondary))
+
+    if reviewed:
+        core, secondary = max(
+            reviewed,
+            key=lambda pair: (
+                pair[1]["interface_edge_coverage"],
+                pair[1]["area_ratio"],
+                pair[0]["score"],
+            ),
         )
-
-    if secondary:
-        best_secondary = max(secondary, key=lambda x: (x["interface_edge_coverage"], x["area_ratio"]))
         result.update(
             {
                 "trigger": True,
-                "secondary_candidate": best_secondary,
+                "primary_core": {k: v for k, v in core.items() if k != "_px"},
+                "secondary_candidate": secondary,
                 "reason": "rectangular_secondary_pcb_plane_across_physical_board_edge",
             }
         )
-    else:
-        result["reason"] = "no_external_rectangular_plane_with_supported_interface"
+        return result
 
+    result["primary_core"] = {k: v for k, v in cores[0].items() if k != "_px"}
+    result["reason"] = "no_external_rectangular_plane_with_supported_interface"
     return result
