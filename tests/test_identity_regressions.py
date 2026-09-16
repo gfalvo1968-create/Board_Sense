@@ -363,15 +363,16 @@ def test_overlapping_secondary_rectangular_pcb_plane_is_blocked():
     image[:] = (45, 45, 45)
     green = (45, 150, 55)
 
-    # Main rectangular motherboard.
-    cv2.rectangle(image, (140, 150), (960, 760), green, -1)
-    # Strong physical outer edge on the main board.
-    cv2.rectangle(image, (140, 150), (960, 760), (15, 90, 25), 5)
-
-    # Smaller PCB protruding from beneath the bottom edge. Its upper section
-    # overlaps the main board so a simple green silhouette can merge the two.
+    # Smaller PCB first, then the main PCB on top. This preserves the main
+    # board's physical edge across the overlap, matching the real gremlin setup.
     cv2.rectangle(image, (430, 700), (700, 875), green, -1)
     cv2.rectangle(image, (430, 700), (700, 875), (15, 90, 25), 5)
+
+    # Main rectangular motherboard overlaps the upper section of the small PCB.
+    cv2.rectangle(image, (140, 150), (960, 760), green, -1)
+    # Strong physical outer edge on the main board remains visible across the
+    # secondary PCB underneath it.
+    cv2.rectangle(image, (140, 150), (960, 760), (15, 90, 25), 5)
 
     # Add board-like texture so Canny/Hough sees realistic internal detail too.
     for x in range(180, 930, 55):
