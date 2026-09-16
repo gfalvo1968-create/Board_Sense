@@ -1,14 +1,17 @@
-"""SPIKE Single-Frame Board Identity Gate v0.10.
+"""SPIKE Single-Frame Board Identity Gate v0.11.
 
 Blocks a single uploaded photograph only when strong physical evidence says more
 than one PCB is present. PCB confirmation and board identity remain separate.
 
-v0.10 tightens bottleneck evidence after a real irregular Dell laptop motherboard
+v0.11 adds an edge-supported secondary-board-plane detector for overlapping/touching
+PCBs that merge into one green silhouette. The Dell bottleneck clarification behavior
+remains conservative.
 was falsely split. A narrow neck alone is not enough: both sides must be substantial
 and reasonably balanced. Compound silhouette profiles remain advisory only.
 """
 import cv2
 import numpy as np
+from routes.frame_plane_gate import inspect_secondary_board_plane
 
 
 def _component_stats(mask, image_area, min_ratio=0.025):
@@ -99,7 +102,7 @@ def _bottleneck_split(mask, image_area):
 
 
 def inspect_frame(image_path):
-    result = {"version": "SPIKE Single-Frame Board Identity Gate v0.10", "status": "SINGLE_BOARD_NOT_CONTRADICTED", "block_analysis": False, "confidence": 0, "evidence": [], "next_step": "Continue normal board analysis."}
+    result = {"version": "SPIKE Single-Frame Board Identity Gate v0.11", "status": "SINGLE_BOARD_NOT_CONTRADICTED", "block_analysis": False, "confidence": 0, "evidence": [], "next_step": "Continue normal board analysis."}
     try:
         im = cv2.imread(image_path)
         if im is None:
@@ -114,6 +117,8 @@ def inspect_frame(image_path):
         base_regions = _component_stats(separated, area, 0.025)
         two_regions, two_metrics = _two_substantial_regions(base_regions, area, w, h)
         bottleneck_trigger, bottleneck_metrics = _bottleneck_split(separated, area)
+        plane_check = inspect_secondary_board_plane(im, separated)
+        plane_trigger = bool(plane_check.get("trigger"))
         split_trigger, split_metrics, split_scale = False, None, None
         scales = sorted({max(5, (min(h, w) // 85) | 1), max(7, (min(h, w) // 60) | 1), max(9, (min(h, w) // 42) | 1), max(11, (min(h, w) // 28) | 1)})
         for ks in scales:
@@ -155,18 +160,19 @@ def inspect_frame(image_path):
             profile_a = 0.20 <= area_ratio <= 0.80 and solidity < 0.91 and rectangularity < 0.82 and deep_count >= 5 and deepest >= 0.08
             profile_b = 0.40 <= area_ratio <= 0.85 and solidity < 0.94 and rectangularity < 0.86 and deep_count >= 4 and deepest >= 0.07
             profile_c = 0.28 <= area_ratio <= 0.88 and solidity < 0.90 and rectangularity < 0.80 and deep_count >= 2 and deepest >= 0.12
-        strong_split_evidence = bool(two_regions or bottleneck_trigger or split_trigger)
+        strong_split_evidence = bool(two_regions or bottleneck_trigger or split_trigger or plane_trigger)
         compound_support = bool(profile_a or profile_b or profile_c)
         suspicious = strong_split_evidence
-        result["metrics"] = {"pcb_region_area_ratio": round(area_ratio, 3), "solidity": round(solidity, 3), "rectangularity": round(rectangularity, 3), "deep_concavity_count": int(deep_count), "deepest_concavity_ratio": round(deepest, 3), "base_independent_pcb_regions": len(base_regions), "base_two_region_trigger": bool(two_regions), "base_two_region_metrics": two_metrics, "bottleneck_split_trigger": bool(bottleneck_trigger), "bottleneck_split_metrics": bottleneck_metrics, "multiscale_split_trigger": bool(split_trigger), "multiscale_split_kernel": split_scale, "multiscale_split_metrics": split_metrics, "compound_profile_a": bool(profile_a), "compound_profile_b": bool(profile_b), "compound_profile_c": bool(profile_c), "compound_profile_support_only": compound_support}
+        result["metrics"] = {"pcb_region_area_ratio": round(area_ratio, 3), "solidity": round(solidity, 3), "rectangularity": round(rectangularity, 3), "deep_concavity_count": int(deep_count), "deepest_concavity_ratio": round(deepest, 3), "base_independent_pcb_regions": len(base_regions), "base_two_region_trigger": bool(two_regions), "base_two_region_metrics": two_metrics, "bottleneck_split_trigger": bool(bottleneck_trigger), "bottleneck_split_metrics": bottleneck_metrics, "multiscale_split_trigger": bool(split_trigger), "multiscale_split_kernel": split_scale, "multiscale_split_metrics": split_metrics, "secondary_plane_trigger": bool(plane_trigger), "secondary_plane_metrics": plane_check, "compound_profile_a": bool(profile_a), "compound_profile_b": bool(profile_b), "compound_profile_c": bool(profile_c), "compound_profile_support_only": compound_support}
         if suspicious:
             why = []
             if two_regions: why.append("Two independently substantial PCB-like regions are visible in the same photograph.")
             if bottleneck_trigger: why.append("One merged PCB-colored silhouette contains a narrow neck separating two substantial physical regions.")
             if split_trigger: why.append("A compound PCB silhouette separates into two substantial board-like bodies when narrow bridges are removed.")
+            if plane_trigger: why.append("A separate rectangular PCB plane continues beyond a well-defined physical board edge, consistent with an overlapping or touching second board.")
             if compound_support: why.append("Compound silhouette geometry supports the independent physical split evidence.")
             why.append("Board grading and blueprinting are withheld until one physical board is isolated.")
-            confidence = 96 if bottleneck_trigger else 94
+            confidence = 97 if plane_trigger else (96 if bottleneck_trigger else 94)
             result.update({"status": "MULTIPLE_BOARDS_OR_OVERLAP_SUSPECTED", "block_analysis": True, "confidence": confidence, "evidence": why, "next_step": "Retake the photo with exactly one physical board in the frame, separated from other boards."})
         return result
     except Exception as exc:
