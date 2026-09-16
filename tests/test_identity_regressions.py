@@ -20,6 +20,7 @@ import numpy as np
 
 from routes.case_identity_gate import verify_same_board
 from routes.frame_identity_gate import inspect_frame
+from routes.frame_plane_gate import inspect_secondary_board_plane
 from routes.spike_tool_layer import investigate_identity
 from routes.identity_clarification import _match_targeted_continuity
 
@@ -354,3 +355,60 @@ def test_targeted_closeup_matcher_requires_same_side_features_across_neck():
     assert good["matched"] is True, good
     assert good["matches_side_a"] >= 4 and good["matches_side_b"] >= 4, good
     assert bad["matched"] is False, bad
+
+
+def test_overlapping_secondary_rectangular_pcb_plane_is_blocked():
+    """A second PCB tucked under a rectangular main board must not merge as one."""
+    image = np.zeros((900, 1100, 3), dtype=np.uint8)
+    image[:] = (45, 45, 45)
+    green = (45, 150, 55)
+
+    # Main rectangular motherboard.
+    cv2.rectangle(image, (140, 150), (960, 760), green, -1)
+    # Strong physical outer edge on the main board.
+    cv2.rectangle(image, (140, 150), (960, 760), (15, 90, 25), 5)
+
+    # Smaller PCB protruding from beneath the bottom edge. Its upper section
+    # overlaps the main board so a simple green silhouette can merge the two.
+    cv2.rectangle(image, (430, 700), (700, 875), green, -1)
+    cv2.rectangle(image, (430, 700), (700, 875), (15, 90, 25), 5)
+
+    # Add board-like texture so Canny/Hough sees realistic internal detail too.
+    for x in range(180, 930, 55):
+        cv2.line(image, (x, 190), (x, 710), (70, 185, 85), 2)
+    for y in range(735, 855, 28):
+        cv2.line(image, (455, y), (675, y), (70, 185, 85), 2)
+
+    temp, path = _write_fixture(image)
+    try:
+        decision = inspect_frame(str(path))
+    finally:
+        temp.cleanup()
+
+    diagnostic = f"secondary-plane decision={decision!r}"
+    print("\nSPIKE SECONDARY PLANE DIAGNOSTIC:", diagnostic)
+    assert decision["block_analysis"] is True, diagnostic
+    assert decision["status"] == "MULTIPLE_BOARDS_OR_OVERLAP_SUSPECTED", diagnostic
+    assert decision["metrics"]["secondary_plane_trigger"] is True, diagnostic
+
+
+def test_secondary_plane_detector_does_not_replace_dell_bottleneck_clarification():
+    """Bottleneck-only ambiguity must remain clarification, not a hard plane split."""
+    flagged = _result(frame_block=False, fp_id="dell")
+    flagged["board_blueprint"]["frame_identity_gate"] = {
+        "block_analysis": True,
+        "confidence": 96,
+        "status": "MULTIPLE_BOARDS_OR_OVERLAP_SUSPECTED",
+        "metrics": {
+            "base_two_region_trigger": False,
+            "bottleneck_split_trigger": True,
+            "multiscale_split_trigger": False,
+            "secondary_plane_trigger": False,
+            "bottleneck_split_metrics": {"axis": "y", "cut": 2145},
+        },
+    }
+    companion = _result(frame_block=False, fp_id="dell")
+    decision = verify_same_board([flagged, companion])
+    assert decision["status"] == "IDENTITY_CLARIFICATION_NEEDED"
+    assert decision["same_board"] is None
+    assert decision["block_reconciliation"] is True
