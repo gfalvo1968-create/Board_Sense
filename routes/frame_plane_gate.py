@@ -181,7 +181,17 @@ def inspect_secondary_board_plane(image, board_mask):
         result["reason"] = "no_high_confidence_rectangular_core"
         return result
 
-    cores.sort(key=lambda item: item["score"], reverse=True)
+    # Prefer the cleanest rectangular plane, not merely the largest union.
+    # This keeps a smaller overlapping PCB from being swallowed into one giant
+    # high-area rectangle when the main board itself has a crisper four-edge core.
+    cores.sort(
+        key=lambda item: (
+            item["board_fill"],
+            min(item["edge_coverage"]),
+            item["score"],
+        ),
+        reverse=True,
+    )
 
     def secondary_for_core(core):
         x1, y1, x2, y2 = core["_px"]
@@ -237,7 +247,7 @@ def inspect_secondary_board_plane(image, board_mask):
     # several strong cores, not just the largest, and prefer the pairing with the
     # clearest physical interface edge.
     reviewed = []
-    for core in cores[:10]:
+    for core in cores[:40]:
         secondaries = secondary_for_core(core)
         for secondary in secondaries:
             reviewed.append((core, secondary))
