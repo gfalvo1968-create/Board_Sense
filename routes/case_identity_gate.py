@@ -1,12 +1,13 @@
-"""SPIKE Same-Board Verification Gate v1.0.
+"""SPIKE Same-Board Verification Gate v1.1.
 
 Checks single-frame identity safety first, then cross-photo semantic contradiction
 and physical geometry. Conflicting classifier labels from close-ups must not
 override compatible whole-board geometry. Color alone never proves identity.
 
-v1.0 rule: if any uploaded photo itself is flagged as containing multiple boards
-or overlapping PCB regions, the entire case stops before evidence reconciliation.
-One compatible pair also cannot prove an entire multi-photo case is one board.
+v1.1 separates hard multi-board evidence from a bottleneck-only shape ambiguity.
+Hard contradictions still stop immediately. A narrow-neck-only warning now blocks
+downstream reconciliation but asks for a targeted clarification photo instead of
+claiming multiple boards. One compatible pair also cannot prove an entire case.
 """
 from routes.board_fingerprint import fingerprint_conflict
 
@@ -56,7 +57,7 @@ def _connected_component(nodes, edges, start):
 
 def verify_same_board(results):
     n = len(results or [])
-    version = "SPIKE Same-Board Verification Gate v1.0"
+    version = "SPIKE Same-Board Verification Gate v1.1"
     if n < 2:
         return {
             "version": version,
@@ -70,27 +71,84 @@ def verify_same_board(results):
             "reasons": ["At least two views are needed for a multi-photo identity check."],
         }
 
-    # Single-frame safety gate comes first. A photo that may contain two physical
-    # boards must never be merged into a one-board case, even if other views match.
+    # Single-frame safety gate comes first. Strong independent-region evidence is a
+    # hard stop. A bottleneck-only trigger is deliberately different: irregular
+    # motherboards can have legitimate necks/wings, so SPIKE must ask for the one
+    # photo that can settle continuity rather than guess harder.
     frame_blocks = []
+    hard_frame_blocks = []
+    clarification_blocks = []
     for i, r in enumerate(results, 1):
         bp = r.get("board_blueprint") or {}
         fg = bp.get("frame_identity_gate") or r.get("frame_identity_gate") or {}
-        if fg.get("block_analysis"):
-            frame_blocks.append({"view": i, "frame_identity_gate": fg})
-    if frame_blocks:
+        if not fg.get("block_analysis"):
+            continue
+        packet = {"view": i, "frame_identity_gate": fg}
+        frame_blocks.append(packet)
+        m = fg.get("metrics") or {}
+        has_metrics = bool(m)
+        two_region = bool(m.get("base_two_region_trigger"))
+        multiscale = bool(m.get("multiscale_split_trigger"))
+        bottleneck = bool(m.get("bottleneck_split_trigger"))
+        # Missing diagnostics stay conservative and hard-block. Only the very
+        # specific bottleneck-only pattern earns clarification mode.
+        if has_metrics and bottleneck and not two_region and not multiscale:
+            clarification_blocks.append(packet)
+        else:
+            hard_frame_blocks.append(packet)
+
+    if hard_frame_blocks:
         return {
             "version": version,
             "status": "MULTIPLE_BOARDS_IN_FRAME_SUSPECTED",
             "same_board": False,
-            "confidence": max(int(x["frame_identity_gate"].get("confidence", 0) or 0) for x in frame_blocks),
+            "confidence": max(int(x["frame_identity_gate"].get("confidence", 0) or 0) for x in hard_frame_blocks),
             "block_reconciliation": True,
+            "clarification_needed": False,
             "whole_view_count": 0,
             "conflict_graph": [],
             "frame_blocks": frame_blocks,
-            "identity_next_step": "Retake each flagged photo with exactly one physical board in the frame, then start the case again.",
-            "reasons": ["At least one uploaded photo may contain more than one physical PCB or overlapping board regions."],
-            "rule": "One physical board per photo is required before multi-photo same-board verification can begin.",
+            "identity_next_step": "Retake each hard-flagged photo with exactly one physical board in the frame, then start the case again.",
+            "reasons": ["At least one uploaded photo has independent physical evidence of more than one PCB or overlapping board regions."],
+            "rule": "Independent two-region or multiscale split evidence is a hard single-frame contradiction.",
+        }
+
+    if clarification_blocks:
+        requested = []
+        for packet in clarification_blocks:
+            view = packet["view"]
+            fg = packet["frame_identity_gate"]
+            m = fg.get("metrics") or {}
+            neck = m.get("bottleneck_split_metrics") or {}
+            axis = neck.get("axis")
+            requested.append({
+                "flagged_view": view,
+                "request_type": "targeted_continuity_photo",
+                "instruction": (
+                    f"Retake Photo {view} from the SAME SIDE, centered on the narrow neck/bridge. "
+                    "Include continuous PCB material on both sides of the narrow section, plus nearby mounting holes or connectors."
+                ),
+                "detector_reason": "bottleneck_only",
+                "axis": axis,
+                "cut": neck.get("cut"),
+            })
+        return {
+            "version": version,
+            "status": "IDENTITY_CLARIFICATION_NEEDED",
+            "same_board": None,
+            "confidence": 55,
+            "block_reconciliation": True,
+            "clarification_needed": True,
+            "whole_view_count": 0,
+            "conflict_graph": [],
+            "frame_blocks": frame_blocks,
+            "requested_photos": requested,
+            "identity_next_step": requested[0]["instruction"],
+            "reasons": [
+                "SPIKE found a narrow-neck shape ambiguity, but no independent two-region or multiscale proof of multiple boards.",
+                "Downstream grading stays blocked until a targeted continuity photo settles the physical shape.",
+            ],
+            "rule": "When evidence is insufficient, ask for the photo that can settle it. A bottleneck alone is not proof of two boards.",
         }
 
     families = [_family(r) for r in results]
