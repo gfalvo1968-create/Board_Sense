@@ -196,7 +196,14 @@ def inspect_secondary_board_plane(image, board_mask):
     def secondary_for_core(core):
         x1, y1, x2, y2 = core["_px"]
         outside = (board_mask > 0).astype(np.uint8) * 255
-        outside[max(0, int(y1)):min(h, int(y2)), max(0, int(x1)):min(w, int(x2))] = 0
+        # The Hough-supported core usually lands a few pixels inside the actual
+        # PCB perimeter. Expand the erased core slightly so that leftover edge
+        # pixels do not form a giant ring that reconnects an external second PCB.
+        pad = max(4, int(min(h, w) * 0.025))
+        outside[
+            max(0, int(y1) - pad):min(h, int(y2) + pad),
+            max(0, int(x1) - pad):min(w, int(x2) + pad),
+        ] = 0
         contours, _ = cv2.findContours(outside, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         found = []
 
