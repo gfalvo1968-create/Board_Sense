@@ -38,7 +38,7 @@ def _boundary_lines(image, board_mask):
 
     green = board_mask > 0
     out = []
-    for x1, y1, x2, y2 in raw[:, 0]:
+    for x1, y1, x2, y2 in np.asarray(raw).reshape(-1, 4):
         dx, dy = int(x2 - x1), int(y2 - y1)
         length = math.hypot(dx, dy)
         if length <= 1:
