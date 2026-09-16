@@ -1,4 +1,4 @@
-"""SPIKE Same-Board Verification Gate v1.2.
+"""SPIKE Same-Board Verification Gate v1.3.
 
 Checks single-frame identity safety first, then cross-photo semantic contradiction
 and physical geometry. Conflicting classifier labels from close-ups must not
@@ -57,7 +57,7 @@ def _connected_component(nodes, edges, start):
 
 def verify_same_board(results):
     n = len(results or [])
-    version = "SPIKE Same-Board Verification Gate v1.2"
+    version = "SPIKE Same-Board Verification Gate v1.3"
     if n < 2:
         return {
             "version": version,
@@ -92,10 +92,11 @@ def verify_same_board(results):
         has_metrics = bool(m)
         two_region = bool(m.get("base_two_region_trigger"))
         multiscale = bool(m.get("multiscale_split_trigger"))
+        secondary_plane = bool(m.get("secondary_plane_trigger"))
         bottleneck = bool(m.get("bottleneck_split_trigger"))
         # Missing diagnostics stay conservative and hard-block. Only the very
         # specific bottleneck-only pattern earns clarification mode.
-        if has_metrics and bottleneck and not two_region and not multiscale:
+        if has_metrics and bottleneck and not two_region and not multiscale and not secondary_plane:
             if clarification_evidence.get("resolved"):
                 # A verified same-side close-up spans the reported neck, so this
                 # particular bottleneck-only warning no longer counts as an
