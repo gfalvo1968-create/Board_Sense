@@ -1,18 +1,18 @@
-"""SPIKE Tool-Use Layer v0.5.
+"""SPIKE Tool-Use Layer v0.6.
 
 SPIKE may call tools when first-pass evidence is uncertain. Tool output is kept
 separate from the physical identity decision so a web hit, local crop, or duplicate
 view can corroborate/inform inspection but never manufacture board identity.
 
-v0.5 adds local digital zoom and a visual-independence review. SPIKE now inspects
-existing pixels around a bottleneck before reaching for outside references. A zoom
-is never counted as a new photograph. Paid lookup remains skipped when physical
-evidence already settled the case or when the missing evidence is a new photo.
+v0.6 adds an independent-whole-view evidence floor. A case cannot remain
+PROBABLY_SAME_BOARD when it has fewer than two genuinely independent usable
+whole-board views. Crops, zooms, and near-duplicates may help inspection, but they
+cannot become extra identity witnesses. Paid lookup is skipped when a new physical
+identity photo is the evidence actually needed.
 """
 from __future__ import annotations
 
 import re
-from collections import Counter
 
 from routes.spike_web_match import search_visual_matches
 from routes.spike_local_zoom import compare_visual_source, inspect_identity_zoom
@@ -101,6 +101,97 @@ def _visual_independence_checks(image_paths: list[str] | None) -> list[dict]:
     return checks
 
 
+def _usable_whole_result(result: dict) -> bool:
+    fp = result.get("physical_fingerprint") or {}
+    return (
+        fp.get("coverage") == "whole_or_large_view"
+        and fp.get("geometry_quality") in {"good", "medium"}
+    )
+
+
+def _independent_whole_summary(results: list[dict], checks: list[dict]) -> dict:
+    """Count usable whole-board evidence after collapsing crop/zoom duplicates."""
+    n = len(results or [])
+    parent = list(range(n))
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
+
+    for check in checks:
+        if not check.get("non_independent"):
+            continue
+        views = check.get("views") or []
+        if len(views) != 2:
+            continue
+        a, b = int(views[0]) - 1, int(views[1]) - 1
+        if 0 <= a < n and 0 <= b < n:
+            union(a, b)
+
+    groups = {}
+    next_group = 1
+    view_groups = []
+    for i in range(n):
+        root = find(i)
+        if root not in groups:
+            groups[root] = next_group
+            next_group += 1
+        view_groups.append(groups[root])
+
+    usable_whole_views = [i + 1 for i, result in enumerate(results) if _usable_whole_result(result)]
+    whole_roots = {find(i - 1) for i in usable_whole_views}
+    return {
+        "view_groups": view_groups,
+        "independent_group_count": len(set(view_groups)),
+        "usable_whole_views": usable_whole_views,
+        "independent_whole_view_count": len(whole_roots),
+    }
+
+
+def _enforce_independent_identity_floor(identity: dict, summary: dict) -> bool:
+    """Downgrade an unsupported same-board approval to a clarification request."""
+    if str(identity.get("status") or "") != "PROBABLY_SAME_BOARD":
+        return False
+    if int(summary.get("independent_whole_view_count", 0) or 0) >= 2:
+        return False
+
+    prior_reasons = list(identity.get("reasons") or [])
+    instruction = (
+        "Add one genuinely new full-board photo taken as a separate view, showing the complete outline, "
+        "mounting holes, and major connector positions. A crop or digital zoom of an existing photo does not count."
+    )
+    identity.update({
+        "status": "IDENTITY_CLARIFICATION_NEEDED",
+        "same_board": None,
+        "confidence": min(45, int(identity.get("confidence", 0) or 0)),
+        "block_reconciliation": True,
+        "clarification_needed": True,
+        "independent_whole_view_count": summary.get("independent_whole_view_count", 0),
+        "visual_evidence_groups": summary.get("view_groups", []),
+        "requested_photos": [
+            {
+                "request_type": "independent_whole_board_identity_photo",
+                "instruction": instruction,
+                "detector_reason": "insufficient_independent_whole_board_evidence",
+            }
+        ],
+        "identity_next_step": instruction,
+        "reasons": prior_reasons + [
+            "The case does not contain two independent usable whole-board identity views.",
+            "Crops, zooms, and partial views may help inspection, but they cannot supply a second physical identity witness.",
+        ],
+        "rule": "Same-board approval requires at least two independent usable whole-board identity views. Derived zooms never multiply identity confidence.",
+    })
+    return True
+
+
 def _local_zoom_requests(identity: dict, image_paths: list[str] | None) -> list[dict]:
     if not image_paths:
         return []
@@ -119,6 +210,12 @@ def _local_zoom_requests(identity: dict, image_paths: list[str] | None) -> list[
 
 
 def investigate_identity(results: list[dict], image_paths: list[str] | None, identity: dict) -> dict:
+    # Cheap local review happens first. This allows the tool layer to catch a weak
+    # same-board approval before any paid lookup or downstream case continuation.
+    checks = _visual_independence_checks(image_paths)
+    independence = _independent_whole_summary(results, checks)
+    evidence_floor_applied = _enforce_independent_identity_floor(identity, independence)
+
     status = str(identity.get("status") or "")
     hard_physical_stop = status in _HARD_PHYSICAL_STOPS and identity.get("same_board") is False
     needs_whole_photo = (
@@ -126,17 +223,28 @@ def investigate_identity(results: list[dict], image_paths: list[str] | None, ide
         and bool(identity.get("block_reconciliation"))
         and int(identity.get("whole_view_count", 0) or 0) == 0
     )
-    needs_local_zoom = status == "IDENTITY_CLARIFICATION_NEEDED" and bool(identity.get("block_reconciliation"))
+    clarification_requests = identity.get("requested_photos") or []
+    needs_independent_whole = (
+        status == "IDENTITY_CLARIFICATION_NEEDED"
+        and bool(identity.get("block_reconciliation"))
+        and any(r.get("request_type") == "independent_whole_board_identity_photo" for r in clarification_requests)
+    )
+    needs_local_zoom = (
+        status == "IDENTITY_CLARIFICATION_NEEDED"
+        and bool(identity.get("block_reconciliation"))
+        and not needs_independent_whole
+    )
     needs_tools = (
         (bool(identity.get("block_reconciliation")) or status == "IDENTITY_UNCERTAIN")
         and not hard_physical_stop
         and not needs_whole_photo
         and not needs_local_zoom
+        and not needs_independent_whole
     )
 
     if hard_physical_stop:
         packet_status = "physical_stop_settled"
-    elif needs_whole_photo:
+    elif needs_whole_photo or needs_independent_whole:
         packet_status = "identity_photo_needed"
     elif needs_local_zoom:
         packet_status = "local_zoom_review"
@@ -144,7 +252,7 @@ def investigate_identity(results: list[dict], image_paths: list[str] | None, ide
         packet_status = "not_needed" if not needs_tools else "tool_review_requested"
 
     packet = {
-        "version": "SPIKE Tool-Use Layer v0.5",
+        "version": "SPIKE Tool-Use Layer v0.6",
         "status": packet_status,
         "trigger": status or "unknown",
         "tools_considered": [
@@ -157,21 +265,23 @@ def investigate_identity(results: list[dict], image_paths: list[str] | None, ide
         ],
         "tools_used": ["physical_geometry_compare"],
         "local_zoom_inspections": [],
-        "visual_independence_checks": [],
+        "visual_independence_checks": checks,
+        "visual_evidence_groups": independence.get("view_groups", []),
+        "independent_group_count": independence.get("independent_group_count", 0),
+        "independent_whole_view_count": independence.get("independent_whole_view_count", 0),
+        "usable_whole_views": independence.get("usable_whole_views", []),
+        "evidence_floor_applied": evidence_floor_applied,
         "web_reference_searches": [],
         "reference_consensus": None,
         "identity_override": False,
-        "rule": "SPIKE may zoom existing pixels before asking for another photo, but a digital zoom is never new identity evidence. External tools cannot manufacture identity, and paid lookup is skipped when physical evidence or a missing photo already determines the next step.",
+        "rule": "SPIKE may zoom existing pixels before asking for another photo, but a digital zoom is never new identity evidence. Same-board approval needs independent whole-board evidence, and external tools cannot manufacture identity.",
     }
 
-    # Cheap local work may run regardless of whether a paid lookup is needed.
-    checks = _visual_independence_checks(image_paths)
-    packet["visual_independence_checks"] = checks
     if checks:
         packet["tools_used"].append("visual_evidence_independence_check")
     if any(c.get("non_independent") for c in checks):
         packet["non_independent_view_pairs"] = [c.get("views") for c in checks if c.get("non_independent")]
-        packet["visual_evidence_note"] = "At least one uploaded view appears to be a crop/zoom or near-duplicate of another. It may help inspection, but it should not multiply identity confidence."
+        packet["visual_evidence_note"] = "At least one uploaded view appears to be a crop/zoom or near-duplicate of another. It may help inspection, but it cannot multiply identity confidence."
 
     if hard_physical_stop:
         packet["note"] = "External reference search skipped because physical evidence already established a hard multi-board stop."
@@ -179,6 +289,10 @@ def investigate_identity(results: list[dict], image_paths: list[str] | None, ide
 
     if needs_whole_photo:
         packet["note"] = "External reference search skipped because the uploaded views lack usable whole-board geometry. Digital zoom cannot create missing whole-board evidence; a new identity photo is required."
+        return packet
+
+    if needs_independent_whole:
+        packet["note"] = "SPIKE withheld same-board approval because fewer than two independent usable whole-board views remain after the evidence check. Add one genuinely new full-board photo; derived crops and zooms do not count."
         return packet
 
     if needs_local_zoom:
