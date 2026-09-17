@@ -80,7 +80,7 @@ def test_zero_usable_whole_views_requires_identity_clarification():
     assert decision["same_board"] is None, diagnostic
     assert decision["block_reconciliation"] is True, diagnostic
     assert decision["whole_view_count"] == 0, diagnostic
-    assert "whole-board" in decision["identity_next_step"].lower(), diagnostic
+    assert "full-board" in decision["identity_next_step"].lower(), diagnostic
 
 
 def test_nested_internal_rectangle_is_not_a_second_board_plane():
