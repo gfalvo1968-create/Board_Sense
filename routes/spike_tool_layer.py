@@ -1,8 +1,12 @@
-"""SPIKE Tool-Use Layer v0.2.
+"""SPIKE Tool-Use Layer v0.3.
 
 SPIKE may call outside tools when first-pass evidence is uncertain. Tool output is
 kept separate from the physical identity decision so a web hit can corroborate but
 never manufacture board identity.
+
+v0.3 works smarter, not harder: when physical evidence has already established a
+hard multi-board contradiction, paid external lookup is skipped. Web tools are for
+resolving uncertainty, not re-litigating a settled physical stop.
 """
 from __future__ import annotations
 
@@ -16,6 +20,12 @@ _STOP = {
     "board", "motherboard", "logic", "main", "pcb", "system",
     "replacement", "genuine", "new", "used", "for", "with", "and", "the", "a", "an",
     "ebay", "amazon", "aliexpress", "walmart", "etsy", "tested", "dead",
+}
+
+
+_HARD_PHYSICAL_STOPS = {
+    "MULTIPLE_BOARDS_IN_FRAME_SUSPECTED",
+    "MULTIPLE_BOARDS_SUSPECTED",
 }
 
 
@@ -33,8 +43,6 @@ def _query_for_result(result: dict) -> str:
     """
     bits = []
 
-    # OCR/marking extractors may populate these fields now or later. Those strings
-    # are strong enough to narrow a visual search because they came from the item.
     for key in ("visible_markings", "part_markings", "model_markings"):
         value = result.get(key)
         if isinstance(value, str) and value.strip():
@@ -42,8 +50,6 @@ def _query_for_result(result: dict) -> str:
         elif isinstance(value, (list, tuple)):
             bits.extend(str(x).strip() for x in value if str(x).strip())
 
-    # Equipment subtype is useful only when it looks like an actual model/part
-    # designation rather than another generic family label.
     subtype = result.get("equipment_subtype") or {}
     sub = str(subtype.get("subtype") or subtype.get("type") or "").strip()
     if sub and (any(ch.isdigit() for ch in sub) or "-" in sub or "/" in sub):
@@ -83,11 +89,12 @@ def _reference_consensus(searches: list[dict]) -> dict:
 
 def investigate_identity(results: list[dict], image_paths: list[str] | None, identity: dict) -> dict:
     status = str(identity.get("status") or "")
-    needs_tools = bool(identity.get("block_reconciliation")) or status == "IDENTITY_UNCERTAIN"
+    hard_physical_stop = status in _HARD_PHYSICAL_STOPS and identity.get("same_board") is False
+    needs_tools = (bool(identity.get("block_reconciliation")) or status == "IDENTITY_UNCERTAIN") and not hard_physical_stop
 
     packet = {
-        "version": "SPIKE Tool-Use Layer v0.2",
-        "status": "not_needed" if not needs_tools else "tool_review_requested",
+        "version": "SPIKE Tool-Use Layer v0.3",
+        "status": "physical_stop_settled" if hard_physical_stop else ("not_needed" if not needs_tools else "tool_review_requested"),
         "trigger": status or "unknown",
         "tools_considered": [
             "physical_geometry_compare",
@@ -99,8 +106,13 @@ def investigate_identity(results: list[dict], image_paths: list[str] | None, ide
         "web_reference_searches": [],
         "reference_consensus": None,
         "identity_override": False,
-        "rule": "SPIKE may investigate uncertainty with tools. No single external tool is allowed to manufacture identity or erase contradictory physical evidence.",
+        "rule": "SPIKE uses external tools to resolve uncertainty. Hard physical multi-board evidence stops the case immediately, so paid web lookup is skipped rather than spent on a settled contradiction.",
     }
+
+    if hard_physical_stop:
+        packet["note"] = "External reference search skipped because physical evidence already established a hard multi-board stop."
+        return packet
+
     if not needs_tools:
         return packet
 
@@ -110,8 +122,6 @@ def investigate_identity(results: list[dict], image_paths: list[str] | None, ide
         return packet
 
     searches = []
-    # Two case views are enough for the first corroboration pass. This keeps web
-    # latency/cost bounded while still requiring independent image evidence.
     for result, path in list(zip(results, image_paths))[:2]:
         query = _query_for_result(result)
         found = search_visual_matches(path, query=query or None, limit=6)
@@ -121,7 +131,7 @@ def investigate_identity(results: list[dict], image_paths: list[str] | None, ide
     packet["web_reference_searches"] = searches
     if any(s.get("status") == "searched" for s in searches):
         packet["tools_used"].append("spike_glass_web_match")
-    elif all(s.get("status") == "provider_not_configured" for s in searches):
+    elif searches and all(s.get("status") == "provider_not_configured" for s in searches):
         packet["status"] = "web_provider_not_configured"
 
     packet["reference_consensus"] = _reference_consensus(searches)
