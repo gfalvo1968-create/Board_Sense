@@ -106,7 +106,7 @@ def investigate_identity(results: list[dict], image_paths: list[str] | None, ide
         "web_reference_searches": [],
         "reference_consensus": None,
         "identity_override": False,
-        "rule": "SPIKE uses external tools to resolve uncertainty. Hard physical multi-board evidence stops the case immediately, so paid web lookup is skipped rather than spent on a settled contradiction.",
+        "rule": "SPIKE may use external tools to resolve uncertainty, but no external result may manufacture identity. Hard physical multi-board evidence stops the case immediately, so paid web lookup is skipped rather than spent on a settled contradiction.",
     }
 
     if hard_physical_stop:
