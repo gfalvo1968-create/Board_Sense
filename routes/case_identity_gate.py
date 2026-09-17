@@ -1,13 +1,12 @@
-"""SPIKE Same-Board Verification Gate v1.3.
+"""SPIKE Same-Board Verification Gate v1.4.
 
 Checks single-frame identity safety first, then cross-photo semantic contradiction
 and physical geometry. Conflicting classifier labels from close-ups must not
 override compatible whole-board geometry. Color alone never proves identity.
 
-v1.1 separates hard multi-board evidence from a bottleneck-only shape ambiguity.
-Hard contradictions still stop immediately. A narrow-neck-only warning now blocks
-downstream reconciliation but asks for a targeted clarification photo instead of
-claiming multiple boards. One compatible pair also cannot prove an entire case.
+v1.4 adds an evidence floor: zero usable whole-board views can never become
+PROBABLY_SAME_BOARD. Downstream grading stays blocked until the user supplies a
+clear whole-board identity view.
 """
 from routes.board_fingerprint import fingerprint_conflict
 
@@ -57,7 +56,7 @@ def _connected_component(nodes, edges, start):
 
 def verify_same_board(results):
     n = len(results or [])
-    version = "SPIKE Same-Board Verification Gate v1.3"
+    version = "SPIKE Same-Board Verification Gate v1.4"
     if n < 2:
         return {
             "version": version,
@@ -71,10 +70,6 @@ def verify_same_board(results):
             "reasons": ["At least two views are needed for a multi-photo identity check."],
         }
 
-    # Single-frame safety gate comes first. Strong independent-region evidence is a
-    # hard stop. A bottleneck-only trigger is deliberately different: irregular
-    # motherboards can have legitimate necks/wings, so SPIKE must ask for the one
-    # photo that can settle continuity rather than guess harder.
     frame_blocks = []
     hard_frame_blocks = []
     clarification_blocks = []
@@ -94,13 +89,8 @@ def verify_same_board(results):
         multiscale = bool(m.get("multiscale_split_trigger"))
         secondary_plane = bool(m.get("secondary_plane_trigger"))
         bottleneck = bool(m.get("bottleneck_split_trigger"))
-        # Missing diagnostics stay conservative and hard-block. Only the very
-        # specific bottleneck-only pattern earns clarification mode.
         if has_metrics and bottleneck and not two_region and not multiscale and not secondary_plane:
             if clarification_evidence.get("resolved"):
-                # A verified same-side close-up spans the reported neck, so this
-                # particular bottleneck-only warning no longer counts as an
-                # unresolved frame contradiction.
                 continue
             clarification_blocks.append(packet)
         else:
@@ -119,7 +109,7 @@ def verify_same_board(results):
             "frame_blocks": frame_blocks,
             "identity_next_step": "Retake each hard-flagged photo with exactly one physical board in the frame, then start the case again.",
             "reasons": ["At least one uploaded photo has independent physical evidence of more than one PCB or overlapping board regions."],
-            "rule": "Independent two-region or multiscale split evidence is a hard single-frame contradiction.",
+            "rule": "Independent two-region, multiscale, or proven secondary-plane evidence is a hard single-frame contradiction.",
         }
 
     if clarification_blocks:
@@ -154,17 +144,14 @@ def verify_same_board(results):
             "requested_photos": requested,
             "identity_next_step": requested[0]["instruction"],
             "reasons": [
-                "SPIKE found a narrow-neck shape ambiguity, but no independent two-region or multiscale proof of multiple boards.",
+                "SPIKE found a narrow-neck shape ambiguity, but no independent proof of multiple boards.",
                 "Downstream grading stays blocked until a targeted continuity photo settles the physical shape.",
             ],
             "rule": "When evidence is insufficient, ask for the photo that can settle it. A bottleneck alone is not proof of two boards.",
         }
 
     resolved_clarifications = [
-        {
-            "view": i,
-            "evidence": r.get("identity_clarification_evidence"),
-        }
+        {"view": i, "evidence": r.get("identity_clarification_evidence")}
         for i, r in enumerate(results, 1)
         if (r.get("identity_clarification_evidence") or {}).get("resolved")
     ]
@@ -181,6 +168,42 @@ def verify_same_board(results):
     counts = {f: known.count(f) for f in unique}
     fps = [r.get("physical_fingerprint") or {} for r in results]
     whole_views = [i + 1 for i, f in enumerate(fps) if _usable_whole(f)]
+
+    # Evidence floor: absence of a contradiction is not positive identity evidence.
+    # If SPIKE has no usable whole-board geometry, it must ask for one instead of
+    # converting low-quality/partial photos into a same-board claim.
+    if not whole_views:
+        return {
+            "version": version,
+            "status": "IDENTITY_UNCERTAIN",
+            "same_board": None,
+            "confidence": 25,
+            "block_reconciliation": True,
+            "clarification_needed": True,
+            "families": families,
+            "whole_view_count": 0,
+            "whole_view_indices": [],
+            "physical_pair_checks": [],
+            "conflict_graph": [],
+            "conflicting_views": [],
+            "semantic_conflict": False,
+            "positive_geometry_evidence": False,
+            "coherent_geometry": False,
+            "coherence_coverage": 0.0,
+            "requested_photos": [
+                {
+                    "request_type": "whole_board_identity_photo",
+                    "instruction": "Add one clear full-board photo showing the complete outline, mounting holes, and major connector positions.",
+                    "detector_reason": "no_usable_whole_board_geometry",
+                }
+            ],
+            "identity_next_step": "Add one clear full-board photo showing the complete outline, mounting holes, and major connector positions.",
+            "reasons": [
+                "No uploaded view provides usable whole-board geometry for identity verification.",
+                "Partial or low-quality views can describe components, but they cannot prove that all photos show the same physical board.",
+            ],
+            "rule": "No usable whole-board evidence means identity stays unresolved. Absence of contradiction is not proof of sameness.",
+        }
 
     if len(unique) >= 2:
         ranked = sorted(counts.items(), key=lambda x: x[1], reverse=True)
@@ -233,13 +256,9 @@ def verify_same_board(results):
         for p in compatible
         if p["views"][0] in whole_set and p["views"][1] in whole_set
     }
-    if whole_views:
-        linked = _connected_component(whole_set, compatible_edges, whole_views[0])
-    else:
-        linked = set()
+    linked = _connected_component(whole_set, compatible_edges, whole_views[0]) if whole_views else set()
     coherent_geometry = len(whole_views) >= 2 and linked == whole_set
     coherence_coverage = round(len(linked) / max(1, len(whole_views)), 3)
-
     positive_geometry = coherent_geometry and compatible_pairs >= 1 and not uncertain_physical and not physical_outlier
 
     if physical_outlier:
