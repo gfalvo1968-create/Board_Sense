@@ -1,23 +1,20 @@
-"""SPIKE Secondary Board Plane Gate v0.3.
+"""SPIKE Secondary Board Plane Gate v0.4.
 
-Conservative physical-plane detectors for cases that can defeat a merged green-PCB
-silhouette:
-1. a smaller PCB lies under/over a larger PCB; or
-2. two distinct PCBs touch edge-to-edge so the stronger morphology merges them.
+Physical-plane evidence for cases that can defeat a merged green-PCB silhouette.
 
-The overlap detector requires a large rectangular PCB core, a substantial board-like
-region outside it, and a supported physical interface edge.
+Hard evidence is intentionally narrow: an overlapping secondary PCB must continue
+outside a strong rectangular primary-board edge and no stronger enclosing whole-board
+rectangle may explain both regions as one physical PCB.
 
-The edge-touch detector is intentionally color-independent. It inspects lightly closed
-external edge contours before the stronger silhouette merge and only fires when two
-substantial compact planes sit directly beside one another with little box overlap and
-meaningful edge alignment. This keeps irregular single motherboards from being split
-merely because they have wings, necks, notches, or large internal components.
+Edge-touching plane detection remains advisory in v0.4. Two boards that merely touch
+can be visually indistinguishable from an irregular single PCB in one frame, so the
+case identity gate must ask for usable whole-board evidence instead of guessing.
 """
 from __future__ import annotations
 
 import itertools
 import math
+
 import cv2
 import numpy as np
 
@@ -53,8 +50,6 @@ def _boundary_lines(image, board_mask):
         else:
             continue
 
-        # A real PCB perimeter should have board surface on one side and visibly
-        # different image content on the other. Internal slots/traces usually do not.
         t = np.linspace(0.0, 1.0, 28)
         xs = x1 + (x2 - x1) * t
         ys = y1 + (y2 - y1) * t
@@ -120,12 +115,10 @@ def _coverage(lines, axis, pos, a, b, h, w):
 
 
 def _adjacent_edge_planes(image):
-    """Find two substantial color-independent PCB-like edge bodies touching side-by-side.
+    """Return advisory evidence for two substantial edge bodies that touch.
 
-    A light 3x3 close preserves the physical seam that the stronger board-surface
-    morphology can erase. We only accept pairs with small mutual box overlap and
-    substantial alignment along the orthogonal edge, which rejects nested internal
-    rectangles on one board.
+    This signal is deliberately not a hard block in v0.4. A stepped or irregular
+    single motherboard can produce nearly identical one-frame geometry.
     """
     h, w = image.shape[:2]
     image_area = float(max(1, h * w))
@@ -166,74 +159,76 @@ def _adjacent_edge_planes(image):
         ax, ay, aw, ah = first["bbox_px"]
         bx, by, bw, bh = second["bbox_px"]
         ax2, ay2, bx2, by2 = ax + aw, ay + ah, bx + bw, by + bh
-
         ix = max(0, min(ax2, bx2) - max(ax, bx))
         iy = max(0, min(ay2, by2) - max(ay, by))
         inter = float(ix * iy)
         min_box_area = float(max(1, min(aw * ah, bw * bh)))
         overlap_of_smaller = inter / min_box_area
-
         gap_x = max(0, max(ax, bx) - min(ax2, bx2))
         gap_y = max(0, max(ay, by) - min(ay2, by2))
         vertical_alignment = iy / max(1.0, float(min(ah, bh)))
         horizontal_alignment = ix / max(1.0, float(min(aw, bw)))
-
         side_by_side = gap_x <= w * 0.025 and vertical_alignment >= 0.25
         top_bottom = gap_y <= h * 0.025 and horizontal_alignment >= 0.25
-        separate_planes = overlap_of_smaller <= 0.22
-        if not (separate_planes and (side_by_side or top_bottom)):
+        if overlap_of_smaller > 0.22 or not (side_by_side or top_bottom):
             continue
-
-        axis = "vertical_interface" if side_by_side else "horizontal_interface"
         pairs.append(
             {
                 "first": {k: v for k, v in first.items() if k != "bbox_px"},
                 "second": {k: v for k, v in second.items() if k != "bbox_px"},
-                "interface_axis": axis,
+                "interface_axis": "vertical_interface" if side_by_side else "horizontal_interface",
                 "overlap_of_smaller": round(overlap_of_smaller, 3),
                 "gap_ratio": round((gap_x / w) if side_by_side else (gap_y / h), 4),
                 "orthogonal_alignment": round(vertical_alignment if side_by_side else horizontal_alignment, 3),
-                "score": round(
-                    min(1.0, (first["area_ratio"] + second["area_ratio"]) * 5.0)
-                    * min(1.0, vertical_alignment if side_by_side else horizontal_alignment),
-                    3,
-                ),
             }
         )
 
     if not pairs:
-        return {"trigger": False, "candidate_count": len(candidates), "reason": "no_distinct_adjacent_edge_planes"}
-
-    best = max(pairs, key=lambda item: (item["orthogonal_alignment"], item["score"]))
+        return {
+            "trigger": False,
+            "advisory": True,
+            "candidate_count": len(candidates),
+            "reason": "no_distinct_adjacent_edge_planes",
+        }
+    best = max(pairs, key=lambda item: item["orthogonal_alignment"])
     return {
         "trigger": True,
+        "advisory": True,
         "candidate_count": len(candidates),
         "pair": best,
-        "reason": "two_distinct_pcb_edge_planes_touch_or_nearly_touch",
+        "reason": "possible_adjacent_edge_planes_requires_case_level_identity_evidence",
     }
+
+
+def _core_encloses_pair(other, core, secondary, h, w):
+    """True when a strong larger rectangle explains the apparent split as one PCB."""
+    ox1, oy1, ox2, oy2 = other["_px"]
+    cx1, cy1, cx2, cy2 = core["_px"]
+    sx, sy, sbw, sbh = secondary["bbox_px"]
+    sx2, sy2 = sx + sbw, sy + sbh
+    px1, py1 = min(cx1, sx), min(cy1, sy)
+    px2, py2 = max(cx2, sx2), max(cy2, sy2)
+    tol = max(6.0, min(h, w) * 0.03)
+    encloses = ox1 <= px1 + tol and oy1 <= py1 + tol and ox2 >= px2 - tol and oy2 >= py2 - tol
+    strong_perimeter = min(other["edge_coverage"]) >= 0.80
+    strong_fill = other["board_fill"] >= 0.82
+    enough_area = other["area_ratio"] >= (core["area_ratio"] + secondary["area_ratio"]) * 0.90
+    return bool(encloses and strong_perimeter and strong_fill and enough_area)
 
 
 def inspect_secondary_board_plane(image, board_mask):
     h, w = image.shape[:2]
     image_area = float(max(1, h * w))
     result = {
-        "version": "SPIKE Secondary Board Plane Gate v0.3",
+        "version": "SPIKE Secondary Board Plane Gate v0.4",
         "trigger": False,
         "primary_core": None,
         "secondary_candidate": None,
     }
 
-    adjacent = _adjacent_edge_planes(image)
-    result["adjacent_edge_plane_check"] = adjacent
-    if adjacent.get("trigger"):
-        result.update(
-            {
-                "trigger": True,
-                "reason": "distinct_adjacent_pcb_edge_planes",
-                "secondary_candidate": adjacent.get("pair"),
-            }
-        )
-        return result
+    # Keep edge-touch evidence visible for diagnostics, but do not hard-block on
+    # this single-frame cue alone. Case-level whole-board evidence decides it.
+    result["adjacent_edge_plane_check"] = _adjacent_edge_planes(image)
 
     lines = _boundary_lines(image, board_mask)
     if len(lines) < 4:
@@ -252,8 +247,7 @@ def inspect_secondary_board_plane(image, board_mask):
             for ti in range(len(hs)):
                 for bi in range(ti + 1, len(hs)):
                     y1, y2 = hs[ti]["pos"], hs[bi]["pos"]
-                    rect_area = (x2 - x1) * (y2 - y1)
-                    ratio = rect_area / image_area
+                    ratio = ((x2 - x1) * (y2 - y1)) / image_area
                     if ratio < 0.20 or ratio > 0.90:
                         continue
                     xi1, xi2 = max(0, int(x1)), min(w, int(x2))
@@ -263,15 +257,15 @@ def inspect_secondary_board_plane(image, board_mask):
                     fill = float((board_mask[yi1:yi2, xi1:xi2] > 0).mean())
                     if fill < 0.50:
                         continue
-                    cov = [
+                    edge_coverage = [
                         _coverage(lines, "h", y1, x1, x2, h, w),
                         _coverage(lines, "h", y2, x1, x2, h, w),
                         _coverage(lines, "v", x1, y1, y2, h, w),
                         _coverage(lines, "v", x2, y1, y2, h, w),
                     ]
-                    if min(cov) < 0.30:
+                    if min(edge_coverage) < 0.30:
                         continue
-                    score = ratio * fill * (0.5 + 0.5 * (sum(cov) / 4.0))
+                    score = ratio * fill * (0.5 + 0.5 * (sum(edge_coverage) / 4.0))
                     if score < 0.18:
                         continue
                     cores.append(
@@ -279,7 +273,7 @@ def inspect_secondary_board_plane(image, board_mask):
                             "box": [round(x1 / w, 3), round(y1 / h, 3), round(x2 / w, 3), round(y2 / h, 3)],
                             "area_ratio": round(ratio, 3),
                             "board_fill": round(fill, 3),
-                            "edge_coverage": [round(x, 3) for x in cov],
+                            "edge_coverage": [round(x, 3) for x in edge_coverage],
                             "score": round(score, 3),
                             "_px": (x1, y1, x2, y2),
                         }
@@ -289,24 +283,14 @@ def inspect_secondary_board_plane(image, board_mask):
         result["reason"] = "no_high_confidence_rectangular_core"
         return result
 
-    # Prefer the cleanest rectangular plane, not merely the largest union.
-    # This keeps a smaller overlapping PCB from being swallowed into one giant
-    # high-area rectangle when the main board itself has a crisper four-edge core.
     cores.sort(
-        key=lambda item: (
-            item["board_fill"],
-            min(item["edge_coverage"]),
-            item["score"],
-        ),
+        key=lambda item: (item["board_fill"], min(item["edge_coverage"]), item["score"]),
         reverse=True,
     )
 
     def secondary_for_core(core):
         x1, y1, x2, y2 = core["_px"]
         outside = (board_mask > 0).astype(np.uint8) * 255
-        # The Hough-supported core usually lands a few pixels inside the actual
-        # PCB perimeter. Expand the erased core slightly so that leftover edge
-        # pixels do not form a giant ring that reconnects an external second PCB.
         pad = max(4, int(min(h, w) * 0.025))
         outside[
             max(0, int(y1) - pad):min(h, int(y2) + pad),
@@ -314,7 +298,6 @@ def inspect_secondary_board_plane(image, board_mask):
         ] = 0
         contours, _ = cv2.findContours(outside, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         found = []
-
         for contour in contours:
             area = float(cv2.contourArea(contour))
             area_ratio = area / image_area
@@ -328,7 +311,6 @@ def inspect_secondary_board_plane(image, board_mask):
             solidity = area / max(float(cv2.contourArea(hull)), 1.0)
             if rectangularity < 0.62 or solidity < 0.78:
                 continue
-
             X1, Y1, X2, Y2 = float(x), float(y), float(x + bw), float(y + bh)
             adjacency = []
             if Y1 >= y2 - h * 0.06:
@@ -344,13 +326,13 @@ def inspect_secondary_board_plane(image, board_mask):
             side, distance, interface = max(adjacency, key=lambda item: item[2])
             if interface < 0.50:
                 continue
-
             found.append(
                 {
                     "area_ratio": round(area_ratio, 3),
                     "rectangularity": round(rectangularity, 3),
                     "solidity": round(solidity, 3),
                     "bbox": [round(x / w, 3), round(y / h, 3), round(bw / w, 3), round(bh / h, 3)],
+                    "bbox_px": [int(x), int(y), int(bw), int(bh)],
                     "adjacent_edge": side,
                     "interface_edge_coverage": round(interface, 3),
                     "interface_distance_px": round(float(distance), 1),
@@ -358,13 +340,14 @@ def inspect_secondary_board_plane(image, board_mask):
             )
         return found
 
-    # A single giant rectangle can swallow the smaller PCB into its union. Check
-    # several strong cores, not just the largest, and prefer the pairing with the
-    # clearest physical interface edge.
     reviewed = []
     for core in cores[:40]:
-        secondaries = secondary_for_core(core)
-        for secondary in secondaries:
+        for secondary in secondary_for_core(core):
+            # If a stronger, nearly complete rectangular core encloses both pieces,
+            # the apparent split is better explained by one board with an internal
+            # shield/component/cutout. Do not convict from that geometry.
+            if any(_core_encloses_pair(other, core, secondary, h, w) for other in cores if other is not core):
+                continue
             reviewed.append((core, secondary))
 
     if reviewed:
@@ -376,11 +359,12 @@ def inspect_secondary_board_plane(image, board_mask):
                 pair[0]["score"],
             ),
         )
+        clean_secondary = {k: v for k, v in secondary.items() if k != "bbox_px"}
         result.update(
             {
                 "trigger": True,
                 "primary_core": {k: v for k, v in core.items() if k != "_px"},
-                "secondary_candidate": secondary,
+                "secondary_candidate": clean_secondary,
                 "reason": "rectangular_secondary_pcb_plane_across_physical_board_edge",
             }
         )
