@@ -80,3 +80,83 @@ def test_identity_clarification_zooms_before_any_paid_web_lookup(tmp_path, monke
     assert packet["identity_override"] is False
     assert packet["local_zoom_inspections"][0]["independent_evidence"] is False
     assert packet.get("non_independent_view_pairs") == [[1, 2]]
+
+
+def test_probable_same_board_is_withheld_with_only_one_usable_whole_view(tmp_path, monkeypatch):
+    base_path = tmp_path / "base.jpg"
+    detail_path = tmp_path / "detail.jpg"
+    im = _feature_rich_board(base_path)
+    detail = cv2.resize(im[160:760, 220:980], (1000, 800), interpolation=cv2.INTER_CUBIC)
+    cv2.imwrite(str(detail_path), detail)
+
+    def web_must_not_run(*args, **kwargs):
+        raise AssertionError("paid web lookup must not run when a new independent whole-board photo is required")
+
+    monkeypatch.setattr(tool_layer, "search_visual_matches", web_must_not_run)
+    results = [
+        {
+            "view_number": 1,
+            "physical_fingerprint": {"coverage": "whole_or_large_view", "geometry_quality": "medium"},
+        },
+        {
+            "view_number": 2,
+            "physical_fingerprint": {"coverage": "detail_or_partial_view", "geometry_quality": "low"},
+        },
+    ]
+    identity = {
+        "status": "PROBABLY_SAME_BOARD",
+        "same_board": True,
+        "confidence": 82,
+        "block_reconciliation": False,
+        "whole_view_count": 1,
+        "reasons": ["No strong contradiction was found."],
+    }
+
+    packet = tool_layer.investigate_identity(results, [str(base_path), str(detail_path)], identity)
+
+    assert identity["status"] == "IDENTITY_CLARIFICATION_NEEDED"
+    assert identity["same_board"] is None
+    assert identity["block_reconciliation"] is True
+    assert identity["independent_whole_view_count"] == 1
+    assert packet["status"] == "identity_photo_needed"
+    assert packet["evidence_floor_applied"] is True
+    assert packet["web_reference_searches"] == []
+
+
+def test_duplicate_whole_views_count_as_one_identity_witness(tmp_path, monkeypatch):
+    base_path = tmp_path / "base.jpg"
+    crop_path = tmp_path / "zoom.jpg"
+    im = _feature_rich_board(base_path)
+    crop = cv2.resize(im[140:780, 190:1010], (1200, 900), interpolation=cv2.INTER_CUBIC)
+    cv2.imwrite(str(crop_path), crop)
+
+    def web_must_not_run(*args, **kwargs):
+        raise AssertionError("duplicate whole views must request a new physical view before paid lookup")
+
+    monkeypatch.setattr(tool_layer, "search_visual_matches", web_must_not_run)
+    results = [
+        {
+            "view_number": 1,
+            "physical_fingerprint": {"coverage": "whole_or_large_view", "geometry_quality": "good"},
+        },
+        {
+            "view_number": 2,
+            "physical_fingerprint": {"coverage": "whole_or_large_view", "geometry_quality": "good"},
+        },
+    ]
+    identity = {
+        "status": "PROBABLY_SAME_BOARD",
+        "same_board": True,
+        "confidence": 88,
+        "block_reconciliation": False,
+        "whole_view_count": 2,
+        "reasons": [],
+    }
+
+    packet = tool_layer.investigate_identity(results, [str(base_path), str(crop_path)], identity)
+
+    assert packet.get("non_independent_view_pairs") == [[1, 2]]
+    assert packet["independent_whole_view_count"] == 1
+    assert identity["status"] == "IDENTITY_CLARIFICATION_NEEDED"
+    assert identity["block_reconciliation"] is True
+    assert packet["status"] == "identity_photo_needed"
