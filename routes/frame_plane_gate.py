@@ -1,20 +1,22 @@
-"""SPIKE Secondary Board Plane Gate v0.1.
+"""SPIKE Secondary Board Plane Gate v0.3.
 
-A conservative edge-supported detector for the case that defeated the green-silhouette
-gate: a smaller PCB lies under/over a large rectangular PCB so the two green surfaces
-merge into one silhouette.
+Conservative physical-plane detectors for cases that can defeat a merged green-PCB
+silhouette:
+1. a smaller PCB lies under/over a larger PCB; or
+2. two distinct PCBs touch edge-to-edge so the stronger morphology merges them.
 
-The detector only fires when all of these agree:
-1. a large rectangular PCB core has four independently supported outer edges;
-2. a substantial rectangular board-like region exists outside that core;
-3. the outside region meets the core at a strong physical edge line.
+The overlap detector requires a large rectangular PCB core, a substantial board-like
+region outside it, and a supported physical interface edge.
 
-This is intentionally stricter than a generic shape detector so irregular single
-motherboards (for example the Dell regression specimen) are not split merely because
-they have wings, necks, or notches.
+The edge-touch detector is intentionally color-independent. It inspects lightly closed
+external edge contours before the stronger silhouette merge and only fires when two
+substantial compact planes sit directly beside one another with little box overlap and
+meaningful edge alignment. This keeps irregular single motherboards from being split
+merely because they have wings, necks, notches, or large internal components.
 """
 from __future__ import annotations
 
+import itertools
 import math
 import cv2
 import numpy as np
@@ -117,15 +119,121 @@ def _coverage(lines, axis, pos, a, b, h, w):
     return min(1.0, total / max(1.0, b - a))
 
 
+def _adjacent_edge_planes(image):
+    """Find two substantial color-independent PCB-like edge bodies touching side-by-side.
+
+    A light 3x3 close preserves the physical seam that the stronger board-surface
+    morphology can erase. We only accept pairs with small mutual box overlap and
+    substantial alignment along the orthogonal edge, which rejects nested internal
+    rectangles on one board.
+    """
+    h, w = image.shape[:2]
+    image_area = float(max(1, h * w))
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    gray = cv2.GaussianBlur(gray, (5, 5), 0)
+    edges = cv2.Canny(gray, 45, 135)
+    edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8), iterations=1)
+    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    candidates = []
+    for contour in contours:
+        area = float(cv2.contourArea(contour))
+        area_ratio = area / image_area
+        if area_ratio < 0.012:
+            continue
+        x, y, bw, bh = cv2.boundingRect(contour)
+        if max(bw / max(1, w), bh / max(1, h)) < 0.12:
+            continue
+        rect = cv2.minAreaRect(contour)
+        rw, rh = rect[1]
+        rectangularity = area / max(float(rw) * float(rh), 1.0)
+        hull = cv2.convexHull(contour)
+        solidity = area / max(float(cv2.contourArea(hull)), 1.0)
+        if rectangularity < 0.25 or solidity < 0.35:
+            continue
+        candidates.append(
+            {
+                "area_ratio": round(area_ratio, 3),
+                "bbox_px": [int(x), int(y), int(bw), int(bh)],
+                "bbox": [round(x / w, 3), round(y / h, 3), round(bw / w, 3), round(bh / h, 3)],
+                "rectangularity": round(rectangularity, 3),
+                "solidity": round(solidity, 3),
+            }
+        )
+
+    pairs = []
+    for first, second in itertools.combinations(candidates, 2):
+        ax, ay, aw, ah = first["bbox_px"]
+        bx, by, bw, bh = second["bbox_px"]
+        ax2, ay2, bx2, by2 = ax + aw, ay + ah, bx + bw, by + bh
+
+        ix = max(0, min(ax2, bx2) - max(ax, bx))
+        iy = max(0, min(ay2, by2) - max(ay, by))
+        inter = float(ix * iy)
+        min_box_area = float(max(1, min(aw * ah, bw * bh)))
+        overlap_of_smaller = inter / min_box_area
+
+        gap_x = max(0, max(ax, bx) - min(ax2, bx2))
+        gap_y = max(0, max(ay, by) - min(ay2, by2))
+        vertical_alignment = iy / max(1.0, float(min(ah, bh)))
+        horizontal_alignment = ix / max(1.0, float(min(aw, bw)))
+
+        side_by_side = gap_x <= w * 0.025 and vertical_alignment >= 0.25
+        top_bottom = gap_y <= h * 0.025 and horizontal_alignment >= 0.25
+        separate_planes = overlap_of_smaller <= 0.22
+        if not (separate_planes and (side_by_side or top_bottom)):
+            continue
+
+        axis = "vertical_interface" if side_by_side else "horizontal_interface"
+        pairs.append(
+            {
+                "first": {k: v for k, v in first.items() if k != "bbox_px"},
+                "second": {k: v for k, v in second.items() if k != "bbox_px"},
+                "interface_axis": axis,
+                "overlap_of_smaller": round(overlap_of_smaller, 3),
+                "gap_ratio": round((gap_x / w) if side_by_side else (gap_y / h), 4),
+                "orthogonal_alignment": round(vertical_alignment if side_by_side else horizontal_alignment, 3),
+                "score": round(
+                    min(1.0, (first["area_ratio"] + second["area_ratio"]) * 5.0)
+                    * min(1.0, vertical_alignment if side_by_side else horizontal_alignment),
+                    3,
+                ),
+            }
+        )
+
+    if not pairs:
+        return {"trigger": False, "candidate_count": len(candidates), "reason": "no_distinct_adjacent_edge_planes"}
+
+    best = max(pairs, key=lambda item: (item["orthogonal_alignment"], item["score"]))
+    return {
+        "trigger": True,
+        "candidate_count": len(candidates),
+        "pair": best,
+        "reason": "two_distinct_pcb_edge_planes_touch_or_nearly_touch",
+    }
+
+
 def inspect_secondary_board_plane(image, board_mask):
     h, w = image.shape[:2]
     image_area = float(max(1, h * w))
     result = {
-        "version": "SPIKE Secondary Board Plane Gate v0.2",
+        "version": "SPIKE Secondary Board Plane Gate v0.3",
         "trigger": False,
         "primary_core": None,
         "secondary_candidate": None,
     }
+
+    adjacent = _adjacent_edge_planes(image)
+    result["adjacent_edge_plane_check"] = adjacent
+    if adjacent.get("trigger"):
+        result.update(
+            {
+                "trigger": True,
+                "reason": "distinct_adjacent_pcb_edge_planes",
+                "secondary_candidate": adjacent.get("pair"),
+            }
+        )
+        return result
 
     lines = _boundary_lines(image, board_mask)
     if len(lines) < 4:
