@@ -1,12 +1,12 @@
-"""SPIKE Tool-Use Layer v0.3.
+"""SPIKE Tool-Use Layer v0.4.
 
 SPIKE may call outside tools when first-pass evidence is uncertain. Tool output is
 kept separate from the physical identity decision so a web hit can corroborate but
 never manufacture board identity.
 
-v0.3 works smarter, not harder: when physical evidence has already established a
-hard multi-board contradiction, paid external lookup is skipped. Web tools are for
-resolving uncertainty, not re-litigating a settled physical stop.
+v0.4 works smarter, not harder: paid lookup is skipped when either hard physical
+evidence already settled the case or the missing evidence is a new whole-board photo.
+A web result cannot replace geometry that was never captured in the uploaded views.
 """
 from __future__ import annotations
 
@@ -90,11 +90,27 @@ def _reference_consensus(searches: list[dict]) -> dict:
 def investigate_identity(results: list[dict], image_paths: list[str] | None, identity: dict) -> dict:
     status = str(identity.get("status") or "")
     hard_physical_stop = status in _HARD_PHYSICAL_STOPS and identity.get("same_board") is False
-    needs_tools = (bool(identity.get("block_reconciliation")) or status == "IDENTITY_UNCERTAIN") and not hard_physical_stop
+    needs_whole_photo = (
+        status == "IDENTITY_UNCERTAIN"
+        and bool(identity.get("block_reconciliation"))
+        and int(identity.get("whole_view_count", 0) or 0) == 0
+    )
+    needs_tools = (
+        (bool(identity.get("block_reconciliation")) or status == "IDENTITY_UNCERTAIN")
+        and not hard_physical_stop
+        and not needs_whole_photo
+    )
+
+    if hard_physical_stop:
+        packet_status = "physical_stop_settled"
+    elif needs_whole_photo:
+        packet_status = "identity_photo_needed"
+    else:
+        packet_status = "not_needed" if not needs_tools else "tool_review_requested"
 
     packet = {
-        "version": "SPIKE Tool-Use Layer v0.3",
-        "status": "physical_stop_settled" if hard_physical_stop else ("not_needed" if not needs_tools else "tool_review_requested"),
+        "version": "SPIKE Tool-Use Layer v0.4",
+        "status": packet_status,
         "trigger": status or "unknown",
         "tools_considered": [
             "physical_geometry_compare",
@@ -106,11 +122,15 @@ def investigate_identity(results: list[dict], image_paths: list[str] | None, ide
         "web_reference_searches": [],
         "reference_consensus": None,
         "identity_override": False,
-        "rule": "SPIKE may use external tools to resolve uncertainty, but no external result may manufacture identity. Hard physical multi-board evidence stops the case immediately, so paid web lookup is skipped rather than spent on a settled contradiction.",
+        "rule": "SPIKE may use external tools to resolve uncertainty, but no external result may manufacture identity. Paid lookup is skipped when physical evidence already settled the case or when a new whole-board photo is the missing evidence.",
     }
 
     if hard_physical_stop:
         packet["note"] = "External reference search skipped because physical evidence already established a hard multi-board stop."
+        return packet
+
+    if needs_whole_photo:
+        packet["note"] = "External reference search skipped because the uploaded views lack usable whole-board geometry. A new identity photo is the evidence needed to continue."
         return packet
 
     if not needs_tools:
