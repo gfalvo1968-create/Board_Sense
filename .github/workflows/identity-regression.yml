@@ -11,6 +11,7 @@ on:
       - 'tests/test_adjacent_board_regression.py'
       - 'tests/test_identity_uncertain_copy.py'
       - 'tests/test_spike_tool_cost_guard.py'
+      - 'tests/test_spike_local_zoom.py'
       - '.github/workflows/identity-regression.yml'
 
 jobs:
@@ -40,4 +41,4 @@ jobs:
           python -c "import routes; print('routes import OK')"
 
       - name: Run identity regression guardrails
-        run: python -m pytest -q tests/test_identity_regressions.py tests/test_adjacent_board_regression.py tests/test_identity_uncertain_copy.py tests/test_spike_tool_cost_guard.py
+        run: python -m pytest -q tests/test_identity_regressions.py tests/test_adjacent_board_regression.py tests/test_identity_uncertain_copy.py tests/test_spike_tool_cost_guard.py tests/test_spike_local_zoom.py
