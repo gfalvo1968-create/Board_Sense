@@ -1,10 +1,11 @@
-"""Regression guardrail for two distinct PCBs touching edge-to-edge."""
+"""Regression guardrails for edge-touching boards and identity evidence floors."""
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import cv2
 import numpy as np
 
+from routes.case_identity_gate import verify_same_board
 from routes.frame_identity_gate import inspect_frame
 
 
@@ -15,18 +16,37 @@ def _write_fixture(image):
     return temp, path
 
 
-def test_two_distinct_pcbs_touching_edge_to_edge_are_blocked():
-    """Two board planes that meet at an edge must not reconcile as one PCB."""
+def _partial_result(frame_decision=None):
+    return {
+        "board_type": "Power-Control / Controller Board",
+        "confidence": 82,
+        "signals": {},
+        "physical_fingerprint": {
+            "coverage": "detail_or_partial_view",
+            "geometry_quality": "low",
+            "aspect_ratio": 1.6,
+        },
+        "board_blueprint": {
+            "frame_identity_gate": frame_decision
+            or {
+                "block_analysis": False,
+                "status": "SINGLE_BOARD_NOT_CONTRADICTED",
+                "metrics": {},
+            }
+        },
+    }
+
+
+def test_two_distinct_pcbs_touching_edge_to_edge_cannot_be_reconciled_without_whole_views():
+    """Ambiguous touching boards may be hard-blocked or clarified, but never called same-board."""
     image = np.zeros((900, 1200, 3), dtype=np.uint8)
     image[:] = (215, 205, 190)
 
-    # Left PCB body.
     cv2.rectangle(image, (210, 250), (520, 690), (45, 150, 55), -1)
     cv2.rectangle(image, (210, 250), (520, 690), (18, 80, 28), 5)
     for x in range(245, 500, 42):
         cv2.line(image, (x, 285), (x, 650), (82, 185, 92), 2)
 
-    # Right PCB body: different proportions/color, touching the left edge-to-edge.
     cv2.rectangle(image, (520, 165), (705, 760), (58, 125, 66), -1)
     cv2.rectangle(image, (520, 165), (705, 760), (20, 72, 30), 5)
     for y in range(205, 730, 44):
@@ -34,18 +54,33 @@ def test_two_distinct_pcbs_touching_edge_to_edge_are_blocked():
 
     temp, path = _write_fixture(image)
     try:
-        decision = inspect_frame(str(path))
+        frame = inspect_frame(str(path))
     finally:
         temp.cleanup()
 
-    diagnostic = f"edge-touching decision={decision!r}"
-    print("\nSPIKE EDGE-TOUCHING DIAGNOSTIC:", diagnostic)
-    assert decision["block_analysis"] is True, diagnostic
-    assert decision["status"] == "MULTIPLE_BOARDS_OR_OVERLAP_SUSPECTED", diagnostic
-    metrics = decision.get("metrics") or {}
-    plane = metrics.get("secondary_plane_metrics") or {}
-    adjacent = plane.get("adjacent_edge_plane_check") or {}
-    assert adjacent.get("trigger") is True, diagnostic
+    decision = verify_same_board([_partial_result(frame), _partial_result(frame)])
+    diagnostic = f"frame={frame!r} identity={decision!r}"
+    print("\nSPIKE EDGE-TOUCHING CASE DIAGNOSTIC:", diagnostic)
+
+    assert decision["status"] != "PROBABLY_SAME_BOARD", diagnostic
+    assert decision["same_board"] is not True, diagnostic
+    assert decision["block_reconciliation"] is True, diagnostic
+    assert decision["status"] in {
+        "IDENTITY_UNCERTAIN",
+        "MULTIPLE_BOARDS_IN_FRAME_SUSPECTED",
+    }, diagnostic
+
+
+def test_zero_usable_whole_views_requires_identity_clarification():
+    """No whole-board geometry means absence of contradiction cannot prove sameness."""
+    decision = verify_same_board([_partial_result(), _partial_result(), _partial_result()])
+    diagnostic = f"zero-whole decision={decision!r}"
+    print("\nSPIKE ZERO-WHOLE-VIEW DIAGNOSTIC:", diagnostic)
+    assert decision["status"] == "IDENTITY_UNCERTAIN", diagnostic
+    assert decision["same_board"] is None, diagnostic
+    assert decision["block_reconciliation"] is True, diagnostic
+    assert decision["whole_view_count"] == 0, diagnostic
+    assert "whole-board" in decision["identity_next_step"].lower(), diagnostic
 
 
 def test_nested_internal_rectangle_is_not_a_second_board_plane():
