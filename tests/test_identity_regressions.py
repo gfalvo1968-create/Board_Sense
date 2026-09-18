@@ -19,6 +19,8 @@ import cv2
 import numpy as np
 
 from routes.case_identity_gate import verify_same_board
+from routes.case_reasoner import reconcile_case
+from routes.decision_guard import condition_harvest_check
 from routes.board_fingerprint import extract_board_fingerprint
 from routes.frame_identity_gate import inspect_frame
 from routes.frame_plane_gate import inspect_secondary_board_plane
@@ -457,3 +459,72 @@ def test_secondary_plane_detector_does_not_replace_dell_bottleneck_clarification
     assert decision["status"] == "IDENTITY_CLARIFICATION_NEEDED"
     assert decision["same_board"] is None
     assert decision["block_reconciliation"] is True
+
+
+def test_confirmed_missing_fingers_can_still_leave_pay_dirt():
+    """Missing value-bearing material changes condition, not automatically the remaining-value class."""
+    result = {
+        "board_type": "Dense Logic Board",
+        "grade": "MEDIUM",
+        "score": 12,
+        "signals": {
+            "large_ic_chips": True,
+            "dense_component_board": True,
+            "processor": False,
+            "gold_fingers": False,
+            "gold_finger_edge": False,
+        },
+    }
+    observations = {
+        "gold_finger_edge": {
+            "status": "missing_confirmed",
+            "value_impact": "high",
+            "note": "Edge-finger section is visibly removed from the specimen.",
+        }
+    }
+    condition = condition_harvest_check(result, observations)
+    assert condition["specimen_completeness"] == "INCOMPLETE / CONFIRMED MATERIAL MISSING"
+    assert condition["condition"] == "PARTIALLY HARVESTED"
+    assert condition["remaining_value_verdict"] == "PAY DIRT"
+    assert condition["pay_dirt_still_present"] is True
+    assert "price what remains" in condition["buyer_message"].lower()
+    assert condition["condition_adjustment_required"] is True
+
+
+def test_identity_uncertainty_does_not_silence_per_view_material_value():
+    """SPIKE may refuse to merge identities, but should still report usable material evidence per view."""
+    views = [
+        _result("Dense Logic Board", fp_id="a"),
+        _result("Dense Logic Board", fp_id="b"),
+    ]
+    for view in views:
+        view["grade"] = "MEDIUM"
+        view["score"] = 12
+        view["signals"].update({"dense_component_board": True, "large_ic_chips": True})
+        view["modification_intelligence"] = {
+            "observations": {
+                "gold_finger_edge": {
+                    "status": "missing_confirmed",
+                    "value_impact": "high",
+                    "note": "Visible harvested edge.",
+                }
+            }
+        }
+
+    identity = {
+        "status": "IDENTITY_UNCERTAIN",
+        "same_board": None,
+        "block_reconciliation": True,
+        "identity_next_step": "Add one genuinely new whole-board view.",
+    }
+    with patch("routes.case_reasoner.verify_same_board", return_value=identity):
+        combined = reconcile_case(views)
+
+    assert combined["status"] == "case_identity_clarification"
+    assert len(combined["per_view_material_analysis"]) == 2
+    assert all(x["remaining_value_verdict"] == "PAY DIRT" for x in combined["per_view_material_analysis"])
+    assert all(x["pay_dirt_still_present"] is True for x in combined["per_view_material_analysis"])
+    recovery = combined["three_answers"]["recovery"]
+    assert recovery["grade"] == "CASE COMBINATION WITHHELD"
+    assert recovery["per_view_material_analysis_available"] is True
+    assert "still reports" in recovery["message"].lower()
