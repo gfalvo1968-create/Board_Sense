@@ -4,6 +4,10 @@ from routes.component_discriminator import discriminate_components
 def detect_power_board(image_path):
     """Estimate power-stage topology separately from pure-PSU classification.
 
+    v0.4 makes round components supporting evidence only; pure power-board identity
+    requires stronger hardware such as verified magnetics, multiple power blocks,
+    or corroborated large power packages.
+
     A controller board can contain a substantial transformer/relay/power-device
     stage while also carrying many ICs. Logic evidence should stop a *pure PSU*
     call, but it must not erase physically corroborated power-stage evidence.
@@ -33,14 +37,33 @@ def detect_power_board(image_path):
         if ic_count>=8 or logic_ratio>=.55:penalty+=2
         if solder_side>=65:raw=0;penalty=0
         score=max(0,raw-penalty);signals["raw_power_score"]=raw;signals["logic_penalty"]=penalty;signals["power_score"]=score
-        corroborated_stage=bool(
-            (effective_block>=1 and raw>=3)
-            or(effective_package>=1 and effective_round>=2 and raw>=3)
-            or(effective_winding>=1 and effective_round>=2 and raw>=4)
-            or(effective_winding>=1 and effective_package>=1 and raw>=4)
+        # v0.4: round parts are supporting evidence only. A cluster of LEDs,
+        # mounting holes, ceramic discs, or small capacitors must never manufacture
+        # a power-supply identity by itself. Require stronger power hardware.
+        strong_power_hardware=bool(
+            effective_winding>=1
+            or effective_block>=2
+            or (effective_block>=1 and effective_package>=1)
+            or effective_package>=2
         )
+        corroborated_stage=bool(
+            strong_power_hardware
+            and (
+                (effective_winding>=1 and(effective_round>=1 or effective_block>=1 or effective_package>=1))
+                or(effective_block>=2 and effective_round>=2)
+                or(effective_block>=1 and effective_package>=1)
+                or(effective_package>=2 and effective_round>=1)
+            )
+        )
+        signals["strong_power_hardware"]=strong_power_hardware
         signals["power_stage_present"]=bool(corroborated_stage and solder_side<65)
-        signals["mixed_power_control_candidate"]=bool(signals["power_stage_present"] and(ic_count>=3 or logic_ratio>=.30))
-        signals["possible_power_board"]=bool(score>=6 and effective_block>=1 and(effective_round>=2 or effective_block>=2) and solder_side<65)
+        signals["mixed_power_control_candidate"]=bool(signals["power_stage_present"] and(ic_count>=2 or logic_ratio>=.22))
+        signals["possible_power_board"]=bool(
+            score>=6
+            and strong_power_hardware
+            and effective_round>=1
+            and solder_side<65
+            and not (ic_count>=2 and logic_ratio>=.25 and not signals["power_stage_present"])
+        )
     except Exception as exc:print(f"[Power Board Detector Error] {exc}")
     return signals
