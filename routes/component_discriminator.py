@@ -1,6 +1,6 @@
 """Visual component-family discrimination for Board Sense.
 
-SPIKE Vision v1.1 keeps body-before-label filtering and conservative power cues.
+SPIKE Vision v1.2 adds a shape-sanity veto so round holes, gears, LEDs, and tiny dark blobs do not inflate IC population counts.
 Density-aware logic detection now preserves smaller legacy IC packages instead of
 letting one large package represent an entire populated board.
 """
@@ -58,13 +58,20 @@ def discriminate_components(image_path):
             if .030<=ar<=.20 and rect>=.48 and aspect<=4.8 and darkness>=.48 and ed>=.035:
                 power_package_like+=1;conf=min(88,int(50+rect*20+min(ed,.18)*65+min(ar,.10)*80));regions.append({"type":"Large power package / module candidate","x":int(x*inv),"y":int(y*inv),"w":int(w*inv),"h":int(h*inv),"confidence":conf})
             elif .00022<=ar<=.065 and rect>=.50 and aspect<=5.2 and darkness>=.42 and ed>=.025:
-                # Legacy boards often contain many small plastic logic packages.
-                # Count them even when individual confidence is modest, but only
-                # render stronger regions on the blueprint.
-                ic_like+=1
-                conf=min(92,int(45+rect*24+min(ed,.20)*85+min(darkness,.95)*12))
-                if conf>=58:
-                    regions.append({"type":"IC-like package","x":int(x*inv),"y":int(y*inv),"w":int(w*inv),"h":int(h*inv),"confidence":conf})
+                # v1.2: dark does not mean IC. Holes, LEDs, gears, switch bodies
+                # and other round/mechanical features were being counted as logic
+                # packages on sparse legacy control boards.
+                perimeter=max(float(cv2.arcLength(c,True)),1.0)
+                circularity=float(4.0*np.pi*area/(perimeter*perimeter))
+                near_round_small=bool(aspect<=1.32 and circularity>=.72 and ar<.006)
+                tiny_blob=bool(ar<.00035 and aspect<1.8)
+                if near_round_small or tiny_blob:
+                    uncertain_like+=1
+                else:
+                    ic_like+=1
+                    conf=min(92,int(45+rect*24+min(ed,.20)*85+min(darkness,.95)*12))
+                    if conf>=58:
+                        regions.append({"type":"IC-like package","x":int(x*inv),"y":int(y*inv),"w":int(w*inv),"h":int(h*inv),"confidence":conf,"shape_sanity":{"circularity":round(circularity,3),"aspect":round(float(aspect),3)}})
             elif .012<=ar<=.15 and rect>=.58 and aspect<=3.8 and darkness>=.28 and ed>=.045:
                 block_like+=1;conf=min(86,int(47+rect*23+min(ed,.18)*60))
                 if conf>=62:regions.append({"type":"Power block / transformer / relay-like","x":int(x*inv),"y":int(y*inv),"w":int(w*inv),"h":int(h*inv),"confidence":conf})
@@ -130,7 +137,7 @@ def discriminate_components(image_path):
         elif ic_like or capacitor_like or block_like or power_package_like or winding_like:
             result["dominant_family"]="mixed"
 
-        result["notes"].append("SPIKE Vision v1.1 density-aware body-before-label filtering is active.")
+        result["notes"].append("SPIKE Vision v1.2 body-before-label filtering plus round/mechanical IC veto is active.")
         if ic_like>=8:result["notes"].append(f"Dense logic population detected: {ic_like} IC-like package candidates.")
         if solder_side_likelihood>=65:result["notes"].append(f"PCB solder/trace-side pattern detected ({solder_side_likelihood}% likelihood); capacitor and copper-winding promotion is suppressed on this view.")
         if winding_like:result["notes"].append(f"Found {winding_like} copper-wound magnetic candidate(s) on a component-side-compatible view.")
