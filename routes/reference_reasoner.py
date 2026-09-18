@@ -20,11 +20,11 @@ def build_reference_matches(features,visual,motherboard,power,board_type):
  if ram:_add(h,"RAM / Memory Module",4,"Memory-module geometry detector fired")
  if aspect>=2.8:_add(h,"RAM / Memory Module",2,f"Long narrow aspect ratio ({aspect:.2f}:1)")
  if gold:_add(h,"Expansion / Gold Finger Card",6,"Strict repeated edge-contact geometry confirmed")
- elif raw_gold:_add(h,"Expansion / Gold Finger Card",1,"Gold-colored edge cue only; strict finger geometry not confirmed")
  if dense:_add(h,"Motherboard / Logic Board",2,"Dense logic population");_add(h,"Mixed Consumer Control Board",2,"Dense mixed control circuitry")
  if large_ics:_add(h,"Motherboard / Logic Board",2,"Large IC packages support logic architecture");_add(h,"Mixed Consumer Control Board",1,"Large IC packages support control logic")
  if processor:_add(h,"Motherboard / Logic Board",5,"Processor-like region supports main logic board")
- if large_board:_add(h,"Motherboard / Logic Board",1,"Large board geometry");_add(h,"Server / Enterprise Board",1,"Large board size")
+ if large_board and logic:_add(h,"Motherboard / Logic Board",1,"Large board geometry with independent logic support")
+ if large_board and logic and structure>=5:_add(h,"Server / Enterprise Board",1,"Large board size plus supported logic/structure")
  if structure>=6:
   _add(h,"Motherboard / Logic Board",8,f"Strong motherboard structural score {structure}")
   if slots>=2:_add(h,"Motherboard / Logic Board",5,f"{slots} repeated long DIMM/expansion-slot-like structures")
@@ -55,4 +55,4 @@ def build_reference_matches(features,visual,motherboard,power,board_type):
   target="High Grade Motherboard" if dense and gold else "Medium Grade Motherboard"
   for item in knowledge.get("motherboards",[]):
    if item.get("category")==target:matches.append(_compact_match(item,"Motherboard-scale geometry plus PC-style structural evidence detected"));break
- ranked=_normalize(h);top=ranked[0] if ranked else None;runner=ranked[1] if len(ranked)>1 else None;margin=(top["evidence_score"]-runner["evidence_score"]) if top and runner else(top["evidence_score"] if top else 0);return {"matches":matches,"match_count":len(matches),"hypotheses":ranked[:5],"top_hypothesis":top,"hypothesis_margin":margin,"telecom_pattern":False,"board_type_context":board_type.get("type","General PCB"),"gold_finger_geometry_confirmed":gold,"gold_finger_proof":{"contact_count":contact_count,"side":contact_side,"spacing_cv":spacing_cv,"size_cv":size_cv},"motherboard_structure_score":structure,"mixed_power_control_supported":mixed_power_control,"reasoning_version":"SPIKE-weighted-evidence-v5"}
+ ranked=_normalize(h);top=ranked[0] if ranked else None;runner=ranked[1] if len(ranked)>1 else None;margin=(top["evidence_score"]-runner["evidence_score"]) if top and runner else(top["evidence_score"] if top else 0);return {"matches":matches,"match_count":len(matches),"hypotheses":ranked[:5],"top_hypothesis":top,"hypothesis_margin":margin,"telecom_pattern":False,"board_type_context":board_type.get("type","General PCB"),"gold_finger_geometry_confirmed":gold,"gold_color_cue_only":bool(raw_gold and not gold),"gold_finger_proof":{"contact_count":contact_count,"side":contact_side,"spacing_cv":spacing_cv,"size_cv":size_cv},"motherboard_structure_score":structure,"mixed_power_control_supported":mixed_power_control,"reasoning_version":"SPIKE-weighted-evidence-v5.1"}
