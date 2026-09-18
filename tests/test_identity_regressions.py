@@ -582,3 +582,35 @@ def test_frame_gate_runtime_stays_bounded_on_large_single_board_fixture():
         temp.cleanup()
     assert out["status"] in {"SINGLE_BOARD_NOT_CONTRADICTED","MULTIPLE_BOARDS_OR_OVERLAP_SUSPECTED"}, out
     assert elapsed < 8.0, {"elapsed":elapsed,"result":out}
+
+
+def test_case_blueprint_uses_unblocked_view_when_winner_blueprint_is_withheld():
+    from routes.case_reasoner import _best_case_blueprint
+    results=[
+        {
+            "confidence":92,
+            "photo_quality":{"usable":True},
+            "physical_fingerprint":{"coverage":"whole_or_large_view","geometry_quality":"good"},
+            "board_blueprint":{
+                "available":False,
+                "message":"Blueprint withheld",
+                "frame_identity_gate":{"block_analysis":True},
+            },
+        },
+        {
+            "confidence":78,
+            "photo_quality":{"usable":True},
+            "physical_fingerprint":{"coverage":"whole_or_large_view","geometry_quality":"good"},
+            "board_blueprint":{
+                "available":True,
+                "image_filename":"safe_view.png",
+                "component_index":[{"number":1}],
+                "frame_identity_gate":{"block_analysis":False},
+            },
+        },
+    ]
+    chosen=_best_case_blueprint(results)
+    assert chosen is not None
+    assert chosen["available"] is True
+    assert chosen["image_filename"]=="safe_view.png"
+    assert chosen["case_blueprint_source_view"]==2
