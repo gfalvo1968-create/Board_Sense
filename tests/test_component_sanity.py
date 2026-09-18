@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 
 from routes.component_discriminator import discriminate_components
+from routes.board_power import detect_power_board
 from routes.reference_reasoner import build_reference_matches
 
 
@@ -47,6 +48,7 @@ def test_sparse_mechanical_control_board_does_not_become_dense_ic_population():
         components = discriminate_components(str(path))
 
     assert components["ic_like"] <= 3, components
+    assert components["capacitor_like"] <= 4, components
     assert components["dominant_family"] != "logic_ic" or components["ic_like"] >= 4
 
 
@@ -99,3 +101,15 @@ def test_weak_gold_color_and_large_photo_do_not_create_expansion_or_server_hypot
     assert "Expansion / Gold Finger Card" not in labels, result
     assert "Server / Enterprise Board" not in labels, result
     assert result["gold_color_cue_only"] is True
+
+
+def test_sparse_led_gear_control_board_does_not_become_power_supply():
+    """LEDs, holes and a mechanical wheel may coexist with small capacitors without proving PSU topology."""
+    with TemporaryDirectory() as td:
+        path = Path(td) / "legacy_control_power_guard.png"
+        _write_sparse_mechanical_control_fixture(path)
+        power = detect_power_board(str(path))
+
+    assert power["possible_power_board"] is False, power
+    assert power["power_stage_present"] is False, power
+    assert power.get("strong_power_hardware", False) is False, power
