@@ -33,7 +33,7 @@ def test_identity_uncertain_is_not_called_multiple_boards(mock_identity):
     assert result["board_type"] == "Identity Evidence Needed"
     assert result["same_board_verification"]["status"] == "IDENTITY_UNCERTAIN"
     assert result["three_answers"]["identity"]["answer"] == "Identity Evidence Needed"
-    assert result["three_answers"]["recovery"]["grade"] == "WITHHELD"
+    assert result["three_answers"]["recovery"]["grade"] == "CASE COMBINATION WITHHELD"
 
 
 @patch("routes.case_reasoner.verify_same_board")
