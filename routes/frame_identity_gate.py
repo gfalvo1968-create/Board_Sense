@@ -1,10 +1,11 @@
-"""SPIKE Single-Frame Board Identity Gate v0.11.
+"""SPIKE Single-Frame Board Identity Gate v0.12.
 
 Blocks a single uploaded photograph only when strong physical evidence says more
 than one PCB is present. PCB confirmation and board identity remain separate.
 
-v0.11 adds an edge-supported secondary-board-plane detector for overlapping/touching
-PCBs that merge into one green silhouette. The Dell bottleneck clarification behavior
+v0.12 keeps the v0.11 physical rules but makes bottleneck scanning linear-time by
+using cumulative profile area instead of re-summing half the image at every cut.
+This is a performance-only change to the bottleneck evidence calculation. The Dell bottleneck clarification behavior
 remains conservative.
 was falsely split. A narrow neck alone is not enough: both sides must be substantial
 and reasonably balanced. Compound silhouette profiles remain advisory only.
@@ -56,16 +57,18 @@ def _bottleneck_axis(mask, axis, image_area):
     if span < 30:
         return None
     start, end = lo + int(span * 0.12), lo + int(span * 0.88)
-    total = float(binary.sum())
+    # v0.12 performance: profile already contains the per-column/per-row area.
+    # Prefix sums make side-area lookup O(1) per cut while preserving the exact
+    # meaning of binary[:, :cut] / binary[:cut, :] from v0.11.
+    prefix = np.concatenate(([0.0], np.cumsum(profile, dtype=np.float64)))
+    total = float(prefix[-1])
     best = None
     near = max(5, span // 24)
     far = max(24, span // 5)
     strip_half = max(2, span // 120)
     for cut in range(start, end + 1):
-        if axis == "x":
-            side1, side2 = float(binary[:, :cut].sum()), float(binary[:, cut:].sum())
-        else:
-            side1, side2 = float(binary[:cut, :].sum()), float(binary[cut:, :].sum())
+        side1 = float(prefix[cut])
+        side2 = float(total - side1)
         small_ratio = min(side1, side2) / max(image_area, 1.0)
         large_ratio = max(side1, side2) / max(image_area, 1.0)
         balance = min(side1, side2) / max(max(side1, side2), 1.0)
@@ -102,7 +105,7 @@ def _bottleneck_split(mask, image_area):
 
 
 def inspect_frame(image_path):
-    result = {"version": "SPIKE Single-Frame Board Identity Gate v0.11", "status": "SINGLE_BOARD_NOT_CONTRADICTED", "block_analysis": False, "confidence": 0, "evidence": [], "next_step": "Continue normal board analysis."}
+    result = {"version": "SPIKE Single-Frame Board Identity Gate v0.12", "status": "SINGLE_BOARD_NOT_CONTRADICTED", "block_analysis": False, "confidence": 0, "evidence": [], "next_step": "Continue normal board analysis."}
     try:
         im = cv2.imread(image_path)
         if im is None:
