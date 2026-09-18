@@ -1,4 +1,4 @@
-"""SPIKE structural + condition decision guard v0.4.
+"""SPIKE structural + condition decision guard v0.5.
 Defining architecture outranks generic component counts. Hard motherboard authority
 requires corroborated geometry, while dense processor-led main-logic boards may earn
 a separate structural veto against weak false power-board promotion.
@@ -35,27 +35,121 @@ def strong_structural_family(result):
         return {"family":"main_logic","strength":"hard_logic","confidence":conf,"structural_score":max(mb["score"],float(logic_count+5)),"anchors":list(dict.fromkeys(anchors))[:8],"vetoes":["weak or generic power-component cues cannot rename a processor-led main logic board","mixed power-control identity requires corroborated strong power topology, not one ambiguous component cluster"]}
     return None
 def condition_harvest_check(result,observations=None):
+    """Describe what is missing AND what useful recovery material still remains.
+
+    Completeness is a condition fact, not a recovery verdict. A harvested or broken
+    board may still be PAY DIRT when the physical material that remains supports it.
+    """
     observations=observations or {};fam=family(result.get("board_type"));items=[]
     def add(name,status,impact="unknown",note="",source="vision_or_case"):items.append({"feature":name,"status":status,"value_impact":impact,"note":note,"source":source})
     for name,value in observations.items():
         if isinstance(value,dict):add(name,value.get("status","unknown"),value.get("value_impact","unknown"),value.get("note",""),value.get("source","vision_or_case"))
         else:add(name,str(value),"unknown","")
-    loss_states=("removed","cut","harvested","missing_confirmed","clearly_cut","clearly_harvested");uncertain_states=("not_visible","uncertain","unknown","expected_not_visible","probably_removed");present_states=("present","confirmed_present","visible","retained");confirmed_loss=[x for x in items if str(x["status"]).lower() in loss_states];uncertain=[x for x in items if str(x["status"]).lower() in uncertain_states];present=[x for x in items if str(x["status"]).lower() in present_states];severe=sum(1 for x in confirmed_loss if str(x["value_impact"]).lower() in ("high","major","severe"));moderate=sum(1 for x in confirmed_loss if str(x["value_impact"]).lower() in ("medium","moderate"));minor=max(0,len(confirmed_loss)-severe-moderate);factor=max(.20,1.0-severe*.25-moderate*.12-minor*.05)
+
+    loss_states=("removed","cut","harvested","missing_confirmed","clearly_cut","clearly_harvested")
+    uncertain_states=("not_visible","uncertain","unknown","expected_not_visible","probably_removed")
+    present_states=("present","confirmed_present","visible","retained")
+    confirmed_loss=[x for x in items if str(x["status"]).lower() in loss_states]
+    uncertain=[x for x in items if str(x["status"]).lower() in uncertain_states]
+    present=[x for x in items if str(x["status"]).lower() in present_states]
+
+    severe=sum(1 for x in confirmed_loss if str(x["value_impact"]).lower() in ("high","major","severe"))
+    moderate=sum(1 for x in confirmed_loss if str(x["value_impact"]).lower() in ("medium","moderate"))
+    minor=max(0,len(confirmed_loss)-severe-moderate)
+    factor=max(.20,1.0-severe*.25-moderate*.12-minor*.05)
+
     if severe>=3 or factor<=.40:condition="STRIPPED / SPENT"
     elif severe>=2 or factor<=.55:condition="HEAVILY HARVESTED"
     elif confirmed_loss:condition="PARTIALLY HARVESTED"
     elif uncertain:condition="INSPECTION NEEDED"
     else:condition="INTACT / NO CONFIRMED HARVESTING"
-    signals=result.get("signals") or {};remaining_targets=[];target_map={"gold_fingers":"edge fingers / plated contacts","gold_finger_edge":"edge fingers / plated contacts","large_ic_chips":"large IC / logic packages","processor":"processor / high-value logic package","dense_component_board":"dense component population"}
+
+    if confirmed_loss:completeness="INCOMPLETE / CONFIRMED MATERIAL MISSING"
+    elif uncertain:completeness="POSSIBLY INCOMPLETE / VERIFY"
+    else:completeness="NO CONFIRMED MISSING MATERIAL"
+
+    signals=result.get("signals") or {}
+    remaining_targets=[]
+    target_map={
+        "gold_fingers":"edge fingers / plated contacts",
+        "gold_finger_edge":"edge fingers / plated contacts",
+        "large_ic_chips":"large IC / logic packages",
+        "processor":"processor / high-value logic package",
+        "dense_component_board":"dense component population",
+        "power_stage_present":"power-stage recovery material",
+    }
     for key,label in target_map.items():
         if signals.get(key) and label not in remaining_targets:remaining_targets.append(label)
     for x in present:
         if x["feature"] not in remaining_targets:remaining_targets.append(x["feature"])
+
+    # Remaining-value classification deliberately uses what is physically still
+    # present. Missing fingers may justify a buy-price adjustment, but they do not
+    # erase dense ICs, processors, plated contacts, or other surviving material.
+    strength=0
+    if signals.get("processor"):strength+=3
+    if signals.get("large_ic_chips"):strength+=2
+    if signals.get("dense_component_board"):strength+=2
+    if signals.get("gold_fingers") or signals.get("gold_finger_edge"):strength+=2
+    if signals.get("power_stage_present"):strength+=1
+    grade=str(result.get("grade") or "").upper()
+    if grade=="VERY HIGH":strength+=3
+    elif grade=="HIGH":strength+=2
+    elif grade=="MEDIUM":strength+=1
+
+    if condition=="STRIPPED / SPENT" and not remaining_targets:
+        verdict="LOW"
+    elif strength>=7 and remaining_targets:
+        verdict="HIGH PAY DIRT"
+    elif strength>=4 and remaining_targets:
+        verdict="PAY DIRT"
+    elif strength>=2 and remaining_targets:
+        verdict="MODERATE"
+    elif remaining_targets:
+        verdict="LOW / VERIFY"
+    else:
+        verdict="INSPECTION REQUIRED"
+
+    pay_dirt=verdict in ("PAY DIRT","HIGH PAY DIRT")
+    if confirmed_loss and pay_dirt:
+        buyer_message=f"{completeness}. Some value-bearing material is gone, but the material physically remaining still rates {verdict}. Apply a condition adjustment only to the confirmed missing value, then price what remains."
+    elif uncertain and pay_dirt:
+        buyer_message=f"{completeness}. Missing material needs verification, but the visible remaining material still rates {verdict}. Do not deduct unconfirmed loss."
+    elif pay_dirt:
+        buyer_message=f"Visible remaining material rates {verdict}. Price the specimen as received."
+    elif confirmed_loss:
+        buyer_message=f"{completeness}. Remaining opportunity is {verdict}; discount only confirmed missing value and verify the residual material before buying."
+    else:
+        buyer_message=f"Remaining recovery opportunity is {verdict}. Base the decision on the specimen physically present."
+
     if condition=="STRIPPED / SPENT" and not remaining_targets:opportunity="LOW / VERIFY RESIDUAL MATERIAL"
     elif confirmed_loss and remaining_targets:opportunity="REMAINING VALUE PRESENT AFTER HARVEST"
     elif remaining_targets:opportunity="VALUE-BEARING FEATURES STILL PRESENT"
     else:opportunity="INSPECTION REQUIRED"
-    return {"mode":"Condition & Harvest Check v0.2","board_family":fam,"condition":condition,"confirmed_value_losses":confirmed_loss,"confirmed_present_features":present,"uncertain_or_not_visible":uncertain,"remaining_recovery_opportunity":opportunity,"remaining_recovery_targets":remaining_targets[:12],"remaining_value_factor":round(factor,2),"deduction_ready":bool(confirmed_loss),"buying_guidance":"Deduct only confirmed removed value, then price the useful material that remains. Harvested does not mean worthless." if confirmed_loss else "Do not reduce the offer for a feature that is merely outside the photo or uncertain.","pricing_rule":"price what is physically present; identity/reference evidence is advisory","verification_rule":"image color or apparent plating is an inspection cue, not a metal assay","final_authority":"SPIKE"}
+
+    return {
+        "mode":"Condition & Harvest Check v0.3",
+        "board_family":fam,
+        "condition":condition,
+        "specimen_completeness":completeness,
+        "confirmed_value_losses":confirmed_loss,
+        "confirmed_present_features":present,
+        "uncertain_or_not_visible":uncertain,
+        "remaining_recovery_opportunity":opportunity,
+        "remaining_recovery_targets":remaining_targets[:12],
+        "remaining_value_verdict":verdict,
+        "remaining_value_strength":strength,
+        "pay_dirt_still_present":pay_dirt,
+        "buyer_message":buyer_message,
+        "remaining_value_factor":round(factor,2),
+        "deduction_ready":bool(confirmed_loss),
+        "condition_adjustment_required":bool(confirmed_loss),
+        "condition_adjustment_rule":"Adjustment is buyer/market configurable. Do not hard-code a cents-per-pound penalty; deduct only confirmed missing value.",
+        "buying_guidance":"Deduct only confirmed removed value, then price the useful material that remains. Harvested does not mean worthless." if confirmed_loss else "Do not reduce the offer for a feature that is merely outside the photo or uncertain.",
+        "pricing_rule":"Price what is physically present. Completeness and remaining recovery value are separate judgments.",
+        "verification_rule":"Image color or apparent plating is an inspection cue, not a metal assay.",
+        "final_authority":"SPIKE",
+    }
 def decision_trace(winner,hard=None,supporting=None,weak=None,contradictions=None,condition=None):
     hard=hard or [];supporting=supporting or [];weak=weak or [];contradictions=contradictions or [];reason=f"{winner} wins because defining structural anchors outweigh generic visual hints." if hard else f"{winner} is the best supported family from the available evidence.";trace={"final_authority":"SPIKE","winner":winner,"hard_evidence":hard,"supporting_evidence":supporting,"weak_hints":weak,"contradictions_or_vetoes":contradictions,"reason":reason,"web_evidence_policy":"advisory_only"}
     if condition is not None:trace["condition_and_harvest"]=condition
