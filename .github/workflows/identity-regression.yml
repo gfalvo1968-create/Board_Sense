@@ -12,7 +12,8 @@ on:
       - 'tests/test_identity_uncertain_copy.py'
       - 'tests/test_spike_tool_cost_guard.py'
       - 'tests/test_spike_local_zoom.py'
-      - 'tests/test_multi_board_split.py'
+      - 'tests/test_multi_board_split.py tests/test_component_sanity.py'
+      - 'tests/test_component_sanity.py'
       - '.github/workflows/identity-regression.yml'
 
 jobs:
