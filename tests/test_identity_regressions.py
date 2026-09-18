@@ -528,3 +528,36 @@ def test_identity_uncertainty_does_not_silence_per_view_material_value():
     assert recovery["grade"] == "CASE COMBINATION WITHHELD"
     assert recovery["per_view_material_analysis_available"] is True
     assert "still reports" in recovery["message"].lower()
+
+
+def test_brown_phenolic_board_on_dark_background_counts_as_whole_view():
+    """A non-green component side can still be a genuine full-board identity view."""
+    image = np.full((1000, 800, 3), (35, 35, 35), dtype=np.uint8)
+    pts = np.array([[180,120],[570,120],[650,230],[650,780],[520,900],[210,900],[135,720],[135,240]], np.int32)
+    cv2.fillPoly(image,[pts],(72,88,105))
+    cv2.polylines(image,[pts],True,(125,145,165),5)
+    # Mechanical/through-hole features.
+    for x,y in [(240,210),(535,220),(220,760),(540,760)]:
+        cv2.circle(image,(x,y),24,(18,18,18),-1)
+    cv2.rectangle(image,(260,420),(410,485),(20,20,20),-1)
+    cv2.circle(image,(500,525),70,(220,220,220),-1)
+    temp,path=_write_fixture(image)
+    try:
+        fp=extract_board_fingerprint(str(path))
+    finally:
+        temp.cleanup()
+    assert fp["available"] is True, fp
+    assert fp["coverage"] == "whole_or_large_view", fp
+    assert fp["coverage_basis"] in {"background_contrast","edge_contour"}, fp
+
+
+def test_plain_dark_background_alone_does_not_become_whole_board():
+    """Background-contrast fallback must not hallucinate a PCB from fabric-like shading."""
+    image=np.full((900,700,3),(40,40,40),dtype=np.uint8)
+    cv2.rectangle(image,(0,300),(700,520),(48,48,48),-1)
+    temp,path=_write_fixture(image)
+    try:
+        fp=extract_board_fingerprint(str(path))
+    finally:
+        temp.cleanup()
+    assert fp["coverage"] != "whole_or_large_view", fp
