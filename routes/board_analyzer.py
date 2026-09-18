@@ -64,33 +64,43 @@ def analyze_board(image_path):
  if motherboard.get("possible_motherboard",False):features["motherboard"]=True
  if power.get("possible_power_board",False):features["power_board"]=True
 
- # Density-aware cross-check. The previous AND gate let one conservative
- # detector erase strong population evidence from another detector.
- feature_count=int(features.get("component_count",0) or 0)
+ # v4.5 logic-population sanity guard.
+ # Generic dark rectangles are only provisional. Dense-logic claims must be
+ # earned by the component discriminator, not by holes, LEDs, gears, switches,
+ # capacitors, or other dark/mechanical shapes.
+ raw_feature_count=int(features.get("component_count",0) or 0)
  component_ic_count=int(components.get("ic_like",0) or 0)
  visual_ic_count=int(visual.get("large_dark_components",0) or 0)
- fused_component_count=max(feature_count,component_ic_count,visual_ic_count)
- features["component_count"]=fused_component_count
- features["component_density"]=round(max(float(features.get("component_density",0) or 0),float(visual.get("dark_component_density",0) or 0)),4)
-
- component_ic_support=bool(
-  components.get("dominant_family")!="power_components"
-  and (component_ic_count>=3 or feature_count>=6 or visual_ic_count>=3)
- )
+ dominant_family=components.get("dominant_family","unknown")
  visual_ic_signal=bool(visual.get("possible_large_ic_chips",False))
 
- features["large_ic_chips"]=bool(
-  features.get("large_ic_chips")
-  or (visual_ic_signal and component_ic_support)
-  or component_ic_count>=8
-  or fused_component_count>=10
+ logic_population_supported=bool(
+  component_ic_count>=6
+  or (
+   component_ic_count>=4
+   and dominant_family=="logic_ic"
+   and visual_ic_count>=2
+  )
  )
- features["dense_component_board"]=bool(
-  features.get("dense_component_board")
-  or component_ic_count>=8
-  or fused_component_count>=10
-  or features.get("component_density",0)>=.025
+ large_ic_supported=bool(
+  component_ic_count>=3
+  or (
+   component_ic_count>=2
+   and visual_ic_signal
+   and dominant_family in ("logic_ic","mixed")
+  )
  )
+
+ # Recovery scoring uses the verified logic-package population. Keep raw visual
+ # counts for diagnostics, but do not let them manufacture density/value.
+ features["component_count"]=component_ic_count
+ raw_density=max(float(features.get("component_density",0) or 0),float(visual.get("dark_component_density",0) or 0))
+ features["component_density"]=round(raw_density if logic_population_supported else min(raw_density,.019),4)
+ features["large_ic_chips"]=bool(large_ic_supported)
+ features["dense_component_board"]=bool(logic_population_supported)
+ features["logic_population_supported"]=bool(logic_population_supported)
+ features["raw_dark_component_count"]=max(raw_feature_count,visual_ic_count)
+ component_ic_support=bool(large_ic_supported)
 
  if components.get("dominant_family")=="power_components":features["power_board"]=True
 
@@ -106,14 +116,14 @@ def analyze_board(image_path):
 
  confidence=calculate_confidence(score,features=features,visual=visual,motherboard=motherboard,power=power)
  if reasoning_crosscheck["status"]=="review":confidence=max(25,confidence-10)
- if visual_ic_signal and not component_ic_support and fused_component_count<8:confidence=max(25,confidence-5)
+ if visual_ic_signal and not component_ic_support:confidence=max(25,confidence-5)
  if not photo_quality.get("usable",False):confidence=max(20,min(confidence,50))
 
  blueprint_dir=Path(image_path).resolve().parent.parent/"Blueprints"
  blueprint=generate_blueprint(image_path,components.get("regions",[]),blueprint_dir)
  if blueprint.get("available"):blueprint["image_url"]="/blueprints/"+blueprint["image_filename"]
 
- result={"grade":grade_result["grade"],"confidence":confidence,"score":score,"board_type":board_type["type"],"board_type_reason":board_type["reason"],"object_gate":object_gate,"physical_fingerprint":fingerprint,"reasoning_crosscheck":reasoning_crosscheck,"photo_quality":photo_quality,"spike_glass":spike_glass,"board_blueprint":blueprint,"pay_dirt_ready":grade_result["pay_dirt_ready"],"recommendation":grade_result["recommendation"],"recovery_signals":grade_result["recovery_signals"],"grade_notes":grade_result["grade_notes"],"reference_intelligence":reference_intelligence,"component_intelligence":components,"features":features,"visual":visual,"motherboard":motherboard,"power":power,"signals":{"motherboard":features.get("motherboard",False),"ram":features.get("ram",False),"power_board":features.get("power_board",False),"gold_fingers":features.get("gold_fingers",False),"gold_edge_color_cue":visual.get("gold_edge_color_cue",False),"gold_finger_geometry":visual.get("gold_finger_geometry",False),"repeated_edge_contacts":visual.get("repeated_edge_contacts",False),"large_ic_chips":features.get("large_ic_chips",False),"dense_component_board":features.get("dense_component_board",False),"processor":features.get("processor",False),"component_count":features.get("component_count",0),"component_density":features.get("component_density",0.0),"possible_ram":visual.get("possible_ram",False),"gold_finger_edge":visual.get("gold_finger_edge",False),"raw_large_ic_signal":visual_ic_signal,"ic_signal_confirmed":component_ic_support,"component_ic_count":component_ic_count,"visual_ic_count":visual_ic_count,"possible_motherboard":motherboard.get("possible_motherboard",False),"confirmed_slot_bank":motherboard.get("confirmed_slot_bank",False),"parallel_slot_bank":motherboard.get("parallel_slot_bank",False),"motherboard_score":motherboard.get("motherboard_score",motherboard.get("score",0)),"large_board":motherboard.get("large_board",False),"possible_power_board":power.get("possible_power_board",False),"power_stage_present":power.get("power_stage_present",False),"mixed_power_control_candidate":power.get("mixed_power_control_candidate",False),"large_round_components":power.get("large_round_components",0),"large_component_regions":power.get("large_component_regions",0),"large_power_package_like":power.get("large_power_package_like",components.get("large_power_package_like",0)),"power_score":power.get("power_score",0),"raw_power_score":power.get("raw_power_score",0),"logic_penalty":power.get("logic_penalty",0)},"model":"Board Sense v4.4 + SPIKE Vision v1.1 + Density Fusion v0.1 + Strict Edge Contact Geometry v0.2 + Reference Reasoner v5 + Board Blueprint v0.9 + Power Topology v0.3 + Modification Detector v0.2 + Motherboard Detector v0.3 + Physical Fingerprint v0.3"}
+ result={"grade":grade_result["grade"],"confidence":confidence,"score":score,"board_type":board_type["type"],"board_type_reason":board_type["reason"],"object_gate":object_gate,"physical_fingerprint":fingerprint,"reasoning_crosscheck":reasoning_crosscheck,"photo_quality":photo_quality,"spike_glass":spike_glass,"board_blueprint":blueprint,"pay_dirt_ready":grade_result["pay_dirt_ready"],"recommendation":grade_result["recommendation"],"recovery_signals":grade_result["recovery_signals"],"grade_notes":grade_result["grade_notes"],"reference_intelligence":reference_intelligence,"component_intelligence":components,"features":features,"visual":visual,"motherboard":motherboard,"power":power,"signals":{"motherboard":features.get("motherboard",False),"ram":features.get("ram",False),"power_board":features.get("power_board",False),"gold_fingers":features.get("gold_fingers",False),"gold_edge_color_cue":visual.get("gold_edge_color_cue",False),"gold_finger_geometry":visual.get("gold_finger_geometry",False),"repeated_edge_contacts":visual.get("repeated_edge_contacts",False),"large_ic_chips":features.get("large_ic_chips",False),"dense_component_board":features.get("dense_component_board",False),"processor":features.get("processor",False),"component_count":features.get("component_count",0),"component_density":features.get("component_density",0.0),"possible_ram":visual.get("possible_ram",False),"gold_finger_edge":visual.get("gold_finger_edge",False),"raw_large_ic_signal":visual_ic_signal,"ic_signal_confirmed":component_ic_support,"component_ic_count":component_ic_count,"visual_ic_count":visual_ic_count,"possible_motherboard":motherboard.get("possible_motherboard",False),"confirmed_slot_bank":motherboard.get("confirmed_slot_bank",False),"parallel_slot_bank":motherboard.get("parallel_slot_bank",False),"motherboard_score":motherboard.get("motherboard_score",motherboard.get("score",0)),"large_board":motherboard.get("large_board",False),"possible_power_board":power.get("possible_power_board",False),"power_stage_present":power.get("power_stage_present",False),"mixed_power_control_candidate":power.get("mixed_power_control_candidate",False),"large_round_components":power.get("large_round_components",0),"large_component_regions":power.get("large_component_regions",0),"large_power_package_like":power.get("large_power_package_like",components.get("large_power_package_like",0)),"power_score":power.get("power_score",0),"raw_power_score":power.get("raw_power_score",0),"logic_penalty":power.get("logic_penalty",0)},"model":"Board Sense v4.5 + SPIKE Vision v1.2 + Logic Population Sanity v0.1 + Strict Edge Contact Geometry v0.2 + Reference Reasoner v5 + Board Blueprint v0.9 + Power Topology v0.3 + Modification Detector v0.2 + Motherboard Detector v0.3 + Physical Fingerprint v0.3"}
 
  modification=detect_modifications(image_path,result)
  result["modification_intelligence"]=modification
