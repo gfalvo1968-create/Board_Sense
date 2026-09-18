@@ -14,7 +14,7 @@ from routes.spike_evidence_packet import build_evidence_packet
 from routes.spike_tool_layer import investigate_identity
 from routes.identity_clarification import apply_identity_clarifications
 from routes.case_reasoner import reconcile_case
-from routes.multi_board_split import save_isolated_board_crops
+from routes.multi_board_split import choose_best_multi_board_split
 from routes.inspection_target import parse_inspection_target, apply_inspection_target
 from routes.free_usage_gate import check_free_board_allowance, record_free_board_use, free_gate_payload
 from recovery_lab.core.time_value import compare_paths
@@ -94,38 +94,26 @@ def _spike_target_rank(result):
 
 def _multi_board_material_report(results, image_paths):
     """Analyze cleanly separable PCB bodies without ever merging their identities."""
-    best = None
-    for view_number, (result, image_path) in enumerate(zip(results, image_paths), 1):
-        gate = ((result.get("board_blueprint") or {}).get("frame_identity_gate") or {})
-        status = str(gate.get("status") or "")
-        if not gate.get("block_analysis") or status not in {
-            "MULTIPLE_BOARDS_OR_OVERLAP_SUSPECTED",
-            "MULTIPLE_BOARDS_IN_FRAME_SUSPECTED",
-            "MULTIPLE_BOARDS_SUSPECTED",
-        }:
-            continue
-        split = save_isolated_board_crops(image_path, IMAGE_DIR / "multi_board_crops", max_boards=4)
-        if split.get("board_count", 0) < 2:
-            continue
-        candidate = {
-            "view_number": view_number,
-            "source_file": result.get("board"),
-            "split": split,
-        }
-        if best is None or split.get("board_count", 0) > best["split"].get("board_count", 0):
-            best = candidate
-
+    selection = choose_best_multi_board_split(
+        image_paths,
+        IMAGE_DIR / "multi_board_crops",
+        max_boards=4,
+    )
+    best = selection.get("best")
     if best is None:
         return {
-            "mode": "SPIKE Multi-Board Separate Reports v0.1",
+            "mode": "SPIKE Multi-Board Separate Reports v0.2",
             "status": "MULTIPLE_BOARDS_DETECTED_SPLIT_UNRESOLVED",
             "board_count": 0,
             "boards": [],
-            "message": "SPIKE proved that more than one board is present, but this frame does not separate the individual board bodies cleanly enough for independent mini-reports.",
-            "next_step": "Keep the boards in the same photo if desired, but add a little space between touching/overlapping pieces and retake.",
-            "rule": "Stop the merge, not the investigation. Analyze each separable board independently; never blend identities, grades, or economics.",
+            "split_attempts": selection.get("attempts", []),
+            "message": "SPIKE proved that more than one board is present, but none of the uploaded views separates the individual PCB bodies cleanly enough for independent mini-reports.",
+            "next_step": "Keep the boards in the same photo if desired, but add a little space between touching or overlapping pieces and retake.",
+            "rule": "Stop the merge, not the investigation. Once multi-board presence is proven, inspect every uploaded view for the cleanest separation.",
         }
 
+    source_view = int(best.get("view_number", 0) or 0)
+    source_result = results[source_view - 1] if 1 <= source_view <= len(results) else {}
     boards = []
     for crop in best["split"].get("crops", []):
         analysis = analyze_board(crop["crop_path"])
@@ -134,8 +122,8 @@ def _multi_board_material_report(results, image_paths):
             {
                 "board_index": crop.get("board_index"),
                 "bbox": crop.get("bbox"),
-                "source_view": best["view_number"],
-                "source_file": best["source_file"],
+                "source_view": source_view,
+                "source_file": source_result.get("board"),
                 "identity": analysis.get("board_type", "Unknown Board"),
                 "confidence": analysis.get("confidence", 0),
                 "grade": analysis.get("grade", "UNRESOLVED"),
@@ -152,19 +140,20 @@ def _multi_board_material_report(results, image_paths):
         )
 
     return {
-        "mode": "SPIKE Multi-Board Separate Reports v0.1",
+        "mode": "SPIKE Multi-Board Separate Reports v0.2",
         "status": "SEPARATE_REPORTS_READY",
         "board_count": len(boards),
-        "source_view": best["view_number"],
-        "source_file": best["source_file"],
+        "source_view": source_view,
+        "source_file": source_result.get("board"),
         "boards": boards,
+        "split_attempts": selection.get("attempts", []),
         "split_diagnostics": {
             "method": best["split"].get("mode"),
             "seed_count": best["split"].get("seed_count"),
             "foreground_components": best["split"].get("foreground_components"),
         },
         "message": f"SPIKE detected {len(boards)} separable PCB bodies and analyzed each one independently. No combined board identity or combined grade was created.",
-        "rule": "Stop the merge, not the investigation. Analyze each separable board independently; never blend identities, grades, or economics.",
+        "rule": "Stop the merge, not the investigation. Once multi-board presence is proven, inspect every uploaded view for the cleanest separation.",
     }
 
 
