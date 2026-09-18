@@ -36,6 +36,35 @@ def _cross_view_harvest(results,observations):
  return {"model":"SPIKE Cross-View Harvest Corroborator v0.1","supporting_views":flagged,"corroborated":corroborated,"status":"probable_partial_harvest" if corroborated else("inspection_needed" if flagged else "no_cross_view_removal_signal"),"rule":"Independent views can strengthen a removal hypothesis. Probable removal is not confirmed monetary loss."}
 def _economics_inputs(result):
  raw=result.get("economics_inputs") or result.get("recovery_economics_inputs") or {};return{"sell_whole_value":raw.get("sell_whole_value"),"partial_recovered_value":raw.get("partial_recovered_value"),"partial_residual_value":raw.get("partial_residual_value"),"partial_minutes":raw.get("partial_minutes"),"partial_costs":raw.get("partial_costs"),"full_recovery_value":raw.get("full_recovery_value"),"full_minutes":raw.get("full_minutes"),"full_costs":raw.get("full_costs")}
+def _best_case_blueprint(results):
+ """Choose a blueprint only from a view whose own single-frame gate stayed clear.
+
+ Case reconciliation may legitimately approve same-board identity even when one
+ individual view produces an over-conservative blueprint stop. In that situation,
+ keep the stop attached to that view, but do not let it poison the whole case when
+ another uploaded view has a safe blueprint.
+ """
+ candidates=[]
+ for i,r in enumerate(results or [],1):
+  bp=r.get("board_blueprint") or {}
+  gate=bp.get("frame_identity_gate") or {}
+  if not bp.get("available") or gate.get("block_analysis"):
+   continue
+  fp=r.get("physical_fingerprint") or {}
+  pq=r.get("photo_quality") or {}
+  quality=fp.get("geometry_quality")
+  rank=0.0
+  if fp.get("coverage")=="whole_or_large_view":rank+=40
+  if quality=="good":rank+=20
+  elif quality=="medium":rank+=10
+  if pq.get("usable"):rank+=10
+  try:rank+=float(r.get("confidence",0) or 0)/10.0
+  except(TypeError,ValueError):pass
+  candidates.append((rank,i,bp))
+ if not candidates:return None
+ _,view,bp=max(candidates,key=lambda x:x[0])
+ chosen=deepcopy(bp);chosen["case_blueprint_source_view"]=view;chosen["case_selection_rule"]="Selected from a case view whose own single-frame identity gate did not block."
+ return chosen
 def _per_view_material_summaries(results):
  summaries=[]
  for i,r in enumerate(results or [],1):
@@ -97,6 +126,8 @@ def reconcile_case(results):
    logic_candidates=[r for r in results if (r.get("signals") or {}).get("dense_component_board") or (r.get("signals") or {}).get("large_ic_chips")];winner=deepcopy(max(logic_candidates or results,key=lambda r:float(r.get("confidence",0) or 0)))
    if suppressed_edge_votes and not logic_candidates:winner["board_type"]="General PCB";winner["board_type_reason"]="Edge-colour cues were present, but strict repeated contact geometry was not confirmed, so SPIKE withheld an expansion-card identity."
  combined=deepcopy(winner);observations={};view_summaries=[];signatures={}
+ safe_blueprint=_best_case_blueprint(results)
+ if safe_blueprint is not None:combined["board_blueprint"]=safe_blueprint
  for i,r in enumerate(results,1):
   mod=r.get("modification_intelligence") or {}
   for name,obs in(mod.get("observations") or {}).items():_merge_observation(observations,name,obs,i)
