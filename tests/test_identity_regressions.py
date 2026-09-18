@@ -19,6 +19,7 @@ import cv2
 import numpy as np
 
 from routes.case_identity_gate import verify_same_board
+from routes.board_fingerprint import extract_board_fingerprint
 from routes.frame_identity_gate import inspect_frame
 from routes.frame_plane_gate import inspect_secondary_board_plane
 from routes.spike_tool_layer import investigate_identity
@@ -102,6 +103,46 @@ def test_two_boards_in_one_photo_stops_before_reconciliation():
     assert decision["status"] == "MULTIPLE_BOARDS_IN_FRAME_SUSPECTED"
     assert decision["same_board"] is False
     assert decision["block_reconciliation"] is True
+
+
+def test_long_narrow_isolated_full_board_counts_as_whole_view():
+    """A complete long/narrow PCB must not be demoted just because it uses little frame area."""
+    image = np.zeros((2000, 1500, 3), dtype=np.uint8)
+    image[:] = (35, 35, 35)
+    green = (45, 150, 55)
+    # Complete tall/narrow board with clear margin on all four sides.
+    cv2.rectangle(image, (540, 280), (960, 1720), green, -1)
+    # Add component-like texture without changing the physical outline.
+    for y in range(360, 1650, 120):
+        cv2.circle(image, (700, y), 18, (190, 190, 190), -1)
+        cv2.rectangle(image, (760, y - 20), (850, y + 20), (70, 70, 70), -1)
+    temp, path = _write_fixture(image)
+    try:
+        fp = extract_board_fingerprint(str(path))
+    finally:
+        temp.cleanup()
+    assert fp["board_area_ratio"] < .22, fp
+    assert fp["frame_edge_contacts"] == 0, fp
+    assert fp["isolated_full_outline"] is True, fp
+    assert fp["coverage"] == "whole_or_large_view", fp
+    assert fp["geometry_quality"] in {"medium", "good"}, fp
+
+
+def test_long_narrow_partial_sliver_touching_frame_stays_partial():
+    """The narrow-board exception must not promote a cropped sliver to whole-board evidence."""
+    image = np.zeros((2000, 1500, 3), dtype=np.uint8)
+    image[:] = (35, 35, 35)
+    green = (45, 150, 55)
+    # Same kind of narrow PCB, but cropped by the top frame edge.
+    cv2.rectangle(image, (540, 0), (960, 900), green, -1)
+    temp, path = _write_fixture(image)
+    try:
+        fp = extract_board_fingerprint(str(path))
+    finally:
+        temp.cleanup()
+    assert fp["frame_edge_contacts"] >= 1, fp
+    assert fp["isolated_full_outline"] is False, fp
+    assert fp["coverage"] == "detail_or_partial_view", fp
 
 
 def test_single_clean_pcb_frame_is_not_blocked():
