@@ -561,3 +561,24 @@ def test_plain_dark_background_alone_does_not_become_whole_board():
     finally:
         temp.cleanup()
     assert fp["coverage"] != "whole_or_large_view", fp
+
+
+def test_frame_gate_runtime_stays_bounded_on_large_single_board_fixture():
+    """Guard against accidental O(width*area) bottleneck scans on large photos."""
+    import time
+    from routes.frame_identity_gate import inspect_frame
+
+    image=np.full((1600,2200,3),(42,42,42),dtype=np.uint8)
+    pts=np.array([[180,220],[1880,220],[2020,420],[2020,1240],[1780,1420],[260,1420],[120,1180],[120,420]],np.int32)
+    cv2.fillPoly(image,[pts],(65,145,75))
+    for x,y in [(300,350),(1700,350),(350,1250),(1650,1250)]:
+        cv2.circle(image,(x,y),28,(20,20,20),-1)
+    temp,path=_write_fixture(image)
+    try:
+        t0=time.perf_counter()
+        out=inspect_frame(str(path))
+        elapsed=time.perf_counter()-t0
+    finally:
+        temp.cleanup()
+    assert out["status"] in {"SINGLE_BOARD_NOT_CONTRADICTED","MULTIPLE_BOARDS_OR_OVERLAP_SUSPECTED"}, out
+    assert elapsed < 8.0, {"elapsed":elapsed,"result":out}
