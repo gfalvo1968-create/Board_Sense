@@ -1,4 +1,4 @@
-"""SPIKE multi-board split helper v0.1.
+"""SPIKE multi-board split helper v0.2.
 
 When the single-frame identity gate proves that several PCB bodies share one photo,
 this helper tries to separate cleanly visible bodies into independent crops. It does
@@ -197,3 +197,51 @@ def save_isolated_board_crops(image_path, output_dir, max_boards=4):
     split["crops"] = crops
     split["regions"] = [{k:v for k,v in r.items() if not k.startswith("_")} for r in split["regions"]]
     return split
+
+
+def choose_best_multi_board_split(image_paths, output_dir, max_boards=4):
+    """Scan every uploaded view once a case is known to contain multiple boards.
+
+    Important: the best separable view may not be the same view that triggered the
+    hard multi-board identity gate. Once the case is proven multi-board, all views
+    are eligible as evidence for physical separation.
+    """
+    best = None
+    attempts = []
+    for view_number, image_path in enumerate(image_paths or [], 1):
+        split = save_isolated_board_crops(
+            image_path,
+            Path(output_dir) / f"view_{view_number}",
+            max_boards=max_boards,
+        )
+        attempts.append({
+            "view_number": view_number,
+            "status": split.get("status"),
+            "board_count": split.get("board_count", 0),
+            "seed_count": split.get("seed_count"),
+            "foreground_components": split.get("foreground_components"),
+        })
+        if split.get("status") != "SEPARATE_BOARD_REGIONS_FOUND":
+            continue
+        candidate = {
+            "view_number": view_number,
+            "image_path": str(image_path),
+            "split": split,
+        }
+        if best is None:
+            best = candidate
+            continue
+        candidate_count = int(split.get("board_count", 0) or 0)
+        best_count = int(best["split"].get("board_count", 0) or 0)
+        candidate_total = sum(float(x.get("area_ratio", 0) or 0) for x in split.get("regions", []))
+        best_total = sum(float(x.get("area_ratio", 0) or 0) for x in best["split"].get("regions", []))
+        if candidate_count > best_count or (candidate_count == best_count and candidate_total > best_total):
+            best = candidate
+
+    return {
+        "mode": "SPIKE Multi-Board View Selector v0.1",
+        "status": "BEST_SPLIT_FOUND" if best else "NO_CLEAN_SPLIT_FOUND",
+        "best": best,
+        "attempts": attempts,
+        "rule": "After multi-board presence is proven, inspect every uploaded view for the cleanest independent board separation.",
+    }
