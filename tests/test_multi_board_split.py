@@ -5,7 +5,7 @@ from tempfile import TemporaryDirectory
 import cv2
 import numpy as np
 
-from routes.multi_board_split import save_isolated_board_crops, split_board_regions
+from routes.multi_board_split import choose_best_multi_board_split, save_isolated_board_crops, split_board_regions
 
 
 def _textured_board(image, p1, p2, color, seed):
@@ -52,3 +52,30 @@ def test_one_board_does_not_become_fake_batch():
 
     assert split["status"] == "SEPARATION_NOT_PROVEN", split
     assert split["board_count"] == 0, split
+
+
+def test_selector_prefers_three_board_view_over_two_board_view():
+    two = np.full((900, 1200, 3), 34, dtype=np.uint8)
+    _textured_board(two, (100, 220), (420, 720), (50, 145, 70), 11)
+    _textured_board(two, (700, 180), (1080, 740), (70, 110, 135), 12)
+
+    three = np.full((900, 1200, 3), 34, dtype=np.uint8)
+    _textured_board(three, (70, 240), (320, 720), (50, 145, 70), 21)
+    _textured_board(three, (455, 260), (725, 700), (70, 110, 135), 22)
+    _textured_board(three, (830, 110), (1110, 760), (45, 150, 65), 23)
+
+    with TemporaryDirectory() as td:
+        two_path = Path(td) / "two_boards.jpg"
+        three_path = Path(td) / "three_boards.jpg"
+        cv2.imwrite(str(two_path), two)
+        cv2.imwrite(str(three_path), three)
+        chosen = choose_best_multi_board_split(
+            [str(two_path), str(three_path)],
+            Path(td) / "crops",
+            max_boards=4,
+        )
+
+    assert chosen["status"] == "BEST_SPLIT_FOUND", chosen
+    assert chosen["best"]["view_number"] == 2, chosen
+    assert chosen["best"]["split"]["board_count"] == 3, chosen
+    assert [x["board_count"] for x in chosen["attempts"]] == [2, 3], chosen
