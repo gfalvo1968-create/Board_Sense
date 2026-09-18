@@ -1,6 +1,6 @@
 """Visual component-family discrimination for Board Sense.
 
-SPIKE Vision v1.5 keeps verified IC geometry and also filters vivid LEDs, mounting holes, and bright mechanical circles out of capacitor/power counts.
+SPIKE Vision v1.6 keeps verified IC geometry and also filters vivid LEDs, mounting holes, and bright mechanical circles out of capacitor/power counts.
 Density-aware logic detection now preserves smaller legacy IC packages instead of
 letting one large package represent an entire populated board.
 """
@@ -128,8 +128,12 @@ def discriminate_components(image_path):
                 inner_r=max(2,int(r*.34))
                 ix1,iy1,ix2,iy2=max(0,cx-inner_r),max(0,cy-inner_r),min(width,cx+inner_r+1),min(height,cy+inner_r+1)
                 inner_hsv=hsv[iy1:iy2,ix1:ix2]
+                inner_gray=gray[iy1:iy2,ix1:ix2]
+                inner_edges=edges[iy1:iy2,ix1:ix2]
                 inner_v=float(np.mean(inner_hsv[:,:,2])) if inner_hsv.size else mean_v
                 inner_s=float(np.mean(inner_hsv[:,:,1])) if inner_hsv.size else mean_s
+                inner_edge_density=float(cv2.countNonZero(inner_edges)/max(inner_edges.size,1)) if inner_edges.size else ed
+                inner_gray_std=float(np.std(inner_gray)) if inner_gray.size else 0.0
                 relative_r=float(r)/max(1,min(width,height))
                 oversized_ring=bool(relative_r>=.025 and gold>=.20)
                 neutral_center_annulus=bool(gold>=.28 and inner_s<=58 and mean_s>=inner_s+18 and relative_r>=.016)
@@ -143,14 +147,20 @@ def discriminate_components(image_path):
                 metallic_solder=mean_v>=135 and mean_s<=72 and gold<.20
                 if metallic_solder:solder.append((cx,cy,r,ed));continue
                 if gold>=.34 and mean_s>=62 and relative_r<.025:contacts.append((cx,cy,r,ed,gold));continue
+                # A real cylindrical capacitor usually has a comparatively solid
+                # interior bounded by a circular rim. Dense SMD clusters and printed
+                # BGA/package regions can trigger Hough circles, but their interiors
+                # are too textured to count as capacitor bodies.
+                textured_cluster=bool(inner_edge_density>=.20 or inner_gray_std>=58)
                 body_like=(
                     r>=int(min_r*1.25)
                     and ed>=.12
                     and(mean_s>=28 or mean_v<150)
                     and not vivid_led_like
+                    and not textured_cluster
                 )
                 if body_like:caps.append((cx,cy,r,ed,mean_s,mean_v))
-                elif vivid_led_like or hole_like or bright_mechanical:
+                elif vivid_led_like or hole_like or bright_mechanical or textured_cluster:
                     uncertain_like+=1
 
         pattern_score=_contact_pattern_score(contacts,width,height)
@@ -196,7 +206,7 @@ def discriminate_components(image_path):
         elif ic_like or capacitor_like or block_like or power_package_like or winding_like:
             result["dominant_family"]="mixed"
 
-        result["notes"].append("SPIKE Vision v1.5 verified-package filtering is active: IC pin/package proof plus LED/hole/gear rejection from capacitor counts.")
+        result["notes"].append("SPIKE Vision v1.6 verified-package filtering is active: IC pin/package proof plus LED/hole/gear rejection from capacitor counts.")
         if ic_like>=8:result["notes"].append(f"Dense logic population detected: {ic_like} IC-like package candidates.")
         if solder_side_likelihood>=65:result["notes"].append(f"PCB solder/trace-side pattern detected ({solder_side_likelihood}% likelihood); capacitor and copper-winding promotion is suppressed on this view.")
         if winding_like:result["notes"].append(f"Found {winding_like} copper-wound magnetic candidate(s) on a component-side-compatible view.")
