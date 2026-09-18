@@ -1,6 +1,6 @@
 """Visual component-family discrimination for Board Sense.
 
-SPIKE Vision v1.3 requires verified package geometry so holes, LEDs, gears, switches, and passive blocks do not inflate IC population counts.
+SPIKE Vision v1.4 keeps verified IC geometry and also filters vivid LEDs, mounting holes, and bright mechanical circles out of capacitor/power counts.
 Density-aware logic detection now preserves smaller legacy IC packages instead of
 letting one large package represent an entire populated board.
 """
@@ -124,8 +124,32 @@ def discriminate_components(image_path):
                 metallic_solder=mean_v>=135 and mean_s<=72 and gold<.20
                 if metallic_solder:solder.append((cx,cy,r,ed));continue
                 if gold>=.34 and mean_s>=62:contacts.append((cx,cy,r,ed,gold));continue
-                body_like=r>=int(min_r*1.25) and ed>=.12 and(mean_s>=28 or mean_v<150) and not(mean_v>175 and mean_s<90)
+                # v1.4 round-family sanity: Hough circles also finds LEDs,
+                # mounting holes and gears. Those are not capacitor evidence.
+                inner_r=max(2,int(r*.34))
+                ix1,iy1,ix2,iy2=max(0,cx-inner_r),max(0,cy-inner_r),min(width,cx+inner_r+1),min(height,cy+inner_r+1)
+                inner_hsv=hsv[iy1:iy2,ix1:ix2]
+                inner_v=float(np.mean(inner_hsv[:,:,2])) if inner_hsv.size else mean_v
+                # Colored LEDs are usually vivid and bright. Ceramic discs can also
+                # be colored, but they should not drive a power-board verdict.
+                vivid_led_like=bool(mean_s>=95 and mean_v>=105 and inner_v>=85)
+                # A mounting hole has a very dark center while the surrounding ring
+                # belongs to the PCB/background transition.
+                hole_like=bool(inner_v<=55 and mean_v>=inner_v+32 and r>=int(min_r*1.15))
+                # White gears/wheels and other bright low-saturation mechanical
+                # circles are not capacitor bodies.
+                bright_mechanical=bool(mean_v>=175 and mean_s<=75)
+                body_like=(
+                    r>=int(min_r*1.25)
+                    and ed>=.12
+                    and(mean_s>=28 or mean_v<150)
+                    and not vivid_led_like
+                    and not hole_like
+                    and not bright_mechanical
+                )
                 if body_like:caps.append((cx,cy,r,ed,mean_s,mean_v))
+                elif vivid_led_like or hole_like or bright_mechanical:
+                    uncertain_like+=1
 
         pattern_score=_contact_pattern_score(contacts,width,height)
         if pattern_score<.60:contacts=[]
@@ -170,7 +194,7 @@ def discriminate_components(image_path):
         elif ic_like or capacitor_like or block_like or power_package_like or winding_like:
             result["dominant_family"]="mixed"
 
-        result["notes"].append("SPIKE Vision v1.3 verified-package filtering is active: round/mechanical veto plus opposing-pin or large-leadless package evidence.")
+        result["notes"].append("SPIKE Vision v1.4 verified-package filtering is active: IC pin/package proof plus LED/hole/gear rejection from capacitor counts.")
         if ic_like>=8:result["notes"].append(f"Dense logic population detected: {ic_like} IC-like package candidates.")
         if solder_side_likelihood>=65:result["notes"].append(f"PCB solder/trace-side pattern detected ({solder_side_likelihood}% likelihood); capacitor and copper-winding promotion is suppressed on this view.")
         if winding_like:result["notes"].append(f"Found {winding_like} copper-wound magnetic candidate(s) on a component-side-compatible view.")
