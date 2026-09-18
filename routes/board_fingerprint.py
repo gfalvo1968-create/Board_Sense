@@ -1,8 +1,8 @@
-"""SPIKE Physical Board Fingerprint v0.5.
+"""SPIKE Physical Board Fingerprint v0.6.
 Board-shape evidence for multi-photo identity. Handles full boards that nearly fill
 the frame and long/narrow full-board photos that are clearly isolated inside it.
 
-v0.5 adds a conservative isolated-outline path for legitimate long, narrow PCBs.
+v0.6 keeps the conservative isolated-outline path and adds a neutral-background contrast fallback so brown/phenolic component sides can still count as full-board views when their complete outline is visible.
 A complete board does not have to occupy 22% of the photograph to count as a
 whole-board identity view when its full outline is visible with margin on all sides.
 Partial/cropped slivers that touch the frame remain detail views.
@@ -21,9 +21,41 @@ def _green_board_mask(im):
     return m
 
 
+
+def _background_contrast_mask(im):
+    """Conservative silhouette fallback for non-green PCB surfaces on plain backgrounds.
+
+    The border of the photograph is treated as background. Pixels that differ
+    strongly from the border-color model become foreground candidates. This is
+    only used for coverage/outline, never for identity by itself.
+    """
+    h, w = im.shape[:2]
+    lab = cv2.cvtColor(im, cv2.COLOR_BGR2LAB).astype(np.float32)
+    b = max(4, int(min(h, w) * .035))
+    strips = np.concatenate([
+        lab[:b, :, :].reshape(-1, 3),
+        lab[-b:, :, :].reshape(-1, 3),
+        lab[:, :b, :].reshape(-1, 3),
+        lab[:, -b:, :].reshape(-1, 3),
+    ], axis=0)
+    bg = np.median(strips, axis=0)
+    diff = np.linalg.norm(lab - bg, axis=2)
+    # Dynamic threshold protects textured fabric while still recovering a board
+    # whose material color differs materially from the image border.
+    border_diff = np.concatenate([
+        diff[:b, :].ravel(), diff[-b:, :].ravel(),
+        diff[:, :b].ravel(), diff[:, -b:].ravel(),
+    ])
+    threshold = max(18.0, float(np.percentile(border_diff, 92)) + 8.0)
+    mask = (diff >= threshold).astype(np.uint8) * 255
+    k = max(5, (min(h, w) // 55) | 1)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((k, k), np.uint8), iterations=2)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8), iterations=1)
+    return mask
+
 def extract_board_fingerprint(image_path):
     out = {
-        "version": "SPIKE Physical Board Fingerprint v0.5",
+        "version": "SPIKE Physical Board Fingerprint v0.6",
         "available": False,
         "image_aspect": 0.0,
         "board_aspect": None,
@@ -69,6 +101,26 @@ def extract_board_fingerprint(image_path):
             if best is None or cv2.contourArea(gm) > cv2.contourArea(best) * 1.15:
                 best = gm
                 basis = "pcb_surface"
+
+        # Phenolic/brown boards may have no green solder mask at all. When the
+        # board is photographed against a reasonably plain background, recover
+        # the full physical outline from background contrast.
+        contrast_mask = _background_contrast_mask(im)
+        cc, _ = cv2.findContours(contrast_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        cc = [x for x in cc if cv2.contourArea(x) >= area * .12]
+        if cc:
+            cm = max(cc, key=cv2.contourArea)
+            cm_area = cv2.contourArea(cm)
+            x0, y0, cw0, ch0 = cv2.boundingRect(cm)
+            span0 = max(cw0 / max(1, w), ch0 / max(1, h))
+            hull0 = cv2.convexHull(cm)
+            solidity0 = cm_area / max(cv2.contourArea(hull0), 1.0)
+            # Require a substantial, board-like object rather than a random patch
+            # of fabric or shadow.
+            if span0 >= .45 and solidity0 >= .48:
+                if best is None or cm_area > cv2.contourArea(best) * 1.05:
+                    best = cm
+                    basis = "background_contrast"
 
         if best is not None:
             c = best
