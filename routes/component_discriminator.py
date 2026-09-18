@@ -1,6 +1,6 @@
 """Visual component-family discrimination for Board Sense.
 
-SPIKE Vision v1.2 adds a shape-sanity veto so round holes, gears, LEDs, and tiny dark blobs do not inflate IC population counts.
+SPIKE Vision v1.3 requires verified package geometry so holes, LEDs, gears, switches, and passive blocks do not inflate IC population counts.
 Density-aware logic detection now preserves smaller legacy IC packages instead of
 letting one large package represent an entire populated board.
 """
@@ -32,8 +32,35 @@ def _contact_pattern_score(candidates,width,height):
     if len(candidates)>=6:score+=.15
     return min(score,1.0)
 
+
+def _pin_side_support(gray,edges,x,y,w,h):
+    """Look for repeated bright lead/pin evidence on opposing sides of a dark package."""
+    H,W=gray.shape[:2]
+    margin=max(4,int(min(w,h)*.28))
+    x0=max(0,x-margin); y0=max(0,y-margin); x1=min(W,x+w+margin); y1=min(H,y+h+margin)
+    def band_score(g,e):
+        if g.size==0:return 0
+        bright=cv2.inRange(g,150,255)
+        candidate=cv2.bitwise_and(bright,e)
+        candidate=cv2.morphologyEx(candidate,cv2.MORPH_OPEN,np.ones((1,2),np.uint8))
+        n,labels,stats,_=cv2.connectedComponentsWithStats(candidate,8)
+        pieces=0
+        for i in range(1,n):
+            a=int(stats[i,cv2.CC_STAT_AREA])
+            if 2<=a<=max(80,int(candidate.size*.20)):pieces+=1
+        return pieces
+
+    top_g=gray[y0:y,x:x+w]; top_e=edges[y0:y,x:x+w]
+    bot_g=gray[y+h:y1,x:x+w]; bot_e=edges[y+h:y1,x:x+w]
+    left_g=gray[y:y+h,x0:x]; left_e=edges[y:y+h,x0:x]
+    right_g=gray[y:y+h,x+w:x1]; right_e=edges[y:y+h,x+w:x1]
+    tb=min(band_score(top_g,top_e),band_score(bot_g,bot_e))
+    lr=min(band_score(left_g,left_e),band_score(right_g,right_e))
+    best=max(tb,lr)
+    return {"supported":best>=3,"opposed_pin_groups":int(best),"top_bottom":int(tb),"left_right":int(lr)}
+
 def discriminate_components(image_path):
-    result={"ic_like":0,"capacitor_like":0,"contact_pad_like":0,"solder_joint_like":0,"solder_side_likelihood":0,"contact_pattern_score":0.0,"transformer_relay_like":0,"large_power_package_like":0,"magnetic_winding_like":0,"small_component_like":0,"uncertain_like":0,"dominant_family":"unknown","logic_component_ratio":0.0,"power_component_ratio":0.0,"regions":[],"notes":[]}
+    result={"ic_like":0,"ic_like_raw":0,"ic_like_verified":0,"capacitor_like":0,"contact_pad_like":0,"solder_joint_like":0,"solder_side_likelihood":0,"contact_pattern_score":0.0,"transformer_relay_like":0,"large_power_package_like":0,"magnetic_winding_like":0,"small_component_like":0,"uncertain_like":0,"dominant_family":"unknown","logic_component_ratio":0.0,"power_component_ratio":0.0,"regions":[],"notes":[]}
     try:
         image=cv2.imread(image_path)
         if image is None:return result
@@ -58,9 +85,9 @@ def discriminate_components(image_path):
             if .030<=ar<=.20 and rect>=.48 and aspect<=4.8 and darkness>=.48 and ed>=.035:
                 power_package_like+=1;conf=min(88,int(50+rect*20+min(ed,.18)*65+min(ar,.10)*80));regions.append({"type":"Large power package / module candidate","x":int(x*inv),"y":int(y*inv),"w":int(w*inv),"h":int(h*inv),"confidence":conf})
             elif .00022<=ar<=.065 and rect>=.50 and aspect<=5.2 and darkness>=.42 and ed>=.025:
-                # v1.2: dark does not mean IC. Holes, LEDs, gears, switch bodies
-                # and other round/mechanical features were being counted as logic
-                # packages on sparse legacy control boards.
+                # v1.3: dark rectangles are only raw package candidates. Promote
+                # them to IC evidence when repeated lead/pin structure is visible,
+                # or when a larger, highly rectangular leadless package is present.
                 perimeter=max(float(cv2.arcLength(c,True)),1.0)
                 circularity=float(4.0*np.pi*area/(perimeter*perimeter))
                 near_round_small=bool(aspect<=1.32 and circularity>=.72 and ar<.006)
@@ -68,10 +95,16 @@ def discriminate_components(image_path):
                 if near_round_small or tiny_blob:
                     uncertain_like+=1
                 else:
-                    ic_like+=1
-                    conf=min(92,int(45+rect*24+min(ed,.20)*85+min(darkness,.95)*12))
-                    if conf>=58:
-                        regions.append({"type":"IC-like package","x":int(x*inv),"y":int(y*inv),"w":int(w*inv),"h":int(h*inv),"confidence":conf,"shape_sanity":{"circularity":round(circularity,3),"aspect":round(float(aspect),3)}})
+                    result["ic_like_raw"]+=1
+                    pin=_pin_side_support(gray,edges,x,y,w,h)
+                    leadless_large=bool(ar>=.004 and rect>=.72 and aspect<=2.6 and darkness>=.60)
+                    if pin["supported"] or leadless_large:
+                        ic_like+=1
+                        conf=min(94,int(50+rect*22+min(ed,.20)*75+min(darkness,.95)*10+min(pin["opposed_pin_groups"],6)*3))
+                        if conf>=58:
+                            regions.append({"type":"IC-like package","x":int(x*inv),"y":int(y*inv),"w":int(w*inv),"h":int(h*inv),"confidence":conf,"shape_sanity":{"circularity":round(circularity,3),"aspect":round(float(aspect),3),"pin_support":pin,"leadless_large":leadless_large}})
+                    else:
+                        uncertain_like+=1
             elif .012<=ar<=.15 and rect>=.58 and aspect<=3.8 and darkness>=.28 and ed>=.045:
                 block_like+=1;conf=min(86,int(47+rect*23+min(ed,.18)*60))
                 if conf>=62:regions.append({"type":"Power block / transformer / relay-like","x":int(x*inv),"y":int(y*inv),"w":int(w*inv),"h":int(h*inv),"confidence":conf})
@@ -124,7 +157,7 @@ def discriminate_components(image_path):
             if conf>=66:regions.append({"type":"Plated contact / keypad pad","x":int((cx-r)*inv),"y":int((cy-r)*inv),"w":int(r*2*inv),"h":int(r*2*inv),"confidence":conf})
 
         capacitor_like,contact_pad_like=len(caps),len(contacts)
-        result.update({"ic_like":ic_like,"capacitor_like":capacitor_like,"contact_pad_like":contact_pad_like,"solder_joint_like":solder_count,"solder_side_likelihood":solder_side_likelihood,"contact_pattern_score":round(pattern_score,3),"transformer_relay_like":block_like,"large_power_package_like":power_package_like,"magnetic_winding_like":winding_like,"small_component_like":small_like,"uncertain_like":uncertain_like})
+        result.update({"ic_like":ic_like,"ic_like_verified":ic_like,"capacitor_like":capacitor_like,"contact_pad_like":contact_pad_like,"solder_joint_like":solder_count,"solder_side_likelihood":solder_side_likelihood,"contact_pattern_score":round(pattern_score,3),"transformer_relay_like":block_like,"large_power_package_like":power_package_like,"magnetic_winding_like":winding_like,"small_component_like":small_like,"uncertain_like":uncertain_like})
         result["regions"]=sorted(regions,key=lambda i:(i["confidence"],i["w"]*i["h"]),reverse=True)[:48]
         total=max(ic_like+capacitor_like+block_like+power_package_like+winding_like,1)
         result["logic_component_ratio"]=round(ic_like/total,3)
@@ -137,7 +170,7 @@ def discriminate_components(image_path):
         elif ic_like or capacitor_like or block_like or power_package_like or winding_like:
             result["dominant_family"]="mixed"
 
-        result["notes"].append("SPIKE Vision v1.2 body-before-label filtering plus round/mechanical IC veto is active.")
+        result["notes"].append("SPIKE Vision v1.3 verified-package filtering is active: round/mechanical veto plus opposing-pin or large-leadless package evidence.")
         if ic_like>=8:result["notes"].append(f"Dense logic population detected: {ic_like} IC-like package candidates.")
         if solder_side_likelihood>=65:result["notes"].append(f"PCB solder/trace-side pattern detected ({solder_side_likelihood}% likelihood); capacitor and copper-winding promotion is suppressed on this view.")
         if winding_like:result["notes"].append(f"Found {winding_like} copper-wound magnetic candidate(s) on a component-side-compatible view.")
