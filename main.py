@@ -14,6 +14,7 @@ from routes.spike_evidence_packet import build_evidence_packet
 from routes.spike_tool_layer import investigate_identity
 from routes.identity_clarification import apply_identity_clarifications
 from routes.case_reasoner import reconcile_case
+from routes.multi_board_split import save_isolated_board_crops
 from routes.inspection_target import parse_inspection_target, apply_inspection_target
 from routes.free_usage_gate import check_free_board_allowance, record_free_board_use, free_gate_payload
 from recovery_lab.core.time_value import compare_paths
@@ -89,6 +90,82 @@ def _spike_target_rank(result):
     spike = (result or {}).get("spike_glass") or {}
     generic = float(spike.get("confidence") or 0)
     return (rank, visual, role_bonus, generic)
+
+
+def _multi_board_material_report(results, image_paths):
+    """Analyze cleanly separable PCB bodies without ever merging their identities."""
+    best = None
+    for view_number, (result, image_path) in enumerate(zip(results, image_paths), 1):
+        gate = ((result.get("board_blueprint") or {}).get("frame_identity_gate") or {})
+        status = str(gate.get("status") or "")
+        if not gate.get("block_analysis") or status not in {
+            "MULTIPLE_BOARDS_OR_OVERLAP_SUSPECTED",
+            "MULTIPLE_BOARDS_IN_FRAME_SUSPECTED",
+            "MULTIPLE_BOARDS_SUSPECTED",
+        }:
+            continue
+        split = save_isolated_board_crops(image_path, IMAGE_DIR / "multi_board_crops", max_boards=4)
+        if split.get("board_count", 0) < 2:
+            continue
+        candidate = {
+            "view_number": view_number,
+            "source_file": result.get("board"),
+            "split": split,
+        }
+        if best is None or split.get("board_count", 0) > best["split"].get("board_count", 0):
+            best = candidate
+
+    if best is None:
+        return {
+            "mode": "SPIKE Multi-Board Separate Reports v0.1",
+            "status": "MULTIPLE_BOARDS_DETECTED_SPLIT_UNRESOLVED",
+            "board_count": 0,
+            "boards": [],
+            "message": "SPIKE proved that more than one board is present, but this frame does not separate the individual board bodies cleanly enough for independent mini-reports.",
+            "next_step": "Keep the boards in the same photo if desired, but add a little space between touching/overlapping pieces and retake.",
+            "rule": "Stop the merge, not the investigation. Analyze each separable board independently; never blend identities, grades, or economics.",
+        }
+
+    boards = []
+    for crop in best["split"].get("crops", []):
+        analysis = analyze_board(crop["crop_path"])
+        condition = analysis.get("condition_and_harvest") or {}
+        boards.append(
+            {
+                "board_index": crop.get("board_index"),
+                "bbox": crop.get("bbox"),
+                "source_view": best["view_number"],
+                "source_file": best["source_file"],
+                "identity": analysis.get("board_type", "Unknown Board"),
+                "confidence": analysis.get("confidence", 0),
+                "grade": analysis.get("grade", "UNRESOLVED"),
+                "recovery_score": analysis.get("score", 0),
+                "condition": condition.get("condition"),
+                "specimen_completeness": condition.get("specimen_completeness"),
+                "remaining_value_verdict": condition.get("remaining_value_verdict"),
+                "pay_dirt_still_present": bool(condition.get("pay_dirt_still_present", False)),
+                "remaining_recovery_targets": condition.get("remaining_recovery_targets", []),
+                "buyer_message": condition.get("buyer_message"),
+                "recommendation": analysis.get("recommendation"),
+                "model": analysis.get("model"),
+            }
+        )
+
+    return {
+        "mode": "SPIKE Multi-Board Separate Reports v0.1",
+        "status": "SEPARATE_REPORTS_READY",
+        "board_count": len(boards),
+        "source_view": best["view_number"],
+        "source_file": best["source_file"],
+        "boards": boards,
+        "split_diagnostics": {
+            "method": best["split"].get("mode"),
+            "seed_count": best["split"].get("seed_count"),
+            "foreground_components": best["split"].get("foreground_components"),
+        },
+        "message": f"SPIKE detected {len(boards)} separable PCB bodies and analyzed each one independently. No combined board identity or combined grade was created.",
+        "rule": "Stop the merge, not the investigation. Analyze each separable board independently; never blend identities, grades, or economics.",
+    }
 
 
 def _gate_or_block(request: Request):
@@ -247,16 +324,25 @@ async def analyze_board_case_route(
     if combined.get("status") in {"case_identity_failed", "case_identity_clarification"} or (combined.get("same_board_verification") or {}).get("block_reconciliation"):
         identity_status = (combined.get("same_board_verification") or {}).get("status")
         clarification = identity_status == "IDENTITY_CLARIFICATION_NEEDED"
+        multi_statuses = {"MULTIPLE_BOARDS_SUSPECTED", "MULTIPLE_BOARDS_IN_FRAME_SUSPECTED", "MULTIPLE_BOARDS_OR_OVERLAP_SUSPECTED"}
+        if identity_status in multi_statuses or combined.get("status") == "case_identity_failed":
+            combined["multi_board_material_report"] = _multi_board_material_report(results, image_paths)
+        report = combined.get("multi_board_material_report") or {}
+        report_ready = report.get("status") == "SEPARATE_REPORTS_READY"
         return {
             "status": "success",
-            "mode": "multi_photo_identity_clarification" if clarification else "multi_photo_identity_blocked",
+            "mode": "multi_photo_identity_clarification" if clarification else ("multi_board_separate_reports" if report_ready else "multi_photo_identity_blocked"),
             "photo_count": len(results),
             "views": results,
             "combined": combined,
             "case_warning": (
                 "IDENTITY CLARIFICATION NEEDED - add the targeted photo SPIKE requested."
                 if clarification
-                else "MULTIPLE BOARDS DETECTED - split these photos into one case per physical board."
+                else (
+                    f"MULTIPLE BOARDS DETECTED - SPIKE produced {report.get('board_count', 0)} separate mini-reports without combining them."
+                    if report_ready
+                    else "MULTIPLE BOARDS DETECTED - identities were not combined; add spacing if you want independent mini-reports from the same frame."
+                )
             ),
             "free_usage": check_free_board_allowance(request).as_dict(),
         }
