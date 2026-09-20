@@ -1,4 +1,4 @@
-"""SPIKE Equipment Subtype Reasoner v0.3.
+"""SPIKE Equipment Subtype Reasoner v0.4.
 Separates pure power conversion from boards that combine substantial power handling
 with digital/control logic. PC/server labels still require confirmed architecture.
 """
@@ -33,7 +33,11 @@ def infer_equipment_subtype(result):
     if processor:mixed_score+=2;mixed.append("processor/controller evidence")
     if dense:mixed_score+=1;mixed.append("dense control-component population")
     if ("control" in text or "controller" in text):mixed_score+=2;mixed.append("control-family reasoning evidence")
-    if mixed_score>=7 and logic_present and not geometry_confirmed:add("Power-Control / Controller Equipment Board",mixed_score,mixed)
+    # Case reconciliation has already checked repeated physical power topology.
+    # A negative case verdict vetoes incidental power cues from individual views.
+    case_power_verified=signals.get("mixed_power_control_topology")
+    mixed_allowed=(case_power_verified is True) if case_power_verified is not None else bool(power_present and power_score>=4)
+    if mixed_score>=7 and logic_present and not geometry_confirmed and mixed_allowed:add("Power-Control / Controller Equipment Board",mixed_score,mixed)
     power=[];pure_power_score=0
     if power_present:pure_power_score+=3;power.append("power topology evidence")
     if power_score>=5:pure_power_score+=2;power.append("strong power score")
