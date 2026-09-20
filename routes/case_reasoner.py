@@ -54,17 +54,19 @@ def _best_case_blueprint(results):
   fp=r.get("physical_fingerprint") or {}
   pq=r.get("photo_quality") or {}
   quality=fp.get("geometry_quality")
-  rank=0.0
+  regions=bp.get("component_index") or []
+  ic_markers=sum(1 for item in regions if item.get("detector_label")=="IC-like package")
+  rank=30.0*min(ic_markers,3)+4.0*min(len(regions),6)
   if fp.get("coverage")=="whole_or_large_view":rank+=40
   if quality=="good":rank+=20
   elif quality=="medium":rank+=10
   if pq.get("usable"):rank+=10
   try:rank+=float(r.get("confidence",0) or 0)/10.0
   except(TypeError,ValueError):pass
-  candidates.append((rank,i,bp))
+  candidates.append((bool(regions),rank,i,bp))
  if not candidates:return None
- _,view,bp=max(candidates,key=lambda x:x[0])
- chosen=deepcopy(bp);chosen["case_blueprint_source_view"]=view;chosen["case_selection_rule"]="Selected from a safe case view; a bottleneck-only frame may be used after targeted same-side continuity resolves it."
+ _,_,view,bp=max(candidates,key=lambda x:(x[0],x[1]))
+ chosen=deepcopy(bp);chosen["case_blueprint_source_view"]=view;chosen["case_selection_rule"]="Selected from an identity-safe view with detector-supported regions; verified IC markers take priority over generic contact candidates."
  return chosen
 def _per_view_material_summaries(results):
  summaries=[]
