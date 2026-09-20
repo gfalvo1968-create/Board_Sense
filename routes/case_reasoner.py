@@ -49,7 +49,7 @@ def _best_case_blueprint(results):
  for i,r in enumerate(results or [],1):
   bp=r.get("board_blueprint") or {}
   gate=bp.get("frame_identity_gate") or {}
-  if not bp.get("available") or gate.get("block_analysis"):
+  if not bp.get("available") or (gate.get("block_analysis") and not bp.get("clarification_resolved")):
    continue
   fp=r.get("physical_fingerprint") or {}
   pq=r.get("photo_quality") or {}
@@ -64,7 +64,7 @@ def _best_case_blueprint(results):
   candidates.append((rank,i,bp))
  if not candidates:return None
  _,view,bp=max(candidates,key=lambda x:x[0])
- chosen=deepcopy(bp);chosen["case_blueprint_source_view"]=view;chosen["case_selection_rule"]="Selected from a case view whose own single-frame identity gate did not block."
+ chosen=deepcopy(bp);chosen["case_blueprint_source_view"]=view;chosen["case_selection_rule"]="Selected from a safe case view; a bottleneck-only frame may be used after targeted same-side continuity resolves it."
  return chosen
 def _per_view_material_summaries(results):
  summaries=[]
