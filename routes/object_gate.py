@@ -124,6 +124,10 @@ def classify_object(image_path):
         edges=cv2.Canny(cv2.GaussianBlur(gray,(5,5),0),55,145)
         edge_ratio=float(cv2.countNonZero(edges)/area)
         color_ratio=_pcb_color_ratio(hsv)
+        # Keep saturated green mask evidence separate from the broad color
+        # ratio, which also includes black and brown surrounding objects.
+        green_ratio=float(cv2.countNonZero(cv2.inRange(hsv,
+            np.array([30,35,30]),np.array([100,255,255])))/area)
 
         foreground,foreground_ratio=_largest_foreground(gray)
         bbox_aspect=bbox_fill=0.0; compact=False; rectangularity=0.0
@@ -158,6 +162,9 @@ def classify_object(image_path):
         if contact>=4: board_score+=6
         if color_ratio>=0.22: board_score+=12
         elif color_ratio>=0.10: board_score+=7
+        pcb_substrate_evidence=(green_ratio>=0.06 and foreground_ratio>=0.25
+                                and rectangularity>=0.45)
+        if pcb_substrate_evidence: board_score+=20
 
         # Rescue visibly board-scale circuitry even if mask/substrate color is odd.
         structural_rescue = foreground_ratio>=0.16 and edge_ratio>=0.045 and (major>=2 or solder_side>=55)
@@ -187,7 +194,7 @@ def classify_object(image_path):
 
         result.update({"board_likelihood":int(board_score),"component_likelihood":int(component_score),
                        "camera_module_likelihood":int(camera_score),"speaker_likelihood":int(speaker_score),
-                       "metrics":{"pcb_color_support_ratio":round(color_ratio,4),"foreground_ratio":round(foreground_ratio,4),
+                       "metrics":{"pcb_color_support_ratio":round(color_ratio,4),"green_substrate_ratio":round(green_ratio,4),"foreground_ratio":round(foreground_ratio,4),
                                   "edge_ratio":round(edge_ratio,4),"foreground_rectangularity":round(rectangularity,3),
                                   "circle_count":int(circle_count),"speaker_signature":speaker_metrics,
                                   "ic_like":ic,"capacitor_like":cap,"contact_pad_like":contact,
@@ -195,7 +202,8 @@ def classify_object(image_path):
 
         # Speaker guard runs before PCB/component routing, but only on a strong
         # large-scale circular signature. It deliberately makes no magnet-chemistry claim.
-        if speaker_score>=82 and speaker_score>=max(component_score,board_score-5):
+        if (not pcb_substrate_evidence and speaker_score>=82
+                and speaker_score>=max(component_score,board_score-5)):
             result.update({"mode":"component","label":"Speaker / audio driver",
                            "confidence":max(82,min(97,speaker_score)),
                            "evidence":speaker_evidence,
@@ -210,6 +218,7 @@ def classify_object(image_path):
             if major: ev.append(f"Electronic component population detected ({major} major candidates)")
             if solder_side>=55: ev.append(f"PCB solder/trace-side pattern detected ({solder_side}% likelihood)")
             if color_ratio>=0.10: ev.append("PCB substrate/solder-mask color support detected")
+            if pcb_substrate_evidence: ev.append("Green PCB substrate on a board-scale foreground detected")
             result["evidence"]=ev or ["Multiple PCB construction signals agree"]
             result["message"]="Board evidence is strong enough to continue into Board Sense grading."
             return result
