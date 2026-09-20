@@ -8,6 +8,7 @@ import shutil
 import uvicorn
 from ecosystem import get_ecosystem
 from routes.board_analyzer import analyze_board
+from routes.board_blueprint import generate_blueprint
 from routes.pair_reasoner import reconcile_pair
 from routes.pair_decision_guard import guard_pair
 from routes.spike_evidence_packet import build_evidence_packet
@@ -307,6 +308,13 @@ async def analyze_board_case_route(
         results.append(result)
         image_paths.append(str(path))
     apply_identity_clarifications(results, image_paths)
+    for result, path in zip(results, image_paths):
+        clarification = result.get("identity_clarification_evidence") or {}
+        if clarification.get("resolved"):
+            regions = (result.get("component_intelligence") or {}).get("regions", [])
+            result["board_blueprint"] = generate_blueprint(
+                path, regions, BLUEPRINT_DIR, resolved_bottleneck=True
+            )
     combined = reconcile_case(results)
     identity = combined.get("same_board_verification") or {}
     combined["spike_tool_use"] = investigate_identity(results, image_paths, identity)
