@@ -1,6 +1,6 @@
 """Visual component-family discrimination for Board Sense.
 
-SPIKE Vision v1.6 keeps verified IC geometry and also filters vivid LEDs, mounting holes, and bright mechanical circles out of capacitor/power counts.
+SPIKE Vision v1.7 keeps verified IC geometry and also filters vivid LEDs, mounting holes, and bright mechanical circles out of capacitor/power counts.
 Density-aware logic detection now preserves smaller legacy IC packages instead of
 letting one large package represent an entire populated board.
 """
@@ -152,15 +152,27 @@ def discriminate_components(image_path):
                 # BGA/package regions can trigger Hough circles, but their interiors
                 # are too textured to count as capacitor bodies.
                 textured_cluster=bool(inner_edge_density>=.20 or inner_gray_std>=58)
+                # Hough circles can also fit chip text and rows of tiny parts.
+                # Only promote a capacitor when a continuous circular body rim
+                # is supported in most directions around the proposed center.
+                rim_sectors=0
+                for angle in np.linspace(0,2*np.pi,24,endpoint=False):
+                    rim_visible=False
+                    for fraction in (.83,.90,1.0,1.10):
+                        rx=int(cx+r*fraction*np.cos(angle));ry=int(cy+r*fraction*np.sin(angle))
+                        if 0<=rx<width and 0<=ry<height and edges[ry,rx]:rim_visible=True;break
+                    rim_sectors+=int(rim_visible)
+                circular_rim=bool(rim_sectors>=22)
                 body_like=(
                     r>=int(min_r*1.25)
                     and ed>=.12
                     and(mean_s>=28 or mean_v<150)
                     and not vivid_led_like
                     and not textured_cluster
+                    and circular_rim
                 )
                 if body_like:caps.append((cx,cy,r,ed,mean_s,mean_v))
-                elif vivid_led_like or hole_like or bright_mechanical or textured_cluster:
+                elif vivid_led_like or hole_like or bright_mechanical or textured_cluster or not circular_rim:
                     uncertain_like+=1
 
         pattern_score=_contact_pattern_score(contacts,width,height)
@@ -206,7 +218,7 @@ def discriminate_components(image_path):
         elif ic_like or capacitor_like or block_like or power_package_like or winding_like:
             result["dominant_family"]="mixed"
 
-        result["notes"].append("SPIKE Vision v1.6 verified-package filtering is active: IC pin/package proof plus LED/hole/gear rejection from capacitor counts.")
+        result["notes"].append("SPIKE Vision v1.7 verified-package filtering is active: IC pin/package proof plus LED/hole/gear rejection from capacitor counts.")
         if ic_like>=8:result["notes"].append(f"Dense logic population detected: {ic_like} IC-like package candidates.")
         if solder_side_likelihood>=65:result["notes"].append(f"PCB solder/trace-side pattern detected ({solder_side_likelihood}% likelihood); capacitor and copper-winding promotion is suppressed on this view.")
         if winding_like:result["notes"].append(f"Found {winding_like} copper-wound magnetic candidate(s) on a component-side-compatible view.")
