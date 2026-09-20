@@ -49,7 +49,7 @@ def _rank_regions(regions,image_area,image_w,image_h,limit=16):
   if len(selected)>=limit:break
  return selected
 
-def generate_blueprint(image_path,component_regions,output_dir):
+def generate_blueprint(image_path,component_regions,output_dir,resolved_bottleneck=False):
  image=cv2.imread(str(image_path))
  if image is None:return{"available":False,"message":"Blueprint could not read the uploaded image."}
  frame_gate=inspect_frame(str(image_path));frame_version=frame_gate.get("version","SPIKE Single-Frame Board Identity Gate")
