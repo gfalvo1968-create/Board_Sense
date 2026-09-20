@@ -165,6 +165,7 @@ def discriminate_components(image_path):
                 circular_rim=bool(rim_sectors>=22)
                 body_like=(
                     r>=int(min_r*1.25)
+                    and relative_r>=.016
                     and ed>=.12
                     and(mean_s>=28 or mean_v<150)
                     and not vivid_led_like
@@ -172,7 +173,7 @@ def discriminate_components(image_path):
                     and circular_rim
                 )
                 if body_like:caps.append((cx,cy,r,ed,mean_s,mean_v))
-                elif vivid_led_like or hole_like or bright_mechanical or textured_cluster or not circular_rim:
+                elif vivid_led_like or hole_like or bright_mechanical or textured_cluster or not circular_rim or relative_r<.016:
                     uncertain_like+=1
 
         pattern_score=_contact_pattern_score(contacts,width,height)
