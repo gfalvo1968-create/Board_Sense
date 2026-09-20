@@ -315,6 +315,10 @@ async def analyze_board_case_route(
             result["board_blueprint"] = generate_blueprint(
                 path, regions, BLUEPRINT_DIR, resolved_bottleneck=True
             )
+            blueprint = result["board_blueprint"]
+            if blueprint.get("available"):
+                blueprint["image_url"] = "/blueprints/" + blueprint["image_filename"]
+            result["spike_evidence"] = build_evidence_packet(result)
     combined = reconcile_case(results)
     identity = combined.get("same_board_verification") or {}
     combined["spike_tool_use"] = investigate_identity(results, image_paths, identity)
