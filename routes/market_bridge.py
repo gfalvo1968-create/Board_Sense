@@ -51,6 +51,10 @@ def _validate_market_payload(data):
     materials = data.get("materials", [])
     if not isinstance(materials, list) or any(not isinstance(item, dict) for item in materials):
         raise ValueError("Market materials must be an array of objects")
+    for category in materials:
+        rows = category.get("materials")
+        if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+            raise ValueError("Market category materials must be an array of objects")
     _check_json(data)
     if any(not isinstance(metal, dict) for metal in data["metals"].values()):
         raise ValueError("Market metal entries must be objects")

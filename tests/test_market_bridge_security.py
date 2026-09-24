@@ -46,6 +46,8 @@ class MarketBridgeSecurityTests(unittest.TestCase):
     def test_rejects_nonobject_payload_and_bad_collection_shapes(self):
         for payload in (b"[]", b'{"status":"live","metals":[],"materials":[]}',
                         b'{"status":"live","metals":{},"materials":{}}',
+                        b'{"status":"live","metals":{},"materials":[{"materials":{}}]}',
+                        b'{"status":"live","metals":{},"materials":[{"materials":[null]}]}',
                         b'{"status":[],"metals":{}}'):
             with self.subTest(payload=payload):
                 self.assertEqual(self.fetch(payload)["status"], "unavailable")
