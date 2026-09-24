@@ -1,11 +1,10 @@
 # routes/grade.py
 
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File
 from pathlib import Path
-from datetime import datetime
-import shutil
 
 from routes.board_analyzer import analyze_board
+from routes.upload_security import save_board_image
 
 router = APIRouter()
 
@@ -17,16 +16,8 @@ IMAGE_DIR.mkdir(parents=True, exist_ok=True)
 
 @router.post("/upload")
 async def upload_board(file: UploadFile = File(...)):
-    suffix = Path(file.filename).suffix.lower()
-    if suffix not in [".jpg", ".jpeg", ".png", ".webp"]:
-        raise HTTPException(status_code=400, detail="Unsupported image type")
-
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    safe_name = f"{timestamp}_{Path(file.filename).name}"
-    file_path = IMAGE_DIR / safe_name
-
-    with file_path.open("wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    file_path = save_board_image(file, IMAGE_DIR)
+    safe_name = file_path.name
 
     ai_result = analyze_board(str(file_path))
 
