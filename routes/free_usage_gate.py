@@ -106,11 +106,15 @@ def _coarse_region(request: Request) -> dict:
 
 
 def _supabase_headers() -> dict:
-    return {
+    headers = {
         "apikey": SUPABASE_SECRET,
-        "Authorization": f"Bearer {SUPABASE_SECRET}",
         "Content-Type": "application/json",
     }
+    # New sb_secret_ keys are opaque, not JWTs. Sending one as a bearer token
+    # makes the Supabase gateway reject it as an invalid JWT.
+    if not SUPABASE_SECRET.startswith("sb_secret_"):
+        headers["Authorization"] = f"Bearer {SUPABASE_SECRET}"
+    return headers
 
 
 def _supabase_ready() -> bool:
@@ -135,14 +139,9 @@ def _supabase_get_used(day: str, visitor: str) -> int:
 
 
 def _supabase_claim(request: Request, visitor: str) -> tuple[bool, int]:
-    location = _coarse_region(request)
     payload = {
         "p_visitor_hash": visitor,
         "p_limit": DAILY_FREE_BOARD_LIMIT,
-        "p_referral_source": _referral_source(request),
-        "p_country_code": location.get("country") or None,
-        "p_region_code": location.get("region") or None,
-        "p_city_name": location.get("city") or None,
     }
     req = urlrequest.Request(
         f"{SUPABASE_URL}/rest/v1/rpc/claim_board_sense_free_use",
