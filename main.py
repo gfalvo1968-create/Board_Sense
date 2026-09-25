@@ -4,7 +4,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from typing import List, Optional
-import shutil
 import uvicorn
 from ecosystem import get_ecosystem
 from routes.board_analyzer import analyze_board
@@ -19,8 +18,10 @@ from routes.grade import router as grade_router
 from routes.irm_core import router as irm_router
 from routes.market_bridge import router as market_router
 from routes.reference_loader import load_reference_data
+from routes.upload_security import UploadBodyLimitMiddleware, save_board_image
 
 app = FastAPI(title="Board Sense")
+app.add_middleware(UploadBodyLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://gfalvo1968-create.github.io", "https://boardsense.scrapradarfamily.com"],
@@ -68,11 +69,6 @@ def free_usage(request: Request):
     return {"status": "success", "free_usage": decision.as_dict()}
 
 
-def _save_upload(upload: UploadFile, target: Path):
-    with open(target, "wb") as buffer:
-        shutil.copyfileobj(upload.file, buffer)
-
-
 def _economics_payload(**values):
     return {k: v for k, v in values.items() if v is not None}
 
@@ -111,8 +107,7 @@ async def analyze_board_route(request: Request, file: UploadFile = File(...), in
     blocked = _gate_or_block(request)
     if blocked:
         return blocked
-    file_path = IMAGE_DIR / file.filename
-    _save_upload(file, file_path)
+    file_path = save_board_image(file, IMAGE_DIR)
     result = analyze_board(str(file_path))
     target_packet = parse_inspection_target(inspection_target)
     if target_packet:
@@ -139,8 +134,7 @@ async def analyze_spike_pair_route(
         uploads.append(("closeup", closeup))
     views = []
     for role, upload in uploads:
-        path = IMAGE_DIR / f"spike_{role}_{upload.filename}"
-        _save_upload(upload, path)
+        path = save_board_image(upload, IMAGE_DIR)
         result = analyze_board(str(path))
         if target_packet:
             result = apply_inspection_target(result, target_packet, str(path))
@@ -185,10 +179,8 @@ async def analyze_board_pair_route(request: Request, side_a: UploadFile = File(.
     blocked = _gate_or_block(request)
     if blocked:
         return blocked
-    side_a_path = IMAGE_DIR / f"side_a_{side_a.filename}"
-    side_b_path = IMAGE_DIR / f"side_b_{side_b.filename}"
-    _save_upload(side_a, side_a_path)
-    _save_upload(side_b, side_b_path)
+    side_a_path = save_board_image(side_a, IMAGE_DIR)
+    side_b_path = save_board_image(side_b, IMAGE_DIR)
     result_a = analyze_board(str(side_a_path))
     result_b = analyze_board(str(side_b_path))
     result_a["spike_evidence"] = build_evidence_packet(result_a)
@@ -228,9 +220,7 @@ async def analyze_board_case_route(
         return {"status": "error", "message": "Choose between 2 and 6 photos of the same board."}
     results = []
     for i, upload in enumerate(files, 1):
-        safe_name = f"case_{i}_{upload.filename}"
-        path = IMAGE_DIR / safe_name
-        _save_upload(upload, path)
+        path = save_board_image(upload, IMAGE_DIR)
         result = analyze_board(str(path))
         result["board"] = upload.filename
         result["view_number"] = i
