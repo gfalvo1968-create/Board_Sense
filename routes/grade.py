@@ -1,11 +1,12 @@
 # routes/grade.py
 
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, Request
+from fastapi.responses import JSONResponse
 from pathlib import Path
-from datetime import datetime
-import shutil
 
 from routes.board_analyzer import analyze_board
+from routes.free_usage_gate import check_free_board_allowance, free_gate_payload, record_free_board_use
+from routes.upload_security import save_board_image
 
 router = APIRouter()
 
@@ -16,22 +17,25 @@ IMAGE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 @router.post("/upload")
-async def upload_board(file: UploadFile = File(...)):
-    suffix = Path(file.filename).suffix.lower()
-    if suffix not in [".jpg", ".jpeg", ".png", ".webp"]:
-        raise HTTPException(status_code=400, detail="Unsupported image type")
+async def upload_board(request: Request, file: UploadFile = File(...)):
+    decision = check_free_board_allowance(request)
+    if not decision.allowed:
+        status = 503 if decision.reason == "usage_backend_unavailable" else 429
+        return JSONResponse(status_code=status, content=free_gate_payload(decision))
 
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    safe_name = f"{timestamp}_{Path(file.filename).name}"
-    file_path = IMAGE_DIR / safe_name
-
-    with file_path.open("wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    file_path = save_board_image(file, IMAGE_DIR)
+    safe_name = file_path.name
 
     ai_result = analyze_board(str(file_path))
 
+    decision = record_free_board_use(request, "single_board")
+    if not decision.allowed:
+        status = 503 if decision.reason == "usage_backend_unavailable" else 429
+        return JSONResponse(status_code=status, content=free_gate_payload(decision))
+
     return {
         "status": "success",
+        "free_usage": decision.as_dict(),
         "filename": safe_name,
         "image_url": f"/data/Images/{safe_name}",
         "ai_grade": ai_result.get("grade", "UNKNOWN"),
