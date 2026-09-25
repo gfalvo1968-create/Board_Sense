@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
 import hmac
+from ipaddress import ip_address
 import json
 import os
 from pathlib import Path
@@ -17,7 +18,7 @@ DAILY_FREE_BOARD_LIMIT = int(os.getenv("BOARD_SENSE_DAILY_FREE_BOARD_LIMIT", "1"
 USAGE_FILE = Path(os.getenv("BOARD_SENSE_USAGE_FILE", "data/free_usage.json"))
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://plcecfxejriiorzwqbfc.supabase.co").rstrip("/")
 SUPABASE_SECRET = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_SECRET_KEY") or ""
-BOARD_SENSE_ENV = os.getenv("BOARD_SENSE_ENV", "development").lower()
+BOARD_SENSE_ENV = os.getenv("BOARD_SENSE_ENV", os.getenv("RAILWAY_ENVIRONMENT_NAME", "development")).lower()
 BOARD_SENSE_TESTER_KEY = os.getenv("BOARD_SENSE_TESTER_KEY", "").strip()
 _USAGE_LOCK = Lock()
 
@@ -49,12 +50,16 @@ def _utc_day() -> str:
 
 
 def _client_ip(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for", "")
-    if forwarded:
-        return forwarded.split(",", 1)[0].strip()
-    real_ip = request.headers.get("x-real-ip", "")
-    if real_ip:
-        return real_ip.strip()
+    # Railway documents X-Real-IP as its client address header. X-Forwarded-For
+    # may contain an arbitrary first hop supplied by the caller: never use it
+    # to grant another free analysis.
+    if os.getenv("RAILWAY_ENVIRONMENT_NAME"):
+        real_ip = request.headers.get("x-real-ip", "").strip()
+        try:
+            if ip_address(real_ip).is_global:
+                return real_ip
+        except ValueError:
+            pass
     return request.client.host if request.client else "unknown"
 
 
@@ -119,6 +124,10 @@ def _supabase_headers() -> dict:
 
 def _supabase_ready() -> bool:
     return bool(SUPABASE_URL and SUPABASE_SECRET)
+
+
+def _is_production() -> bool:
+    return BOARD_SENSE_ENV == "production" or os.getenv("RAILWAY_ENVIRONMENT_NAME", "").lower() == "production"
 
 
 def _supabase_get_used(day: str, visitor: str) -> int:
@@ -225,10 +234,12 @@ def check_free_board_allowance(request: Request) -> GateDecision:
         return _tester_decision()
     day = _utc_day()
     visitor = _visitor_id(request)
+    if _is_production() and not _supabase_ready():
+        return _backend_unavailable(day, visitor)
     try:
         used = _supabase_get_used(day, visitor) if _supabase_ready() else _local_check(day, visitor)
     except Exception:
-        if BOARD_SENSE_ENV == "production":
+        if _is_production():
             return _backend_unavailable(day, visitor)
         used = _local_check(day, visitor)
     remaining = max(0, DAILY_FREE_BOARD_LIMIT - used)
@@ -248,10 +259,12 @@ def record_free_board_use(request: Request, mode: str) -> GateDecision:
         return _tester_decision()
     day = _utc_day()
     visitor = _visitor_id(request)
+    if _is_production() and not _supabase_ready():
+        return _backend_unavailable(day, visitor)
     try:
         allowed, used = _supabase_claim(request, visitor) if _supabase_ready() else _local_claim(request, day, visitor, mode)
     except Exception:
-        if BOARD_SENSE_ENV == "production":
+        if _is_production():
             return _backend_unavailable(day, visitor)
         allowed, used = _local_claim(request, day, visitor, mode)
     return GateDecision(
