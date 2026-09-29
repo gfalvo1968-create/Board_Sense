@@ -6,6 +6,7 @@ from hashlib import sha256
 import hmac
 from ipaddress import ip_address
 import json
+import logging
 import os
 from pathlib import Path
 from threading import Lock
@@ -21,6 +22,7 @@ SUPABASE_SECRET = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_
 BOARD_SENSE_ENV = os.getenv("BOARD_SENSE_ENV", os.getenv("RAILWAY_ENVIRONMENT_NAME", "development")).lower()
 BOARD_SENSE_TESTER_KEY = os.getenv("BOARD_SENSE_TESTER_KEY", "").strip()
 _USAGE_LOCK = Lock()
+_LOG = logging.getLogger(__name__)
 
 
 @dataclass
@@ -236,7 +238,8 @@ def check_free_board_allowance(request: Request) -> GateDecision:
     visitor = _visitor_id(request)
     try:
         used = _supabase_get_used(day, visitor) if _supabase_ready() else _local_check(day, visitor)
-    except Exception:
+    except Exception as exc:
+        _LOG.warning("Daily usage check failed: %s (HTTP status: %s)", type(exc).__name__, getattr(exc, "code", "n/a"))
         if _is_production():
             return _backend_unavailable(day, visitor)
         used = _local_check(day, visitor)
@@ -259,7 +262,8 @@ def record_free_board_use(request: Request, mode: str) -> GateDecision:
     visitor = _visitor_id(request)
     try:
         allowed, used = _supabase_claim(request, visitor) if _supabase_ready() else _local_claim(request, day, visitor, mode)
-    except Exception:
+    except Exception as exc:
+        _LOG.warning("Daily usage claim failed: %s (HTTP status: %s)", type(exc).__name__, getattr(exc, "code", "n/a"))
         if _is_production():
             return _backend_unavailable(day, visitor)
         allowed, used = _local_claim(request, day, visitor, mode)
