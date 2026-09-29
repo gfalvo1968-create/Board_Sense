@@ -44,9 +44,11 @@ IMAGE_DIR = DATA_DIR / "Images"
 BLUEPRINT_DIR = DATA_DIR / "Blueprints"
 IMAGE_DIR.mkdir(parents=True, exist_ok=True)
 BLUEPRINT_DIR.mkdir(parents=True, exist_ok=True)
+MULTI_BOARD_CROP_DIR = IMAGE_DIR / "multi_board_crops"
+MULTI_BOARD_CROP_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/Static", StaticFiles(directory=STATIC_DIR), name="Static")
 app.mount("/blueprints", StaticFiles(directory=BLUEPRINT_DIR), name="blueprints")
-app.mount("/multi-board-crops", StaticFiles(directory=IMAGE_DIR / "multi_board_crops"), name="multi-board-crops")
+app.mount("/multi-board-crops", StaticFiles(directory=MULTI_BOARD_CROP_DIR), name="multi-board-crops")
 app.include_router(grade_router)
 app.include_router(irm_router)
 app.include_router(market_router)
