@@ -46,6 +46,7 @@ IMAGE_DIR.mkdir(parents=True, exist_ok=True)
 BLUEPRINT_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/Static", StaticFiles(directory=STATIC_DIR), name="Static")
 app.mount("/blueprints", StaticFiles(directory=BLUEPRINT_DIR), name="blueprints")
+app.mount("/multi-board-crops", StaticFiles(directory=IMAGE_DIR / "multi_board_crops"), name="multi-board-crops")
 app.include_router(grade_router)
 app.include_router(irm_router)
 app.include_router(market_router)
@@ -118,6 +119,8 @@ def _multi_board_material_report(results, image_paths):
                 "bbox": crop.get("bbox"),
                 "source_view": source_view,
                 "source_file": source_result.get("board"),
+                "crop_filename": crop.get("crop_filename"),
+                "crop_url": f"/multi-board-crops/view_{source_view}/{crop.get('crop_filename')}",
                 "identity": analysis.get("board_type", "Unknown Board"),
                 "confidence": analysis.get("confidence", 0),
                 "grade": analysis.get("grade", "UNRESOLVED"),
