@@ -211,6 +211,7 @@ async def analyze_board_case_route(
     full_recovery_value: Optional[float] = Form(None),
     full_minutes: Optional[float] = Form(None),
     full_costs: Optional[float] = Form(None),
+    operator_same_board_confirmation: bool = Form(False),
 ):
     """Analyze 2-6 photos of one physical board and consume one daily free-board allowance."""
     blocked = _gate_or_block(request)
@@ -226,7 +227,7 @@ async def analyze_board_case_route(
         result["view_number"] = i
         result["spike_evidence"] = build_evidence_packet(result)
         results.append(result)
-    combined = reconcile_case(results)
+    combined = reconcile_case(results, operator_same_board_confirmation=operator_same_board_confirmation)
     if combined.get("status") == "case_identity_failed" or (combined.get("same_board_verification") or {}).get("block_reconciliation"):
         return {
             "status": "success",

@@ -1,13 +1,12 @@
-"""SPIKE Single-Frame Board Identity Gate v0.4.
+"""SPIKE Single-Frame Board Identity Gate v0.5.
 
 Blocks a single uploaded photograph when strong physical evidence says more than
 one PCB is present. PCB confirmation and board identity remain separate gates.
 Color is only used to find candidate PCB regions; geometry supplies the block.
 
-v0.4 adds a multiscale separation pass. This catches touching/overlapping boards
-that look like one green contour at first but split into two substantial PCB-like
-bodies when narrow bridges are removed. A single matching color blob is never
-accepted as proof of one physical board.
+Green PCB surface can split around a large shield on one physical board. A
+multi-board stop now requires an exterior background gap between substantial
+regions. Ambiguous green splits remain inspection cues, not identity verdicts.
 """
 import cv2
 import numpy as np
@@ -66,9 +65,65 @@ def _two_substantial_regions(regions, image_area, image_w, image_h):
     }
 
 
+def _exterior_gap_support(im, regions):
+    """Require visible background between bodies, connected to the frame edge.
+
+    A dark RF shield can divide one PCB's green surface into two regions, but
+    its metal face is not the surrounding background. A touching pair without
+    a clear gap remains uncertain rather than becoming a hard split.
+    """
+    if len(regions) < 2:
+        return False
+    h, w = im.shape[:2]
+    a, b = regions[:2]
+    ax, ay, aw, ah = a["bbox"]
+    bx, by, bw, bh = b["bbox"]
+    if ax > bx:
+        ax, ay, aw, ah, bx, by, bw, bh = bx, by, bw, bh, ax, ay, aw, ah
+    horizontal = bx - (ax + aw)
+    if ay > by:
+        ay, ah, by, bh = by, bh, ay, ah
+    vertical = by - (ay + ah)
+    if max(horizontal / max(w, 1), vertical / max(h, 1)) < .025:
+        return False
+
+    lab = cv2.cvtColor(im, cv2.COLOR_BGR2LAB).astype(np.int16)
+    edge = max(4, int(min(h, w) * .035))
+    border = np.concatenate((lab[:edge].reshape(-1, 3), lab[-edge:].reshape(-1, 3),
+                             lab[:, :edge].reshape(-1, 3), lab[:, -edge:].reshape(-1, 3)))
+    median = np.median(border, axis=0)
+    # A varied background cannot supply reliable negative evidence.
+    if np.median(np.linalg.norm(border - median, axis=1)) > 26:
+        return False
+    background = (np.linalg.norm(lab - median, axis=2) < 30).astype(np.uint8)
+    _, labels = cv2.connectedComponents(background, connectivity=8)
+    edge_labels = np.unique(np.concatenate((labels[0], labels[-1], labels[:, 0], labels[:, -1])))
+    exterior = np.isin(labels, edge_labels[edge_labels != 0])
+
+    if horizontal / max(w, 1) >= vertical / max(h, 1):
+        left, right = sorted(regions[:2], key=lambda r: r["bbox"][0])
+        lx, ly, lw, lh = left["bbox"]
+        rx, ry, rw, rh = right["bbox"]
+        y0, y1 = max(ly, ry), min(ly + lh, ry + rh)
+        cy = (y0 + y1) // 2 if y1 > y0 else int((left["cy"] + right["cy"]) / 2)
+        xs = np.linspace(lx + lw + 2, rx - 2, 11).astype(int)
+        ys = np.full_like(xs, cy)
+    else:
+        top, bottom = sorted(regions[:2], key=lambda r: r["bbox"][1])
+        tx, ty, tw, th = top["bbox"]
+        bx, by, bw, bh = bottom["bbox"]
+        x0, x1 = max(tx, bx), min(tx + tw, bx + bw)
+        cx = (x0 + x1) // 2 if x1 > x0 else int((top["cx"] + bottom["cx"]) / 2)
+        ys = np.linspace(ty + th + 2, by - 2, 11).astype(int)
+        xs = np.full_like(ys, cx)
+    xs = np.clip(xs, 0, w - 1)
+    ys = np.clip(ys, 0, h - 1)
+    return float(np.mean(exterior[ys, xs])) >= .8
+
+
 def inspect_frame(image_path):
     result = {
-        "version": "SPIKE Single-Frame Board Identity Gate v0.4",
+        "version": "SPIKE Single-Frame Board Identity Gate v0.5",
         "status": "SINGLE_BOARD_NOT_CONTRADICTED",
         "block_analysis": False,
         "confidence": 0,
@@ -100,6 +155,7 @@ def inspect_frame(image_path):
         split_trigger = False
         split_metrics = None
         split_scale = None
+        split_regions = None
         scales = sorted({
             max(5, (min(h, w) // 85) | 1),
             max(7, (min(h, w) // 60) | 1),
@@ -121,6 +177,7 @@ def inspect_frame(image_path):
                 split_trigger = True
                 split_metrics = metrics
                 split_scale = ks
+                split_regions = regs
                 break
 
         # Pass 3: inspect the largest merged silhouette for extreme compound
@@ -179,7 +236,10 @@ def inspect_frame(image_path):
                 and deepest >= 0.12
             )
 
-        suspicious = bool(two_regions or split_trigger or profile_a or profile_b or profile_c)
+        green_split = bool(two_regions or split_trigger)
+        exterior_gap = bool((two_regions and _exterior_gap_support(im, base_regions))
+                            or (split_trigger and _exterior_gap_support(im, split_regions)))
+        suspicious = bool(green_split and exterior_gap)
         result["metrics"] = {
             "pcb_region_area_ratio": round(area_ratio, 3),
             "solidity": round(solidity, 3),
@@ -194,24 +254,30 @@ def inspect_frame(image_path):
             "compound_profile_a": bool(profile_a),
             "compound_profile_b": bool(profile_b),
             "compound_profile_c": bool(profile_c),
+            "exterior_background_gap": exterior_gap,
         }
 
         if suspicious:
             why = []
             if two_regions:
-                why.append("Two independently substantial PCB-like regions are visible in the same photograph.")
+                why.append("Two substantial PCB-like regions have an exterior background gap between them.")
             if split_trigger:
-                why.append("A compound PCB silhouette separates into two substantial board-like bodies when narrow bridges are removed.")
-            if profile_a or profile_b or profile_c:
-                why.append("The PCB-like silhouette has compound geometry consistent with touching or overlapping physical boards.")
+                why.append("The separation persists in a multiscale pass.")
             why.append("Board grading and blueprinting are withheld until one physical board is isolated.")
-            confidence = 94 if (two_regions or split_trigger) else (88 if profile_c else 84)
+            confidence = 94 if two_regions and split_trigger else 88
             result.update({
                 "status": "MULTIPLE_BOARDS_OR_OVERLAP_SUSPECTED",
                 "block_analysis": True,
                 "confidence": confidence,
                 "evidence": why,
                 "next_step": "Retake the photo with exactly one physical board in the frame, separated from other boards.",
+            })
+        elif green_split or profile_a or profile_b or profile_c:
+            result.update({
+                "status": "FRAME_SHAPE_AMBIGUOUS",
+                "confidence": 45,
+                "evidence": ["Green surface regions or contour shape are ambiguous; RF shields and components can split one board visually."],
+                "next_step": "Continue cross-photo identity review; use the outer board outline and matching connectors.",
             })
         return result
     except Exception as exc:

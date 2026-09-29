@@ -1,4 +1,4 @@
-"""SPIKE Same-Board Verification Gate v1.0.
+"""SPIKE Same-Board Verification Gate v1.1.
 
 Checks single-frame identity safety first, then cross-photo semantic contradiction
 and physical geometry. Conflicting classifier labels from close-ups must not
@@ -54,9 +54,9 @@ def _connected_component(nodes, edges, start):
     return seen
 
 
-def verify_same_board(results):
+def verify_same_board(results, operator_confirmed=False):
     n = len(results or [])
-    version = "SPIKE Same-Board Verification Gate v1.0"
+    version = "SPIKE Same-Board Verification Gate v1.1"
     if n < 2:
         return {
             "version": version,
@@ -166,7 +166,24 @@ def verify_same_board(results):
 
     positive_geometry = coherent_geometry and compatible_pairs >= 1 and not uncertain_physical and not physical_outlier
 
-    if physical_outlier:
+    # One noisy/occluded view is not evidence of two *groups* of physical
+    # boards. A hard split needs two internally compatible groups and repeated
+    # cross-group conflicts, not a single outlier against otherwise matching
+    # views. Front/back and zoom changes can change surface fingerprints.
+    remaining = set(whole_views)
+    groups = []
+    while remaining:
+        group = _connected_component(whole_set, compatible_edges, min(remaining))
+        groups.append(group)
+        remaining -= group
+    conflict_pairs = {tuple(sorted(p["views"])) for p in conflicts}
+    strong_split = any(
+        len(a) >= 2 and len(b) >= 2
+        and all(tuple(sorted((i, j))) in conflict_pairs for i in a for j in b)
+        for ia, a in enumerate(groups) for b in groups[ia + 1:]
+    )
+
+    if physical_outlier and strong_split:
         return {
             "version": version,
             "status": "MULTIPLE_BOARDS_SUSPECTED",
@@ -186,6 +203,27 @@ def verify_same_board(results):
             "identity_next_step": "Split the photos by physical board and start a separate case for each board.",
             "reasons": reasons,
             "rule": "Only corroborated physical geometry conflict can hard-split a multi-photo case. One compatible pair never proves identity for the entire case.",
+        }
+
+    if physical_outlier and not strong_split:
+        reasons.append("The conflict does not establish two independently coherent board groups; identity needs review.")
+
+    if operator_confirmed and not strong_split:
+        return {
+            "version": version,
+            "status": "OPERATOR_CONFIRMED_SAME_BOARD",
+            "same_board": True,
+            "operator_confirmed": True,
+            "confidence": 60,
+            "block_reconciliation": False,
+            "whole_view_count": len(whole_views),
+            "physical_pair_checks": physical,
+            "conflict_graph": conflict_graph,
+            "frame_shape_ambiguous_views": [i for i, r in enumerate(results, 1)
+                                            if (r.get("board_blueprint") or {}).get("frame_identity_gate", {}).get("status") == "FRAME_SHAPE_AMBIGUOUS"],
+            "identity_next_step": "Operator confirmed that every photo shows one physical board. Keep the case marked as user-confirmed, not AI-verified.",
+            "reasons": reasons + ["Same-board identity was supplied by the person who photographed the board; automatic physical verification remained limited."],
+            "rule": "Operator confirmation may resolve ambiguous view geometry; it never overrides a proven multi-board frame or two corroborated incompatible board groups.",
         }
 
     incomplete_coherence = len(whole_views) >= 3 and not coherent_geometry
