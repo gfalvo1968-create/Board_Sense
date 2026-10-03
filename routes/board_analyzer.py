@@ -1,4 +1,5 @@
 from pathlib import Path
+import numpy as np
 from routes.board_features import detect_board_features
 from routes.board_visual import detect_visual_features
 from routes.board_scoring import calculate_score
@@ -18,6 +19,32 @@ from routes.modification_detector import detect_modifications
 from routes.decision_guard import condition_harvest_check
 from routes.board_fingerprint import extract_board_fingerprint
 from recovery_lab.core.recovery_engine import build_recovery_plan
+
+def _supported_recovery_population(features,components,photo_quality):
+ """Use PCB-supported package geometry for recovery, not generic dark blobs.
+
+ The component discriminator has already checked the PCB surface, package
+ face, and opposing pins. Box coverage is an inspection measure, not an
+ estimate of recoverable metal mass.
+ """
+ resolution=photo_quality.get("resolution") or {}
+ width=int(resolution.get("width",0) or 0);height=int(resolution.get("height",0) or 0)
+ if width<=0 or height<=0:return {"count":0,"density":0.0,"large_ic":False,"dense":False,"processor":False}
+ scale=min(1.0,1400.0/max(width,height));mw=max(1,int(width*scale));mh=max(1,int(height*scale))
+ occupied=np.zeros((mh,mw),dtype=np.uint8);boxes=set();largest_ratio=0.0;processor_supported=False
+ for region in components.get("regions") or []:
+  if region.get("type")!="IC-like package":continue
+  x=int(region.get("x",0));y=int(region.get("y",0));w=int(region.get("w",0));h=int(region.get("h",0))
+  if w<=0 or h<=0 or x<0 or y<0 or x+w>width or y+h>height:continue
+  box=(x,y,w,h)
+  if box in boxes:continue
+  boxes.add(box);ratio=w*h/(width*height);largest_ratio=max(largest_ratio,ratio)
+  x1=max(0,int(x*scale));y1=max(0,int(y*scale));x2=min(mw,int((x+w)*scale));y2=min(mh,int((y+h)*scale))
+  occupied[y1:y2,x1:x2]=1
+  centered=width*.20<=x+w/2<=width*.80 and height*.20<=y+h/2<=height*.80
+  processor_supported=processor_supported or (centered and ratio>=.018)
+ count=len(boxes);density=round(float(np.count_nonzero(occupied)/(mw*mh)),4)
+ return {"count":count,"density":density,"large_ic":bool(count>=2 or largest_ratio>=.0015),"dense":bool(count>=8 or (count>=2 and density>=.025)),"processor":bool(features.get("processor") and processor_supported)}
 
 def _grade_from_reference(score):
  rules=get_knowledge().get("board_grade",[])
@@ -64,33 +91,16 @@ def analyze_board(image_path):
  if motherboard.get("possible_motherboard",False):features["motherboard"]=True
  if power.get("possible_power_board",False):features["power_board"]=True
 
- # Density-aware cross-check. The previous AND gate let one conservative
- # detector erase strong population evidence from another detector.
+ # Generic dark regions include cloth folds, PCB lettering, and cutouts.
+ # They may aid recognition, but cannot contribute recovery points.
  feature_count=int(features.get("component_count",0) or 0)
- component_ic_count=int(components.get("ic_like",0) or 0)
  visual_ic_count=int(visual.get("large_dark_components",0) or 0)
- fused_component_count=max(feature_count,component_ic_count,visual_ic_count)
- features["component_count"]=fused_component_count
- features["component_density"]=round(max(float(features.get("component_density",0) or 0),float(visual.get("dark_component_density",0) or 0)),4)
-
- component_ic_support=bool(
-  components.get("dominant_family")!="power_components"
-  and (component_ic_count>=3 or feature_count>=6 or visual_ic_count>=3)
- )
+ population=_supported_recovery_population(features,components,photo_quality)
+ component_ic_count=population["count"];fused_component_count=component_ic_count
+ features["component_count"]=population["count"];features["component_density"]=population["density"]
+ features["large_ic_chips"]=population["large_ic"];features["dense_component_board"]=population["dense"];features["processor"]=population["processor"]
+ component_ic_support=bool(component_ic_count)
  visual_ic_signal=bool(visual.get("possible_large_ic_chips",False))
-
- features["large_ic_chips"]=bool(
-  features.get("large_ic_chips")
-  or (visual_ic_signal and component_ic_support)
-  or component_ic_count>=8
-  or fused_component_count>=10
- )
- features["dense_component_board"]=bool(
-  features.get("dense_component_board")
-  or component_ic_count>=8
-  or fused_component_count>=10
-  or features.get("component_density",0)>=.025
- )
 
  if components.get("dominant_family")=="power_components":features["power_board"]=True
 
@@ -114,6 +124,8 @@ def analyze_board(image_path):
  if blueprint.get("available"):blueprint["image_url"]="/blueprints/"+blueprint["image_filename"]
 
  result={"grade":grade_result["grade"],"confidence":confidence,"score":score,"board_type":board_type["type"],"board_type_reason":board_type["reason"],"object_gate":object_gate,"physical_fingerprint":fingerprint,"reasoning_crosscheck":reasoning_crosscheck,"photo_quality":photo_quality,"spike_glass":spike_glass,"board_blueprint":blueprint,"pay_dirt_ready":grade_result["pay_dirt_ready"],"recommendation":grade_result["recommendation"],"recovery_signals":grade_result["recovery_signals"],"grade_notes":grade_result["grade_notes"],"reference_intelligence":reference_intelligence,"component_intelligence":components,"features":features,"visual":visual,"motherboard":motherboard,"power":power,"signals":{"motherboard":features.get("motherboard",False),"ram":features.get("ram",False),"power_board":features.get("power_board",False),"gold_fingers":features.get("gold_fingers",False),"gold_edge_color_cue":visual.get("gold_edge_color_cue",False),"gold_finger_geometry":visual.get("gold_finger_geometry",False),"repeated_edge_contacts":visual.get("repeated_edge_contacts",False),"large_ic_chips":features.get("large_ic_chips",False),"dense_component_board":features.get("dense_component_board",False),"processor":features.get("processor",False),"component_count":features.get("component_count",0),"component_density":features.get("component_density",0.0),"possible_ram":visual.get("possible_ram",False),"gold_finger_edge":visual.get("gold_finger_edge",False),"raw_large_ic_signal":visual_ic_signal,"ic_signal_confirmed":component_ic_support,"component_ic_count":component_ic_count,"visual_ic_count":visual_ic_count,"possible_motherboard":motherboard.get("possible_motherboard",False),"confirmed_slot_bank":motherboard.get("confirmed_slot_bank",False),"parallel_slot_bank":motherboard.get("parallel_slot_bank",False),"motherboard_score":motherboard.get("motherboard_score",motherboard.get("score",0)),"large_board":motherboard.get("large_board",False),"possible_power_board":power.get("possible_power_board",False),"power_stage_present":power.get("power_stage_present",False),"mixed_power_control_candidate":power.get("mixed_power_control_candidate",False),"large_round_components":power.get("large_round_components",0),"large_component_regions":power.get("large_component_regions",0),"large_power_package_like":power.get("large_power_package_like",components.get("large_power_package_like",0)),"power_score":power.get("power_score",0),"raw_power_score":power.get("raw_power_score",0),"logic_penalty":power.get("logic_penalty",0)},"model":"Board Sense v4.4 + SPIKE Vision v1.2 + Density Fusion v0.1 + Strict Edge Contact Geometry v0.2 + Reference Reasoner v5 + Board Blueprint v1.1 + PCB Region Guard v0.1 + Power Topology v0.3 + Modification Detector v0.2 + Motherboard Detector v0.5 + Physical Fingerprint v0.3"}
+ result["recovery_evidence_guard"]={"active":True,"model":"SPIKE Recovery Evidence Guard v0.1","generic_dark_region_count":feature_count,"generic_visual_region_count":visual_ic_count,"supported_logic_package_count":population["count"],"supported_package_box_coverage":population["density"],"rule":"Recovery population points use PCB-supported package candidates only. Cloth, board lettering, and cutouts do not count as packages. Candidate footprint coverage is not an assay or a metal yield."}
+ result["model"]=result["model"].replace("Board Sense v4.4","Board Sense v4.5").replace("Density Fusion v0.1","SPIKE Recovery Evidence Guard v0.1")
 
  modification=detect_modifications(image_path,result)
  result["modification_intelligence"]=modification
