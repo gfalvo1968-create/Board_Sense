@@ -206,7 +206,8 @@ def inspect_frame(image_path):
             deep = []
             scale = max(rw, rh)
             if defects is not None:
-                for d in defects[:, 0]:
+                # OpenCV bindings may return N x 1 x 4 or N x 4 defects.
+                for d in np.asarray(defects).reshape(-1, 4):
                     depth = float(d[3]) / 256.0
                     if depth >= scale * 0.04:
                         deep.append(depth / scale)

@@ -1,18 +1,23 @@
 # routes/board_motherboard.py
 import cv2
 import numpy as np
+from routes.board_region import board_region_mask, region_on_board
 
 def detect_motherboard(image_path):
-    """Motherboard detector v0.4. Edge banks require repeated, aligned perimeter connector bodies."""
+    """Motherboard detector v0.5. Edge banks use the PCB outline, not photo edges."""
     signals={"large_board":False,"possible_motherboard":False,"motherboard_structure_score":0,"long_slot_candidates":0,"parallel_slot_bank":False,"confirmed_slot_bank":False,"edge_connector_bank":False,"structural_evidence":[],"structure_regions":[]}
     try:
         image=cv2.imread(image_path)
         if image is None:return signals
-        h,w=image.shape[:2];long_side,short_side=max(w,h),min(w,h);ratio=long_side/max(short_side,1);image_area=max(w*h,1);large_board=ratio<2.2 and long_side>700;signals["large_board"]=large_board
+        h,w=image.shape[:2];mask=board_region_mask(image)
+        if not cv2.countNonZero(mask):return signals
+        bx,by,board_w,board_h=cv2.boundingRect(mask);long_side,short_side=max(board_w,board_h),min(board_w,board_h);ratio=long_side/max(short_side,1);image_area=max(cv2.countNonZero(mask),1);large_board=ratio<2.2 and long_side>700;signals["large_board"]=large_board
+        pcb_bounds={'x':bx,'y':by,'w':board_w,'h':board_h}
         if large_board:signals["structural_evidence"].append("motherboard-scale rectangular board footprint")
         gray=cv2.cvtColor(image,cv2.COLOR_BGR2GRAY);edges=cv2.Canny(cv2.GaussianBlur(gray,(5,5),0),55,145);edges=cv2.morphologyEx(edges,cv2.MORPH_CLOSE,np.ones((5,5),np.uint8));contours,_=cv2.findContours(edges,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE);slots=[]
         for c in contours:
             x,y,cw,ch=cv2.boundingRect(c);area_ratio=(cw*ch)/image_area;aspect=max(cw,ch)/max(min(cw,ch),1)
+            if not region_on_board(mask,{'x':x,'y':y,'w':cw,'h':ch}):continue
             if 5.5<=aspect<=20 and .003<=area_ratio<=.04 and max(cw,ch)>=int(long_side*.18):
                 fill=cv2.contourArea(c)/max(cw*ch,1)
                 if fill>=.18:slots.append((x,y,cw,ch,fill))
@@ -35,17 +40,18 @@ def detect_motherboard(image_path):
         # v0.4: random solder-side rectangles near a board edge are not an I/O bank.
         # Require five distinct bodies on one side, similar scale, aligned along that
         # side, and shallow enough that the cluster behaves like a perimeter row.
-        edge_band=max(10,int(min(w,h)*.055));side_boxes={"left":[],"right":[],"top":[],"bottom":[]}
+        edge_band=max(10,int(min(board_w,board_h)*.055));side_boxes={"left":[],"right":[],"top":[],"bottom":[]}
         for c in contours:
             x,y,cw,ch=cv2.boundingRect(c);ar=(cw*ch)/image_area
+            if not region_on_board(mask,{'x':x,'y':y,'w':cw,'h':ch}):continue
             if ar<.0015 or ar>.025:continue
             aspect=max(cw,ch)/max(min(cw,ch),1)
             if not 1.0<=aspect<=4.5:continue
             touches=[]
-            if x<=edge_band:touches.append("left")
-            if x+cw>=w-edge_band:touches.append("right")
-            if y<=edge_band:touches.append("top")
-            if y+ch>=h-edge_band:touches.append("bottom")
+            if x<=bx+edge_band:touches.append("left")
+            if x+cw>=bx+board_w-edge_band:touches.append("right")
+            if y<=by+edge_band:touches.append("top")
+            if y+ch>=by+board_h-edge_band:touches.append("bottom")
             for side in touches:side_boxes[side].append((x,y,cw,ch))
         best_side=None;best=[]
         for side,boxes in side_boxes.items():
@@ -61,11 +67,11 @@ def detect_motherboard(image_path):
             similar=[b for b in dedup if med_area and .35<=((b[2]*b[3])/med_area)<=2.8]
             if len(similar)<5:continue
             if side in("left","right"):
-                depths=[bw for _,_,bw,_ in similar];centers=sorted(by+bh/2 for _,by,_,bh in similar);span=(max(centers)-min(centers))/max(h,1)
-                shallow=float(np.median(depths))<=w*.16
+                depths=[bw for _,_,bw,_ in similar];centers=sorted(y0+bh/2 for _,y0,_,bh in similar);span=(max(centers)-min(centers))/max(board_h,1)
+                shallow=float(np.median(depths))<=board_w*.16
             else:
-                depths=[bh for _,_,_,bh in similar];centers=sorted(bx+bw/2 for bx,_,bw,_ in similar);span=(max(centers)-min(centers))/max(w,1)
-                shallow=float(np.median(depths))<=h*.16
+                depths=[bh for _,_,_,bh in similar];centers=sorted(x0+bw/2 for x0,_,bw,_ in similar);span=(max(centers)-min(centers))/max(board_w,1)
+                shallow=float(np.median(depths))<=board_h*.16
             # A real bank occupies a meaningful run of the perimeter, not a tiny
             # damaged/solder cluster that happens to touch the crop boundary.
             if not shallow or span<.18:continue
@@ -73,7 +79,7 @@ def detect_motherboard(image_path):
         signals["edge_connector_bank"]=bool(best_side and len(best)>=5)
         if signals["edge_connector_bank"]:
             signals["structural_evidence"].append(f"repeated aligned connector bodies along the {best_side} PCB perimeter")
-            xs=[b[0] for b in best];ys=[b[1] for b in best];x2=[b[0]+b[2] for b in best];y2=[b[1]+b[3] for b in best];signals["structure_regions"].append({"x":min(xs),"y":min(ys),"w":max(x2)-min(xs),"h":max(y2)-min(ys),"type":"Board-edge connector bank","confidence":78,"edge_side":best_side,"geometry_proof":"five-plus similar connector bodies aligned along a meaningful PCB-perimeter run"})
+            xs=[b[0] for b in best];ys=[b[1] for b in best];x2=[b[0]+b[2] for b in best];y2=[b[1]+b[3] for b in best];signals["structure_regions"].append({"x":min(xs),"y":min(ys),"w":max(x2)-min(xs),"h":max(y2)-min(ys),"type":"Board-edge connector bank","confidence":78,"edge_side":best_side,"pcb_bounds":pcb_bounds,"geometry_proof":"five-plus similar connector bodies aligned along a meaningful PCB-perimeter run"})
         score=(2 if large_board else 0)+(4 if signals["confirmed_slot_bank"] else 0)+(2 if slot_count>=4 and signals["confirmed_slot_bank"] else 0)+(3 if signals["edge_connector_bank"] else 0);signals["motherboard_structure_score"]=score;signals["possible_motherboard"]=bool(large_board and signals["confirmed_slot_bank"] and signals["edge_connector_bank"] and score>=9)
     except Exception as e:print(f"[Motherboard Detector Error] {e}")
     return signals
