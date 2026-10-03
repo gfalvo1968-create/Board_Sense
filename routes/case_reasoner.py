@@ -1,4 +1,4 @@
-"""SPIKE Multi-Photo Case Reasoner v0.18."""
+"""SPIKE Multi-Photo Case Reasoner v0.19."""
 from copy import deepcopy
 from routes.decision_guard import strong_structural_family,condition_harvest_check
 from routes.equipment_subtype import infer_equipment_subtype
@@ -6,6 +6,13 @@ from routes.recovery_grade_guard import apply_recovery_grade_guard
 from routes.case_identity_gate import verify_same_board
 from recovery_lab.core.time_value import compare_paths
 LOSS={"removed","cut","harvested","missing_confirmed","clearly_cut","clearly_harvested"};PRESENT={"present","confirmed_present","visible","retained"};UNCERTAIN={"not_visible","uncertain","unknown","expected_not_visible","probably_removed"}
+def _primary_view_key(result):
+ """Confidence leads; a tie retains the strongest single-view recovery evidence.
+
+ Recovery scores describe observed features, not cash value. Selecting one
+ score avoids both upload-order ties and adding scores from repeated views.
+ """
+ return (float(result.get("confidence",0) or 0),float(result.get("score",0) or 0))
 def _edge_geometry_confirmed(r):
  s=r.get("signals") or {};v=r.get("visual") or {};ri=r.get("reference_intelligence") or {};return bool(s.get("gold_finger_geometry") and s.get("repeated_edge_contacts") or v.get("gold_finger_geometry") and v.get("repeated_edge_contacts") or ri.get("gold_finger_geometry_confirmed"))
 def _evidence_signature(r):
@@ -51,19 +58,19 @@ def _mixed_power_control_case(results):
  supported=bool(candidate_views or(power_views and logic_views))
  return {"supported":supported,"power_views":power_views,"logic_views":logic_views,"mixed_candidate_views":candidate_views,"large_power_package_views":package_views,"edge_geometry_views":edge_views,"raw_edge_color_views":raw_edge_views,"max_power_score":max_power,"max_raw_power_score":max_raw_power,"max_power_blocks":max_blocks,"max_large_round_components":max_rounds,"max_large_power_package_like":max_packages,"rule":"After same-board verification, raw physical power-stage evidence survives logic penalties. Strict repeated edge-contact geometry is required before an edge identity can vote."}
 def reconcile_case(results, operator_same_board_confirmation=False):
- if not results:return{"board_type":"Unknown Board","confidence":0,"model":"SPIKE Multi-Photo Case Reasoner v0.18"}
+ if not results:return{"board_type":"Unknown Board","confidence":0,"model":"SPIKE Multi-Photo Case Reasoner v0.19"}
  identity=verify_same_board(results, operator_confirmed=operator_same_board_confirmation)
  if identity.get("block_reconciliation"):
   multiple=str(identity.get("status","")).startswith("MULTIPLE_BOARDS")
   label="Multiple Boards / Case Split Required" if multiple else "Same-Board Identity Uncertain"
   advice="Separate the photos into one case per physical board and analyze again." if multiple else "Confirm every photo shows the same board or add clearer full-board views."
-  return{"status":"case_identity_failed","board_type":label,"grade":"UNRESOLVED","confidence":0,"score":0,"recommendation":advice,"same_board_verification":identity,"three_answers":{"identity":{"question":"What is it?","answer":label,"case_identity_status":identity.get("status")},"recovery":{"question":"What recovery value is physically supported?","grade":"WITHHELD"},"economics":{"question":"What should we do with it?","winner":None}},"model":"Board Sense v4.2 + SPIKE Multi-Photo Case Reasoner v0.18 + Same-Board Verification Gate v1.1"}
+  return{"status":"case_identity_failed","board_type":label,"grade":"UNRESOLVED","confidence":0,"score":0,"recommendation":advice,"same_board_verification":identity,"three_answers":{"identity":{"question":"What is it?","answer":label,"case_identity_status":identity.get("status")},"recovery":{"question":"What recovery value is physically supported?","grade":"WITHHELD"},"economics":{"question":"What should we do with it?","winner":None}},"model":"SPIKE Multi-Photo Case Reasoner v0.19 + "+identity["version"]}
  hard=[]
  for i,r in enumerate(results):
   s=strong_structural_family(r)
   if s:hard.append((i,r,s))
  mixed=_mixed_power_control_case(results);suppressed_edge_votes=[]
- if hard:_,winner,_=max(hard,key=lambda x:float(x[1].get("confidence",0) or 0))
+ if hard:_,winner,_=max(hard,key=lambda x:_primary_view_key(x[1]))
  else:
   scores={};seen={}
   for i,r in enumerate(results,1):
@@ -71,9 +78,9 @@ def reconcile_case(results, operator_same_board_confirmation=False):
    if any(x in low for x in("edge-connector","gold finger","expansion")) and not _edge_geometry_confirmed(r):suppressed_edge_votes.append(i);continue
    sig=_evidence_signature(r);base=max(.15,float(r.get("confidence",0) or 0)/100);repeat=seen.get(sig,0);weight=base if repeat==0 else base*(.35 if repeat==1 else .18);scores[label]=scores.get(label,0)+weight;seen[sig]=repeat+1
   if scores:
-   label=max(scores,key=scores.get);winner=max((r for r in results if r.get("board_type")==label),key=lambda r:float(r.get("confidence",0) or 0))
+   label=max(scores,key=scores.get);winner=max((r for r in results if r.get("board_type")==label),key=_primary_view_key)
   else:
-   logic_candidates=[r for r in results if (r.get("signals") or {}).get("dense_component_board") or (r.get("signals") or {}).get("large_ic_chips")];winner=deepcopy(max(logic_candidates or results,key=lambda r:float(r.get("confidence",0) or 0)))
+   logic_candidates=[r for r in results if (r.get("signals") or {}).get("dense_component_board") or (r.get("signals") or {}).get("large_ic_chips")];winner=deepcopy(max(logic_candidates or results,key=_primary_view_key))
    if suppressed_edge_votes and not logic_candidates:winner["board_type"]="General PCB";winner["board_type_reason"]="Edge-colour cues were present, but strict repeated contact geometry was not confirmed, so SPIKE withheld an expansion-card identity."
  combined=deepcopy(winner);observations={};view_summaries=[];signatures={}
  for i,r in enumerate(results,1):
@@ -89,4 +96,6 @@ def reconcile_case(results, operator_same_board_confirmation=False):
  condition=condition_harvest_check(combined,observations);combined["condition_and_harvest"]=condition;combined["cross_view_harvest"]=cross;combined["equipment_subtype"]=infer_equipment_subtype(combined);combined=apply_recovery_grade_guard(combined);econ=_economics_inputs(combined);combined["recovery_economics"]=compare_paths(condition_factor=condition.get("remaining_value_factor",1.0),**econ);combined["same_board_verification"]=identity;combined["case_analysis"]={"mode":"same_board_multi_photo","views_analyzed":len(results),"independent_evidence_patterns":len(signatures),"view_summaries":view_summaries,"identity_gate":identity,"cross_view_harvest":cross,"mixed_power_control_evidence":mixed,"suppressed_unconfirmed_edge_votes":suppressed_edge_votes,"edge_identity_guard":{"active":True,"rule":"Gold-like color near an image edge is an inspection cue only. Expansion/gold-finger identity requires strict repeated edge-contact geometry."},"duplicate_evidence_guard":{"active":True,"rule":"Repeated equivalent views corroborate but do not multiply authority at full weight."},"message":"Case identity is checked before evidence reconciliation. Strict edge geometry gates expansion identity; raw physical power-stage evidence is preserved; recovery value remains independently graded."}
  best=max(float(r.get("confidence",0) or 0) for r in results);combined["confidence"]=min(98,max(float(combined.get("confidence",0) or 0),best))
  if identity.get("status") in ("IDENTITY_UNCERTAIN", "OPERATOR_CONFIRMED_SAME_BOARD"):combined["confidence"]=min(combined["confidence"],65);combined["recommendation"]=identity.get("identity_next_step") or "Add a clear full-board photo."
- combined["three_answers"]=_three_answers(combined,identity,condition,combined["recovery_economics"]);combined["model"]="Board Sense v4.2 + SPIKE Multi-Photo Case Reasoner v0.18 + Same-Board Verification Gate v0.6 + Physical Fingerprint v0.3 + SPIKE Vision v1.0 + Strict Edge Contact Geometry v0.2 + Reference Reasoner v5 + Board Blueprint v0.7 + Power Topology v0.3 + Motherboard Detector v0.3 + Cross-View Harvest Corroborator v0.1 + Decision Guard v0.3 + Equipment Subtype v0.3 + Recovery Grade Guard v0.3 + Condition & Harvest v0.2 + Recovery Economics v0.2";return combined
+ combined["three_answers"]=_three_answers(combined,identity,condition,combined["recovery_economics"])
+ combined["model"]=" + ".join(filter(None,[winner.get("model","Board Sense"),"SPIKE Multi-Photo Case Reasoner v0.19",identity.get("version"),cross.get("model"),(combined.get("equipment_subtype") or {}).get("model"),(combined.get("recovery_grade_guard") or {}).get("model"),condition.get("mode"),combined["recovery_economics"].get("mode")]))
+ return combined
