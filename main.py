@@ -68,7 +68,7 @@ def ecosystem_data():
 @app.get("/health")
 def health():
     """Deployment probe; no scan, visitor data or private contacts."""
-    return {"status": "ok", "service": "Board Sense", "release": "launch-20261006"}
+    return {"status": "ok", "service": "Board Sense", "release": "launch-20261006-phone-routing"}
 
 
 @app.get("/free-usage")

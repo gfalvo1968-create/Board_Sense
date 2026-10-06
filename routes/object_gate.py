@@ -1,6 +1,6 @@
 """Conservative first-stage object gate for Board Sense.
 
-SPIKE Object Gate v0.4 answers whether an upload is a PCB, loose component,
+SPIKE Object Gate v0.5 answers whether an upload is a PCB, loose component,
 speaker/audio driver, or unknown. PCB construction is judged from structure
 first, not solder-mask color, so tan/brown, blue, red and black boards can pass
 alongside green boards.
@@ -45,6 +45,51 @@ def _pcb_color_ratio(hsv):
     return float(cv2.countNonZero(combined)/max(combined.size,1))
 
 
+def _localized_pcb_evidence(hsv, edges, components, scale_x=1.0, scale_y=1.0):
+    """Check circuit detail inside an isolated surface, not the whole photo.
+
+    Color only locates a candidate. Supported packages, solder patterns or
+    repeated contact pads must also be present before this can rescue routing.
+    No recovery points or metal quantities come from this measurement.
+    """
+    surface = cv2.inRange(hsv, np.array([28,45,20]), np.array([135,255,255]))
+    k = max(3, (min(surface.shape)//100) | 1)
+    surface = cv2.morphologyEx(surface, cv2.MORPH_CLOSE,
+                              np.ones((k,k),np.uint8), iterations=2)
+    contours,_ = cv2.findContours(surface, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    best = {"supported":False,"surface_ratio":0.0,"circuit_edge_ratio":0.0}
+    other_construction = (int(components.get("solder_side_likelihood",0)) >= 55 or
+                    int(components.get("solder_joint_like",0)) >= 10 or
+                    (int(components.get("contact_pad_like",0)) >= 4 and
+                     float(components.get("contact_pattern_score",0)) >= .60))
+    for contour in contours:
+        ratio = cv2.contourArea(contour)/max(1,surface.size)
+        rw,rh = cv2.minAreaRect(contour)[1]
+        if not (.08 <= ratio <= .95 and cv2.contourArea(contour)/max(1,rw*rh) >= .50):
+            continue
+        mask = np.zeros_like(surface)
+        cv2.drawContours(mask,[contour],-1,255,-1)
+        mask = cv2.erode(mask,np.ones((5,5),np.uint8))
+        detail = cv2.countNonZero(cv2.bitwise_and(edges,mask))/max(1,cv2.countNonZero(mask))
+        local_packages = 0
+        for region in components.get("regions",[]):
+            if region.get("type") != "IC-like package":
+                continue
+            x,y = int(region["x"]*scale_x),int(region["y"]*scale_y)
+            rw,rh = max(1,int(region["w"]*scale_x)),max(1,int(region["h"]*scale_y))
+            roi = mask[y:y+rh,x:x+rw]
+            if roi.size == rw*rh and cv2.countNonZero(roi)/roi.size >= .65:
+                local_packages += 1
+        supported = ((local_packages >= 1 or other_construction) and detail >= .055 or
+                     local_packages >= 2 and detail >= .025)
+        if supported or ratio > best["surface_ratio"]:
+            best = {"supported":bool(supported),"surface_ratio":round(ratio,4),
+                    "circuit_edge_ratio":round(detail,4),"supported_local_packages":local_packages}
+        if supported:
+            break
+    return best
+
+
 def _speaker_signature(gray, board_score, foreground_ratio):
     """Conservative loudspeaker geometry check.
 
@@ -87,7 +132,19 @@ def _speaker_signature(gray, board_score, foreground_ratio):
     if best is None:
         return 0,[],{}
 
-    m=best[1];score=30;evidence=["Large centered circular driver/magnet geometry detected"]
+    m=best[1]
+    # Hough can invent a large circle from unrelated PCB edges. Require a
+    # visible circular perimeter in at least nine of twelve angular sectors.
+    edges = cv2.Canny(blur,60,120)
+    ey,ex = np.where(edges > 0)
+    radii = np.hypot(ex-m["x"],ey-m["y"])
+    annulus = (radii >= m["radius"]*.94) & (radii <= m["radius"]*1.06)
+    angles = np.mod(np.arctan2(ey[annulus]-m["y"],ex[annulus]-m["x"]),2*np.pi)
+    bins = np.bincount((angles/(2*np.pi)*12).astype(int),minlength=12)
+    m["perimeter_sector_coverage"] = round(float(np.mean(bins >= 4)),3)
+    if m["perimeter_sector_coverage"] < .75:
+        return 0,[],m
+    score=30;evidence=["Large centered circular driver/magnet geometry detected"]
     radius_ratio=float(m["radius"])/min_dim
     if radius_ratio>=.24:score+=15
     elif radius_ratio>=.20:score+=10
@@ -107,6 +164,7 @@ def _speaker_signature(gray, board_score, foreground_ratio):
 
 def classify_object(image_path):
     result={"mode":"unknown","label":"Unknown object","confidence":35,
+            "model":"SPIKE Object Gate v0.5",
             "board_likelihood":0,"component_likelihood":0,"camera_module_likelihood":0,
             "speaker_likelihood":0,"evidence":[],"message":"Not enough evidence to run board grading safely."}
     try:
@@ -162,6 +220,9 @@ def classify_object(image_path):
         # Rescue visibly board-scale circuitry even if mask/substrate color is odd.
         structural_rescue = foreground_ratio>=0.16 and edge_ratio>=0.045 and (major>=2 or solder_side>=55)
         if structural_rescue: board_score+=12
+        localized = _localized_pcb_evidence(hsv,edges,comps,w/w0,h/h0)
+        if localized["supported"]:
+            board_score += 18
         board_score=min(board_score,100)
 
         component_score=0
@@ -192,6 +253,7 @@ def classify_object(image_path):
                                   "circle_count":int(circle_count),"speaker_signature":speaker_metrics,
                                   "ic_like":ic,"capacitor_like":cap,"contact_pad_like":contact,
                                   "solder_joint_like":solder,"solder_side_likelihood":solder_side,"power_block_like":block}})
+        result["metrics"]["localized_pcb_evidence"] = localized
 
         # Speaker guard runs before PCB/component routing, but only on a strong
         # large-scale circular signature. It deliberately makes no magnet-chemistry claim.
@@ -210,6 +272,7 @@ def classify_object(image_path):
             if major: ev.append(f"Electronic component population detected ({major} major candidates)")
             if solder_side>=55: ev.append(f"PCB solder/trace-side pattern detected ({solder_side}% likelihood)")
             if color_ratio>=0.10: ev.append("PCB substrate/solder-mask color support detected")
+            if localized["supported"]: ev.append("Circuit detail on an isolated PCB surface supports routing independently of background size")
             result["evidence"]=ev or ["Multiple PCB construction signals agree"]
             result["message"]="Board evidence is strong enough to continue into Board Sense grading."
             return result
