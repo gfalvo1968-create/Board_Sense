@@ -33,8 +33,20 @@ and UTC timestamps; no location values will be sent.
 
 The service-role/secret key bypasses RLS. Restrict it to Railway server
 variables; the table's RLS and revoked public grants protect against
-anonymous direct API access. The hash uses IP and user agent and is only a
-coarse anonymous limit: changing either may yield another allowance.
+anonymous direct API access. The hash uses the canonical client IP and is a coarse anonymous network limit:
+changing User-Agent does not create another allowance, but changing networks can.
 
-This change does not alter the database schema, set Railway variables, deploy
-code, or move live traffic.
+On October 6, 2026, the paused project was restored and its existing claim
+function was hardened through the committed migration. It retains the existing
+table and optional arguments, uses a UTC date explicitly, validates claims, and
+keeps execution restricted to `service_role`. A rolled-back test verified first
+claim allowed, duplicate rejected, without retaining a test usage row.
+
+The security advisor's informational [RLS enabled without policies](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy)
+notice is intentional for this server-only table: `anon` and `authenticated`
+have no grants or policies. Do not add a public policy to silence that notice.
+
+The October release code reserves a claim before analysis and fails closed in
+production without persistent accounting. Railway still needs to deploy that
+release. Changing the hashing scheme resets anonymous buckets once on rollout;
+do not rotate `BOARD_SENSE_VISITOR_SALT` during a usage day.

@@ -30,15 +30,23 @@ class FreeUsageGateSecurityTests(unittest.TestCase):
         with patch.dict(os.environ, {"RAILWAY_ENVIRONMENT_NAME": ""}):
             self.assertEqual(gate._client_ip(request([("x-real-ip", "8.8.8.8")])), "10.0.0.7")
 
-    def test_production_without_credential_keeps_existing_local_allowance(self):
+    def test_production_without_credential_cannot_use_local_allowance(self):
         with patch.object(gate, "BOARD_SENSE_ENV", "production"), \
                 patch.object(gate, "_supabase_ready", return_value=False), \
-                patch.object(gate, "_local_check", return_value=0), \
-                patch.object(gate, "_local_claim", return_value=(True, 1)):
+                patch.object(gate, "_local_check", side_effect=AssertionError("local fallback")), \
+                patch.object(gate, "_local_claim", side_effect=AssertionError("local fallback")):
             checked = gate.check_free_board_allowance(request())
             claimed = gate.record_free_board_use(request(), "single_board")
-        self.assertTrue(checked.allowed)
-        self.assertTrue(claimed.allowed)
+        self.assertFalse(checked.allowed)
+        self.assertFalse(claimed.allowed)
+        self.assertEqual(checked.reason, "usage_backend_unavailable")
+        self.assertEqual(claimed.reason, "usage_backend_unavailable")
+
+    def test_user_agent_and_equivalent_ipv6_spelling_cannot_reset_allowance(self):
+        a = request([("user-agent", "Browser A")], client="2001:4860:4860:0000:0000:0000:0000:8888")
+        b = request([("user-agent", "Changed Browser")], client="2001:4860:4860::8888")
+        with patch.dict(os.environ, {"RAILWAY_ENVIRONMENT_NAME": ""}):
+            self.assertEqual(gate._visitor_id(a), gate._visitor_id(b))
 
     def test_development_retains_local_allowance(self):
         with patch.object(gate, "BOARD_SENSE_ENV", "development"), \
@@ -50,7 +58,7 @@ class FreeUsageGateSecurityTests(unittest.TestCase):
 
     def test_railway_production_cannot_fall_back_to_development(self):
         with patch.object(gate, "BOARD_SENSE_ENV", "development"), \
-                patch.dict(os.environ, {"RAILWAY_ENVIRONMENT_NAME": "production"}), \
+                patch.dict(os.environ, {"RAILWAY_ENVIRONMENT_NAME": "production", "BOARD_SENSE_VISITOR_SALT": "private-test-salt"}), \
                 patch.object(gate, "_supabase_ready", return_value=True), \
                 patch.object(gate, "_supabase_get_used", side_effect=OSError("provider unavailable")), \
                 patch.object(gate, "_local_check", side_effect=AssertionError("local fallback")):

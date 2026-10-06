@@ -13,6 +13,7 @@ from threading import Lock
 from urllib import parse, request as urlrequest
 
 from fastapi import Request
+from routes.origin_security import trusted_cloudflare_proxy
 
 
 DAILY_FREE_BOARD_LIMIT = int(os.getenv("BOARD_SENSE_DAILY_FREE_BOARD_LIMIT", "1"))
@@ -52,6 +53,15 @@ def _utc_day() -> str:
 
 
 def _client_ip(request: Request) -> str:
+    # CF-Connecting-IP is trustworthy only behind the configured, private
+    # origin-header check. A direct caller cannot choose its own quota bucket.
+    if trusted_cloudflare_proxy(request):
+        try:
+            address = ip_address(request.headers.get("cf-connecting-ip", "").strip())
+            if address.is_global:
+                return str(address)
+        except ValueError:
+            pass
     # Railway documents X-Real-IP as its client address header. X-Forwarded-For
     # may contain an arbitrary first hop supplied by the caller: never use it
     # to grant another free analysis.
@@ -67,7 +77,14 @@ def _client_ip(request: Request) -> str:
 
 def _visitor_id(request: Request) -> str:
     salt = os.getenv("BOARD_SENSE_VISITOR_SALT", "board-sense-dev-salt-change-me")
-    raw = f"{salt}|{_client_ip(request)}|{request.headers.get('user-agent', 'unknown')}".encode("utf-8", errors="ignore")
+    address = _client_ip(request)
+    try:
+        address = str(ip_address(address))
+    except ValueError:
+        pass
+    # Browser headers are caller-controlled. Switching browser or User-Agent
+    # must not purchase another public allowance on the same network.
+    raw = f"{salt}|{address}".encode("utf-8", errors="ignore")
     return sha256(raw).hexdigest()[:32]
 
 
@@ -78,7 +95,7 @@ def _is_authorized_tester(request: Request) -> bool:
     supplied = request.headers.get("x-board-sense-tester-key", "").strip()
     if not supplied:
         return False
-    return hmac.compare_digest(supplied, BOARD_SENSE_TESTER_KEY)
+    return hmac.compare_digest(supplied.encode(), BOARD_SENSE_TESTER_KEY.encode())
 
 
 def _tester_decision() -> GateDecision:
@@ -236,6 +253,8 @@ def check_free_board_allowance(request: Request) -> GateDecision:
         return _tester_decision()
     day = _utc_day()
     visitor = _visitor_id(request)
+    if _is_production() and (not _supabase_ready() or not os.getenv("BOARD_SENSE_VISITOR_SALT", "").strip()):
+        return _backend_unavailable(day, visitor)
     try:
         used = _supabase_get_used(day, visitor) if _supabase_ready() else _local_check(day, visitor)
     except Exception as exc:
@@ -256,10 +275,13 @@ def check_free_board_allowance(request: Request) -> GateDecision:
 
 
 def record_free_board_use(request: Request, mode: str) -> GateDecision:
+    """Atomically reserve one attempt before analysis. Production never uses local JSON."""
     if _is_authorized_tester(request):
         return _tester_decision()
     day = _utc_day()
     visitor = _visitor_id(request)
+    if _is_production() and (not _supabase_ready() or not os.getenv("BOARD_SENSE_VISITOR_SALT", "").strip()):
+        return _backend_unavailable(day, visitor)
     try:
         allowed, used = _supabase_claim(request, visitor) if _supabase_ready() else _local_claim(request, day, visitor, mode)
     except Exception as exc:

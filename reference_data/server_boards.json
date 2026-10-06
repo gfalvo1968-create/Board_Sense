@@ -2,9 +2,23 @@
   {
     "category": "High Grade Server Board",
     "grade": "HIGH",
-    "aliases": ["server board", "enterprise board", "server motherboard"],
-    "visual_traits": ["large board", "dense IC layout", "multiple RAM slots", "server architecture", "heavy multilayer PCB"],
-    "material_signals": ["high copper layer count", "gold plated contacts", "higher precious metal potential"],
+    "aliases": [
+      "server board",
+      "enterprise board",
+      "server motherboard"
+    ],
+    "visual_traits": [
+      "large board",
+      "dense IC layout",
+      "multiple RAM slots",
+      "server architecture",
+      "heavy multilayer PCB"
+    ],
+    "material_signals": [
+      "high copper layer count",
+      "gold plated contacts",
+      "higher precious metal potential"
+    ],
     "value_rank": 9,
     "sorting_advice": "Separate from consumer motherboards and mixed boards.",
     "notes": "Server boards often grade higher than standard desktop boards due to density and build quality."
@@ -12,7 +26,23 @@
   {
     "category": "Multi Socket Server Board",
     "grade": "VERY HIGH",
-    "aliases": ["dual socket board", "quad socket board", "multi processor server board"],
-    "visual_traits": ["two or more CPU sockets", "many RAM slots", "large physical size", "dense circuitry"],
-    "material_signals": ["high gold contact density", "high layer count", "server-grade recovery"],
-    "value_rank": 
+    "aliases": [
+      "dual socket board",
+      "quad socket board",
+      "multi processor server board"
+    ],
+    "visual_traits": [
+      "two or more CPU sockets",
+      "many RAM slots",
+      "large physical size",
+      "dense circuitry"
+    ],
+    "material_signals": [
+      "high gold contact density",
+      "high layer count",
+      "server-grade recovery"
+    ],
+    "sorting_advice": "Confirm socket count and buyer category before combining with server-board inventory.",
+    "notes": "Multiple sockets are an inspection cue; neither metal quantity nor cash value is established by this reference."
+  }
+]

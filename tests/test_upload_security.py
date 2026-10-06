@@ -58,7 +58,7 @@ class UploadSecurityTests(unittest.TestCase):
 
         denied = GateDecision(False, "visitor", 1, 1, 0, "2026-09-25", "daily_free_board_limit_reached")
         with patch.object(grade, "check_free_board_allowance", return_value=denied), \
-                patch.object(grade, "save_board_image") as save:
+                patch.object(grade, "validated_board_images") as save:
             result = asyncio.run(grade.upload_board(request=object(), file=upload("board.png", png_bytes())))
         self.assertEqual(result.status_code, 429)
         save.assert_not_called()
@@ -113,7 +113,8 @@ class UploadSecurityTests(unittest.TestCase):
             with (
                 patch.object(main, "IMAGE_DIR", images),
                 patch.object(main, "_gate_or_block", return_value=None),
-                patch.object(main, "_attach_usage", side_effect=lambda result, request, mode: result),
+                patch.object(main, "_claim_or_block", return_value=(None, None)),
+                patch.object(main, "_attach_usage", side_effect=lambda result, usage: result),
                 patch.object(main, "analyze_board", return_value={}) as analyzer,
                 patch.object(main, "build_evidence_packet", return_value={}),
             ):

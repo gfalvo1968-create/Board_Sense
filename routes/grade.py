@@ -6,7 +6,7 @@ from pathlib import Path
 
 from routes.board_analyzer import analyze_board
 from routes.free_usage_gate import check_free_board_allowance, free_gate_payload, record_free_board_use
-from routes.upload_security import save_board_image
+from routes.upload_security import validated_board_images
 
 router = APIRouter()
 
@@ -23,21 +23,19 @@ async def upload_board(request: Request, file: UploadFile = File(...)):
         status = 503 if decision.reason == "usage_backend_unavailable" else 429
         return JSONResponse(status_code=status, content=free_gate_payload(decision))
 
-    file_path = save_board_image(file, IMAGE_DIR)
-    safe_name = file_path.name
-
-    ai_result = analyze_board(str(file_path))
-
-    decision = record_free_board_use(request, "single_board")
-    if not decision.allowed:
-        status = 503 if decision.reason == "usage_backend_unavailable" else 429
-        return JSONResponse(status_code=status, content=free_gate_payload(decision))
+    with validated_board_images([file], IMAGE_DIR) as paths:
+        decision = record_free_board_use(request, "single_board")
+        if not decision.allowed:
+            status = 503 if decision.reason == "usage_backend_unavailable" else 429
+            return JSONResponse(status_code=status, content=free_gate_payload(decision))
+        safe_name = paths[0].name
+        ai_result = analyze_board(str(paths[0]))
 
     return {
         "status": "success",
         "free_usage": decision.as_dict(),
         "filename": safe_name,
-        "image_url": f"/data/Images/{safe_name}",
+        "image_url": None,  # Private original is deleted after analysis.
         "ai_grade": ai_result.get("grade", "UNKNOWN"),
         "confidence": ai_result.get("confidence", 0),
         "board_type": ai_result.get("board_type", "General PCB"),

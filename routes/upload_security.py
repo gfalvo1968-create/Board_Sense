@@ -1,6 +1,7 @@
 """Store user-supplied board images without trusting their filenames or size."""
 
 from pathlib import Path
+from contextlib import contextmanager
 from uuid import uuid4
 
 from fastapi import HTTPException, UploadFile
@@ -107,3 +108,16 @@ def save_board_image(upload: UploadFile, directory: Path) -> Path:
         if created:
             path.unlink(missing_ok=True)
         raise
+
+
+@contextmanager
+def validated_board_images(uploads, directory: Path):
+    """Validate every view first; always remove private originals after use."""
+    paths = []
+    try:
+        for upload in uploads:
+            paths.append(save_board_image(upload, directory))
+        yield paths
+    finally:
+        for path in paths:
+            path.unlink(missing_ok=True)

@@ -1,10 +1,23 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from pathlib import Path
 from datetime import datetime
 import json
+import hmac
+import os
 
-router = APIRouter()
+def require_irm_admin(request: Request):
+    """Private supplier contacts require a separate server-side admin secret."""
+    secret = os.getenv("BOARD_SENSE_IRM_ADMIN_KEY", "").strip()
+    if len(secret) < 32:
+        raise HTTPException(status_code=503, detail="Private source records are not configured")
+    header = request.headers.get("authorization", "")
+    scheme, _, token = header.partition(" ")
+    if scheme.lower() != "bearer" or not hmac.compare_digest(token.encode(), secret.encode()):
+        raise HTTPException(status_code=401, detail="Admin access required", headers={"WWW-Authenticate": "Bearer"})
+
+
+router = APIRouter(dependencies=[Depends(require_irm_admin)])
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 IRM_DIR = BASE_DIR / "data" / "irm"
@@ -49,7 +62,7 @@ def get_sources():
 def save_source(entry: SourceEntry):
     sources = load_sources()
 
-    new_entry = entry.dict()
+    new_entry = entry.model_dump()
     new_entry["created_at"] = datetime.utcnow().isoformat()
     new_entry["id"] = len(sources) + 1
 

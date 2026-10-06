@@ -11,7 +11,6 @@ from routes.pair_reasoner import reconcile_pair
 from routes.pair_decision_guard import guard_pair
 from routes.spike_evidence_packet import build_evidence_packet
 from routes.case_reasoner import reconcile_case
-from routes.multi_board_split import choose_best_multi_board_split
 from routes.inspection_target import parse_inspection_target, apply_inspection_target
 from routes.free_usage_gate import check_free_board_allowance, record_free_board_use, free_gate_payload
 from recovery_lab.core.time_value import compare_paths
@@ -19,10 +18,12 @@ from routes.grade import router as grade_router
 from routes.irm_core import router as irm_router
 from routes.market_bridge import router as market_router
 from routes.reference_loader import load_reference_data
-from routes.upload_security import UploadBodyLimitMiddleware, save_board_image
+from routes.upload_security import UploadBodyLimitMiddleware, validated_board_images
+from routes.origin_security import OriginProtectionMiddleware
 
 app = FastAPI(title="Board Sense")
 app.add_middleware(UploadBodyLimitMiddleware)
+app.add_middleware(OriginProtectionMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://gfalvo1968-create.github.io", "https://boardsense.scrapradarfamily.com"],
@@ -64,6 +65,12 @@ def ecosystem_data():
     return get_ecosystem()
 
 
+@app.get("/health")
+def health():
+    """Deployment probe; no scan, visitor data or private contacts."""
+    return {"status": "ok", "service": "Board Sense", "release": "launch-20261006"}
+
+
 @app.get("/free-usage")
 def free_usage(request: Request):
     """Return today's anonymous free-board allowance without consuming it."""
@@ -89,74 +96,6 @@ def _spike_target_rank(result):
     return (rank, visual, role_bonus, generic)
 
 
-def _multi_board_material_report(results, image_paths):
-    """Analyze cleanly separable PCB bodies without ever merging their identities."""
-    selection = choose_best_multi_board_split(
-        image_paths,
-        IMAGE_DIR / "multi_board_crops",
-        max_boards=4,
-    )
-    best = selection.get("best")
-    if best is None:
-        return {
-            "mode": "SPIKE Multi-Board Separate Reports v0.2",
-            "status": "MULTIPLE_BOARDS_DETECTED_SPLIT_UNRESOLVED",
-            "board_count": 0,
-            "boards": [],
-            "split_attempts": selection.get("attempts", []),
-            "message": "SPIKE proved that more than one board is present, but none of the uploaded views separates the individual PCB bodies cleanly enough for independent mini-reports.",
-            "next_step": "Keep the boards in the same photo if desired, but add a little space between touching or overlapping pieces and retake.",
-            "rule": "Stop the merge, not the investigation. Once multi-board presence is proven, inspect every uploaded view for the cleanest separation.",
-        }
-
-    source_view = int(best.get("view_number", 0) or 0)
-    source_result = results[source_view - 1] if 1 <= source_view <= len(results) else {}
-    boards = []
-    for crop in best["split"].get("crops", []):
-        analysis = analyze_board(crop["crop_path"])
-        condition = analysis.get("condition_and_harvest") or {}
-        boards.append(
-            {
-                "board_index": crop.get("board_index"),
-                "bbox": crop.get("bbox"),
-                "source_view": source_view,
-                "source_file": source_result.get("board"),
-                "crop_filename": crop.get("crop_filename"),
-                "crop_url": f"/multi-board-crops/view_{source_view}/{crop.get('crop_filename')}",
-                "identity": analysis.get("board_type", "Unknown Board"),
-                "confidence": analysis.get("confidence", 0),
-                "grade": analysis.get("grade", "UNRESOLVED"),
-                "recovery_score": analysis.get("score", 0),
-                "condition": condition.get("condition"),
-                "specimen_completeness": condition.get("specimen_completeness"),
-                "remaining_value_verdict": condition.get("remaining_value_verdict"),
-                "pay_dirt_still_present": bool(condition.get("pay_dirt_still_present", False)),
-                "remaining_recovery_targets": condition.get("remaining_recovery_targets", []),
-                "buyer_message": condition.get("buyer_message"),
-                "recommendation": analysis.get("recommendation"),
-                "model": analysis.get("model"),
-            }
-        )
-
-    return {
-        "mode": "SPIKE Multi-Board Separate Reports v0.2",
-        "status": "SEPARATE_REPORTS_READY",
-        "board_count": len(boards),
-        "source_view": source_view,
-        "source_file": source_result.get("board"),
-        "boards": boards,
-        "split_attempts": selection.get("attempts", []),
-        "split_diagnostics": {
-            "method": best["split"].get("mode"),
-            "seed_count": best["split"].get("seed_count"),
-            "foreground_components": best["split"].get("foreground_components"),
-        },
-        "message": f"SPIKE detected {len(boards)} separable PCB bodies and analyzed each one independently. No combined board identity or combined grade was created.",
-        "rule": "Stop the merge, not the investigation. Once multi-board presence is proven, inspect every uploaded view for the cleanest separation.",
-    }
-
-
-
 def _gate_or_block(request: Request):
     decision = check_free_board_allowance(request)
     if decision.allowed:
@@ -165,11 +104,16 @@ def _gate_or_block(request: Request):
     return JSONResponse(status_code=status_code, content=free_gate_payload(decision))
 
 
-def _attach_usage(result: dict, request: Request, mode: str):
+def _claim_or_block(request: Request, mode: str):
     usage = record_free_board_use(request, mode)
+    blocked = None
     if not usage.allowed:
         status_code = 503 if usage.reason == "usage_backend_unavailable" else 429
-        return JSONResponse(status_code=status_code, content=free_gate_payload(usage))
+        blocked = JSONResponse(status_code=status_code, content=free_gate_payload(usage))
+    return usage, blocked
+
+
+def _attach_usage(result: dict, usage):
     result["free_usage"] = usage.as_dict()
     return result
 
@@ -179,15 +123,19 @@ async def analyze_board_route(request: Request, file: UploadFile = File(...), in
     blocked = _gate_or_block(request)
     if blocked:
         return blocked
-    file_path = save_board_image(file, IMAGE_DIR)
-    result = analyze_board(str(file_path))
-    target_packet = parse_inspection_target(inspection_target)
-    if target_packet:
-        result = apply_inspection_target(result, target_packet, str(file_path))
-    result["status"] = "success"
-    result["board"] = file.filename
-    result["spike_evidence"] = build_evidence_packet(result)
-    return _attach_usage(result, request, "single_board")
+    with validated_board_images([file], IMAGE_DIR) as paths:
+        usage, blocked = _claim_or_block(request, "single_board")
+        if blocked is not None:
+            return blocked
+        file_path = paths[0]
+        result = analyze_board(str(file_path))
+        target_packet = parse_inspection_target(inspection_target)
+        if target_packet:
+            result = apply_inspection_target(result, target_packet, str(file_path))
+        result["status"] = "success"
+        result["board"] = file.filename
+        result["spike_evidence"] = build_evidence_packet(result)
+    return _attach_usage(result, usage)
 
 
 @app.post("/analyze-spike-pair")
@@ -205,16 +153,19 @@ async def analyze_spike_pair_route(
     if closeup is not None:
         uploads.append(("closeup", closeup))
     views = []
-    for role, upload in uploads:
-        path = save_board_image(upload, IMAGE_DIR)
-        result = analyze_board(str(path))
-        if target_packet:
-            result = apply_inspection_target(result, target_packet, str(path))
-        result["status"] = "success"
-        result["board"] = upload.filename
-        result["spike_role"] = role
-        result["spike_evidence"] = build_evidence_packet(result)
-        views.append(result)
+    with validated_board_images([upload for _, upload in uploads], IMAGE_DIR) as paths:
+        usage, blocked = _claim_or_block(request, "spike_two_photo_one_board")
+        if blocked is not None:
+            return blocked
+        for (role, upload), path in zip(uploads, paths):
+            result = analyze_board(str(path))
+            if target_packet:
+                result = apply_inspection_target(result, target_packet, str(path))
+            result["status"] = "success"
+            result["board"] = upload.filename
+            result["spike_role"] = role
+            result["spike_evidence"] = build_evidence_packet(result)
+            views.append(result)
     selected = max(views, key=_spike_target_rank) if target_packet else max(
         views, key=lambda r: float(((r.get("spike_glass") or {}).get("confidence")) or 0)
     )
@@ -243,7 +194,7 @@ async def analyze_spike_pair_route(
         "pair_summary": summary,
         "integrity_rule": "Two-photo Spike Glass compares context and close-up evidence for one inspection target. It does not merge board economics or manufacture composition/value.",
     }
-    return _attach_usage(payload, request, "spike_two_photo_one_board")
+    return _attach_usage(payload, usage)
 
 
 @app.post("/analyze-pair")
@@ -251,10 +202,12 @@ async def analyze_board_pair_route(request: Request, side_a: UploadFile = File(.
     blocked = _gate_or_block(request)
     if blocked:
         return blocked
-    side_a_path = save_board_image(side_a, IMAGE_DIR)
-    side_b_path = save_board_image(side_b, IMAGE_DIR)
-    result_a = analyze_board(str(side_a_path))
-    result_b = analyze_board(str(side_b_path))
+    with validated_board_images([side_a, side_b], IMAGE_DIR) as paths:
+        usage, blocked = _claim_or_block(request, "two_sided_one_board")
+        if blocked is not None:
+            return blocked
+        result_a = analyze_board(str(paths[0]))
+        result_b = analyze_board(str(paths[1]))
     result_a["spike_evidence"] = build_evidence_packet(result_a)
     result_b["spike_evidence"] = build_evidence_packet(result_b)
     paired = guard_pair(result_a, result_b, reconcile_pair(result_a, result_b))
@@ -267,22 +220,22 @@ async def analyze_board_pair_route(request: Request, side_a: UploadFile = File(.
         "side_b": result_b,
         "paired": paired,
     }
-    return _attach_usage(payload, request, "two_sided_one_board")
+    return _attach_usage(payload, usage)
 
 
 @app.post("/analyze-case")
 async def analyze_board_case_route(
     request: Request,
     files: List[UploadFile] = File(...),
-    current_sell_whole_value: Optional[float] = Form(None),
-    intact_sell_whole_value: Optional[float] = Form(None),
-    partial_recovered_value: Optional[float] = Form(None),
-    partial_residual_value: Optional[float] = Form(None),
-    partial_minutes: Optional[float] = Form(None),
-    partial_costs: Optional[float] = Form(None),
-    full_recovery_value: Optional[float] = Form(None),
-    full_minutes: Optional[float] = Form(None),
-    full_costs: Optional[float] = Form(None),
+    current_sell_whole_value: Optional[float] = Form(None, ge=0, allow_inf_nan=False),
+    intact_sell_whole_value: Optional[float] = Form(None, ge=0, allow_inf_nan=False),
+    partial_recovered_value: Optional[float] = Form(None, ge=0, allow_inf_nan=False),
+    partial_residual_value: Optional[float] = Form(None, ge=0, allow_inf_nan=False),
+    partial_minutes: Optional[float] = Form(None, ge=0, allow_inf_nan=False),
+    partial_costs: Optional[float] = Form(None, ge=0, allow_inf_nan=False),
+    full_recovery_value: Optional[float] = Form(None, ge=0, allow_inf_nan=False),
+    full_minutes: Optional[float] = Form(None, ge=0, allow_inf_nan=False),
+    full_costs: Optional[float] = Form(None, ge=0, allow_inf_nan=False),
     operator_same_board_confirmation: bool = Form(False),
 ):
     """Analyze 2-6 photos of one physical board and consume one daily free-board allowance."""
@@ -292,27 +245,29 @@ async def analyze_board_case_route(
     if len(files) < 2 or len(files) > 6:
         return {"status": "error", "message": "Choose between 2 and 6 photos of the same board."}
     results = []
-    for i, upload in enumerate(files, 1):
-        path = save_board_image(upload, IMAGE_DIR)
-        result = analyze_board(str(path))
-        result["board"] = upload.filename
-        result["view_number"] = i
-        result["spike_evidence"] = build_evidence_packet(result)
-        results.append(result)
+    with validated_board_images(files, IMAGE_DIR) as paths:
+        usage, blocked = _claim_or_block(request, "multi_photo_one_board")
+        if blocked is not None:
+            return blocked
+        for i, (upload, path) in enumerate(zip(files, paths), 1):
+            result = analyze_board(str(path))
+            result["board"] = upload.filename
+            result["view_number"] = i
+            result["spike_evidence"] = build_evidence_packet(result)
+            results.append(result)
     combined = reconcile_case(results, operator_same_board_confirmation=operator_same_board_confirmation)
     if combined.get("status") == "case_identity_failed" or (combined.get("same_board_verification") or {}).get("block_reconciliation"):
         identity = combined.get("same_board_verification") or {}
-        if str(identity.get("status", "")).startswith("MULTIPLE_BOARDS"):
-            combined["multi_board_material_report"] = _multi_board_material_report(results, [str(IMAGE_DIR / r["board"]) for r in results])
-        return {
+        multiple = str(identity.get("status", "")).startswith("MULTIPLE_BOARDS")
+        return _attach_usage({
             "status": "success",
             "mode": "multi_photo_identity_blocked",
             "photo_count": len(results),
             "views": results,
             "combined": combined,
-            "case_warning": "MULTIPLE BOARDS DETECTED - separate board reports are shown when clean crops can be isolated.",
-            "free_usage": check_free_board_allowance(request).as_dict(),
-        }
+            "case_warning": ("Multiple boards detected. Start a separate case for each physical board."
+                             if multiple else "Board identity needs clarification. Add clearer views of one board."),
+        }, usage)
     econ = _economics_payload(
         sell_whole_value=intact_sell_whole_value,
         partial_recovered_value=partial_recovered_value,
@@ -348,7 +303,7 @@ async def analyze_board_case_route(
         "views": results,
         "combined": combined,
     }
-    return _attach_usage(payload, request, "multi_photo_one_board")
+    return _attach_usage(payload, usage)
 
 
 if __name__ == "__main__":
