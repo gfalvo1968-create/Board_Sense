@@ -3,6 +3,12 @@ Separates pure power conversion from boards that combine substantial power handl
 with digital/control logic. PC/server labels still require confirmed architecture.
 """
 def infer_equipment_subtype(result):
+    if (result.get("keypad_intelligence") or {}).get("supported"):
+        return {"subtype":"Keypad-Equipped Controller; Original Equipment Unconfirmed",
+                "confidence":"moderate","evidence":["repeated round contact bank"],
+                "candidates":[],"geometry":{},"topology":{},
+                "rule":"A keypad can occur in phones, remotes and other controllers. Exact origin and contained metals remain unconfirmed.",
+                "model":"SPIKE Equipment Subtype Reasoner v0.4"}
     board_type=str(result.get("board_type","Unknown Board"));signals=result.get("signals") or {};mb=result.get("motherboard") or {};features=result.get("features") or {};ref=result.get("reference_intelligence") or {};hypotheses=ref.get("hypotheses") or []
     text=" ".join(str(x).lower() for x in [board_type,result.get("board_type_reason","")]+[h.get("type","") for h in hypotheses]);candidates=[]
     def add(label,score,evidence):candidates.append({"subtype":label,"score":score,"evidence":evidence})

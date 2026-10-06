@@ -10,6 +10,8 @@ def classify_board_type(features, visual, motherboard, power):
     logic_evidence=bool(features.get("processor") or features.get("dense_component_board") or features.get("large_ic_chips"))
     stage_present=bool(power.get("power_stage_present") or power.get("mixed_power_control_candidate"))
     substantial_power_topology=bool(stage_present or (power_blocks>=1 and(raw_power_score>=3 or power_round>=2 or power_blocks>=2)) or (power_packages>=1 and power_round>=2 and raw_power_score>=3))
+    if features.get("keypad_contact_array"):
+        return {"type":"Keypad / Handheld Controller Board","reason":"A repeated round contact bank supports a keypad-equipped controller. A phone is one possible source; exact device, manufacturer and metal content are unconfirmed."}
     if features.get("ram") or visual.get("possible_ram"):return {"type":"RAM / Memory Module","reason":"Long narrow geometry and memory-module signals detected."}
     if substantial_power_topology and logic_evidence:return {"type":"Power-Control / Controller Board","reason":"Physically supported power-stage hardware and control/logic evidence are both present; pure-PSU logic penalties do not erase the observed mixed topology."}
     if power.get("possible_power_board"):return {"type":"Power / Supply Board","reason":"Power-stage topology is dominant without enough confirmed control logic to classify the board as a mixed power controller."}

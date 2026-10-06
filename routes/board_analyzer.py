@@ -15,6 +15,7 @@ from routes.spike_glass import recognize as spike_glass_recognize
 from routes.photo_quality import assess_photo_quality
 from routes.board_blueprint import generate_blueprint
 from routes.object_gate import classify_object
+from routes.keypad_detector import detect_keypad
 from routes.modification_detector import detect_modifications
 from routes.decision_guard import condition_harvest_check
 from routes.board_fingerprint import extract_board_fingerprint
@@ -85,6 +86,8 @@ def analyze_board(image_path):
  if object_gate.get("mode")!="board":return _non_board_result(object_gate,photo_quality,fingerprint)
 
  features=detect_board_features(image_path);visual=detect_visual_features(image_path);motherboard=detect_motherboard(image_path);power=detect_power_board(image_path);components=discriminate_components(image_path)
+ keypad=detect_keypad(image_path)
+ features["keypad_contact_array"]=keypad["supported"]
 
  if visual.get("possible_ram",False):features["ram"]=True;features["memory_module"]=True
  features["gold_fingers"]=bool(visual.get("gold_finger_geometry") and visual.get("repeated_edge_contacts"))
@@ -126,6 +129,9 @@ def analyze_board(image_path):
  result={"grade":grade_result["grade"],"confidence":confidence,"score":score,"board_type":board_type["type"],"board_type_reason":board_type["reason"],"object_gate":object_gate,"physical_fingerprint":fingerprint,"reasoning_crosscheck":reasoning_crosscheck,"photo_quality":photo_quality,"spike_glass":spike_glass,"board_blueprint":blueprint,"pay_dirt_ready":grade_result["pay_dirt_ready"],"recommendation":grade_result["recommendation"],"recovery_signals":grade_result["recovery_signals"],"grade_notes":grade_result["grade_notes"],"reference_intelligence":reference_intelligence,"component_intelligence":components,"features":features,"visual":visual,"motherboard":motherboard,"power":power,"signals":{"motherboard":features.get("motherboard",False),"ram":features.get("ram",False),"power_board":features.get("power_board",False),"gold_fingers":features.get("gold_fingers",False),"gold_edge_color_cue":visual.get("gold_edge_color_cue",False),"gold_finger_geometry":visual.get("gold_finger_geometry",False),"repeated_edge_contacts":visual.get("repeated_edge_contacts",False),"large_ic_chips":features.get("large_ic_chips",False),"dense_component_board":features.get("dense_component_board",False),"processor":features.get("processor",False),"component_count":features.get("component_count",0),"component_density":features.get("component_density",0.0),"possible_ram":visual.get("possible_ram",False),"gold_finger_edge":visual.get("gold_finger_edge",False),"raw_large_ic_signal":visual_ic_signal,"ic_signal_confirmed":component_ic_support,"component_ic_count":component_ic_count,"visual_ic_count":visual_ic_count,"possible_motherboard":motherboard.get("possible_motherboard",False),"confirmed_slot_bank":motherboard.get("confirmed_slot_bank",False),"parallel_slot_bank":motherboard.get("parallel_slot_bank",False),"motherboard_score":motherboard.get("motherboard_score",motherboard.get("score",0)),"large_board":motherboard.get("large_board",False),"possible_power_board":power.get("possible_power_board",False),"power_stage_present":power.get("power_stage_present",False),"mixed_power_control_candidate":power.get("mixed_power_control_candidate",False),"large_round_components":power.get("large_round_components",0),"large_component_regions":power.get("large_component_regions",0),"large_power_package_like":power.get("large_power_package_like",components.get("large_power_package_like",0)),"power_score":power.get("power_score",0),"raw_power_score":power.get("raw_power_score",0),"logic_penalty":power.get("logic_penalty",0)},"model":"Board Sense v4.4 + SPIKE Vision v1.2 + Density Fusion v0.1 + Strict Edge Contact Geometry v0.2 + Reference Reasoner v5 + Board Blueprint v1.1 + PCB Region Guard v0.1 + Power Topology v0.3 + Modification Detector v0.2 + Motherboard Detector v0.5 + Physical Fingerprint v0.3"}
  result["recovery_evidence_guard"]={"active":True,"model":"SPIKE Recovery Evidence Guard v0.1","generic_dark_region_count":feature_count,"generic_visual_region_count":visual_ic_count,"supported_logic_package_count":population["count"],"supported_package_box_coverage":population["density"],"rule":"Recovery population points use PCB-supported package candidates only. Cloth, board lettering, and cutouts do not count as packages. Candidate footprint coverage is not an assay or a metal yield."}
  result["model"]=result["model"].replace("Board Sense v4.4","Board Sense v4.5").replace("Density Fusion v0.1","SPIKE Recovery Evidence Guard v0.1")
+ result["keypad_intelligence"]=keypad
+ if keypad["supported"]:
+  result["model"]+=" + Keypad Array v0.1"
 
  modification=detect_modifications(image_path,result)
  result["modification_intelligence"]=modification
