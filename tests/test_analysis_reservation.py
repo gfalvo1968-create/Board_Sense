@@ -86,6 +86,26 @@ class AnalysisReservationTests(unittest.TestCase):
         self.assertEqual(r.status_code, 429)
         self.assertEqual(self.analyzer.call_count, 1)
 
+    def test_processor_context_withholds_board_analysis_and_valuation(self):
+        with patch.object(main, "reconcile_case") as reconcile:
+            r = self.post("/analyze-case", [("files", photo()), ("files", photo())], {"item_kind": "processor", "full_recovery_value": "999"})
+        self.assertEqual(r.status_code, 200, r.text)
+        p = r.json()
+        self.assertEqual(p["photo_count"], 2)
+        self.assertEqual(len(p["views"]), 2)
+        self.assertEqual(p["free_usage"]["used_today"], 1)
+        self.assertEqual(p["combined"]["grade"], "WITHHELD")
+        self.assertIsNone(p["combined"]["score"])
+        self.assertFalse(p["combined"]["object_gate"]["confirmed_pcb"])
+        self.assertNotIn("recovery_economics", p["combined"])
+        self.analyzer.assert_not_called()
+        reconcile.assert_not_called()
+
+    def test_unknown_item_context_does_not_consume_allowance(self):
+        r = self.post("/analyze-case", [("files", photo()), ("files", photo())], {"item_kind": "gold"})
+        self.assertEqual(r.status_code, 422, r.text)
+        self.assertFalse(self.usage_file.exists())
+
     def test_invalid_last_view_never_claims_or_analyzes(self):
         r = self.post("/analyze-case", [("files", photo()), ("files", ("bad.png", b"not an image", "image/png"))])
         self.assertEqual(r.status_code, 400)

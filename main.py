@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Form, Request
+from fastapi import FastAPI, UploadFile, File, Form, Request, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -237,11 +237,14 @@ async def analyze_board_case_route(
     full_minutes: Optional[float] = Form(None, ge=0, allow_inf_nan=False),
     full_costs: Optional[float] = Form(None, ge=0, allow_inf_nan=False),
     operator_same_board_confirmation: bool = Form(False),
+    item_kind: str = Form("auto"),
 ):
     """Analyze 2-6 photos of one physical board and consume one daily free-board allowance."""
     blocked = _gate_or_block(request)
     if blocked:
         return blocked
+    if item_kind not in ("auto", "processor"):
+        raise HTTPException(status_code=422, detail="Choose automatic board analysis or loose processor inspection.")
     if len(files) < 2 or len(files) > 6:
         return {"status": "error", "message": "Choose between 2 and 6 photos of the same board."}
     results = []
@@ -250,11 +253,18 @@ async def analyze_board_case_route(
         if blocked is not None:
             return blocked
         for i, (upload, path) in enumerate(zip(files, paths), 1):
-            result = analyze_board(str(path))
+            if item_kind == "processor":
+                from routes.processor_case import inspect_processor
+                result = inspect_processor(str(path))
+            else:
+                result = analyze_board(str(path))
             result["board"] = upload.filename
             result["view_number"] = i
-            result["spike_evidence"] = build_evidence_packet(result)
+            result["spike_evidence"] = ({"identity_basis": "USER_SELECTED_COMPONENT", "whole_board_valuation": False} if item_kind == "processor" else build_evidence_packet(result))
             results.append(result)
+    if item_kind == "processor":
+        from routes.processor_case import processor_case
+        return _attach_usage({"status": "success", "mode": "component_inspection", "photo_count": len(results), "views": results, "combined": processor_case(results)}, usage)
     combined = reconcile_case(results, operator_same_board_confirmation=operator_same_board_confirmation)
     if combined.get("status") == "case_identity_failed" or (combined.get("same_board_verification") or {}).get("block_reconciliation"):
         identity = combined.get("same_board_verification") or {}
