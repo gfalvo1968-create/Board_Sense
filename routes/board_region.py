@@ -14,6 +14,19 @@ def board_region_mask(image):
     # Include warm-lit green solder mask. Saturation excludes most gray cloth;
     # color locates a surface only and supplies no board identity or value.
     surface = cv2.inRange(hsv, np.array([18, 70, 22]), np.array([105, 255, 255]))
+    # Separate a dominant green/teal solder-mask hue from blue cloth that can
+    # otherwise join the outline. Only refine when a strong color mode exists;
+    # this locates the surface and never supplies identity or value evidence.
+    hue = hsv[:, :, 0]
+    hist = np.bincount(hue[surface > 0], minlength=180)
+    if hist.sum():
+        smooth = np.convolve(hist, np.ones(5), mode="same")
+        peak = int(np.argmax(smooth[18:91]) + 18)
+        radius = 7 if peak >= 70 else 15
+        lo, hi = max(18, peak-radius), min(105, peak+radius)
+        if hist[lo:hi+1].sum() / hist.sum() >= .45:
+            surface = cv2.inRange(hsv, np.array([lo, 70, 22]),
+                                 np.array([hi, 255, 255]))
     k = max(3, (min(h, w) // 85) | 1)
     surface = cv2.morphologyEx(surface, cv2.MORPH_CLOSE,
                                np.ones((k, k), np.uint8), iterations=2)
@@ -58,3 +71,4 @@ def region_on_board(mask, region, minimum_coverage=.65):
     if not mask[y + rh // 2, x + rw // 2]:
         return False
     return cv2.countNonZero(mask[y:y + rh, x:x + rw]) / (rw * rh) >= minimum_coverage
+

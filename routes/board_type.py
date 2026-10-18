@@ -13,6 +13,10 @@ def classify_board_type(features, visual, motherboard, power):
     if features.get("keypad_contact_array"):
         return {"type":"Keypad / Handheld Controller Board","reason":"A repeated round contact bank supports a keypad-equipped controller. A phone is one possible source; exact device, manufacturer and metal content are unconfirmed."}
     if features.get("ram") or visual.get("possible_ram"):return {"type":"RAM / Memory Module","reason":"Long narrow geometry and memory-module signals detected."}
+    # Defining slot + I/O geometry outranks generic power components that
+    # also occur on computer mainboards. No change to recovery grading.
+    if motherboard.get("possible_motherboard") and motherboard.get("confirmed_slot_bank") and motherboard.get("edge_connector_bank"):
+        return {"type":"Motherboard / Main Logic Board","reason":"Corroborated parallel slot bodies and a distinct PCB-edge connector bank support computer mainboard architecture."}
     if substantial_power_topology and logic_evidence:return {"type":"Power-Control / Controller Board","reason":"Physically supported power-stage hardware and control/logic evidence are both present; pure-PSU logic penalties do not erase the observed mixed topology."}
     if power.get("possible_power_board"):return {"type":"Power / Supply Board","reason":"Power-stage topology is dominant without enough confirmed control logic to classify the board as a mixed power controller."}
     if features.get("motherboard") or motherboard.get("possible_motherboard"):return {"type":"Motherboard / Main Logic Board","reason":"Large board geometry with logic-board characteristics detected."}
@@ -20,3 +24,4 @@ def classify_board_type(features, visual, motherboard, power):
     if features.get("dense_component_board") or features.get("large_ic_chips"):return {"type":"Dense Logic / Controller Board","reason":"Multiple IC-like packages and elevated component density detected."}
     if features.get("gold_fingers") or visual.get("gold_finger_edge"):return {"type":"Edge-Connector Expansion Board","reason":"A board-edge connector signal is present and no stronger structural topology has been confirmed."}
     return {"type":"General PCB","reason":"No stronger board-type pattern has been confirmed yet."}
+

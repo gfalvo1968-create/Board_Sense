@@ -20,6 +20,7 @@ def infer_equipment_subtype(result):
     if large_ic:pc_score+=1;pc_evidence.append("large/dense logic-package evidence")
     if ram:pc_score+=2;pc_evidence.append("memory-module evidence")
     if geometry_confirmed and ram and pc_score>=7:add("PC / Computer Mainboard",pc_score,pc_evidence)
+    elif geometry_confirmed:add("Computer Mainboard; Exact Equipment Unconfirmed",pc_score,pc_evidence)
     telecom=[];telecom_score=0
     if any(k in text for k in ("telecom","network")):telecom_score+=4;telecom.append("telecom/network reasoning evidence")
     if signals.get("large_board") and large_ic:telecom_score+=2;telecom.append("large dense logic board")
@@ -49,3 +50,4 @@ def infer_equipment_subtype(result):
     if broad_logic:add("Embedded / Proprietary Main Logic Board",3,["main-logic/control architecture indicated; equipment family not independently proven"])
     candidates.sort(key=lambda x:x["score"],reverse=True);best=candidates[0] if candidates else {"subtype":"Unresolved Equipment Family","score":0,"evidence":["insufficient equipment-specific evidence"]};margin=best["score"]-(candidates[1]["score"] if len(candidates)>1 else 0);confidence="high" if best["score"]>=7 and margin>=2 else ("moderate" if best["score"]>=5 else "low")
     return {"subtype":best["subtype"],"confidence":confidence,"evidence":best["evidence"],"candidates":candidates[:5],"geometry":{"confirmed_pc_architecture":geometry_confirmed,"confirmed_slot_bank":confirmed_slot,"edge_connector_bank":edge_bank,"motherboard_score":structure_score},"topology":{"power_present":power_present,"power_score":power_score,"logic_present":logic_present},"rule":"Broad identity does not prove equipment subtype. Mixed power plus control logic is evaluated separately from a pure supply; PC/server labels require corroborated architecture.","model":"SPIKE Equipment Subtype Reasoner v0.3"}
+
