@@ -1,4 +1,5 @@
 import subprocess
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -52,6 +53,7 @@ class ProcessorMarkingsTests(unittest.TestCase):
         self.assertEqual(result['processor_markings']['status'], 'conflict')
         self.assertIn('Conflicting', result['three_answers']['identity']['subtype'])
 
+    @unittest.skipUnless(shutil.which('tesseract'), 'Local Tesseract is required for the OCR integration test')
     def test_real_ocr_on_control_image_and_blank(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'control.png'
