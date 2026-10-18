@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from typing import List, Optional
 import uvicorn
+import shutil
 from ecosystem import get_ecosystem
 from routes.board_analyzer import analyze_board
 from routes.pair_reasoner import reconcile_pair
@@ -68,7 +69,7 @@ def ecosystem_data():
 @app.get("/health")
 def health():
     """Deployment probe; no scan, visitor data or private contacts."""
-    return {"status": "ok", "service": "Board Sense", "release": "launch-20261006-keypad-context"}
+    return {"status": "ok", "service": "Board Sense", "release": "processor-markings-v0.2", "processor_markings_reader": bool(shutil.which("tesseract"))}
 
 
 @app.get("/free-usage")
