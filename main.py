@@ -69,7 +69,7 @@ def ecosystem_data():
 @app.get("/health")
 def health():
     """Deployment probe; no scan, visitor data or private contacts."""
-    return {"status": "ok", "service": "Board Sense", "release": "motherboard-geometry-v0.6", "processor_markings_reader": bool(shutil.which("tesseract"))}
+    return {"status": "ok", "service": "Board Sense", "release": "board-analysis-scale-v0.1", "processor_markings_reader": bool(shutil.which("tesseract"))}
 
 
 @app.get("/free-usage")
@@ -319,4 +319,5 @@ async def analyze_board_case_route(
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080)
+
 
