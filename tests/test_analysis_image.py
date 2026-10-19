@@ -29,6 +29,46 @@ class AnalysisImageTests(unittest.TestCase):
             with board_analysis_image(original) as working:
                 self.assertEqual(working, original)
 
+    def test_normalized_blueprints_are_distinct_and_served_after_cleanup(self):
+        import cv2
+        import numpy as np
+        from fastapi import FastAPI
+        from fastapi.staticfiles import StaticFiles
+        from fastapi.testclient import TestClient
+        from routes.board_analyzer import analyze_board
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            uploads = root / 'data' / 'Images'
+            uploads.mkdir(parents=True)
+            reports = root / 'data' / 'Blueprints'
+            names = []
+            for i in range(2):
+                image = np.full((1600, 2200, 3), 180, np.uint8)
+                cv2.rectangle(image, (400, 200), (1800, 1400), (28, 100, 36), -1)
+                for row in range(4):
+                    for col in range(5):
+                        x, y = 500 + col*230 + i*10, 300 + row*250
+                        cv2.rectangle(image, (x, y), (x+100, y+70), (24, 24, 24), -1)
+                path = uploads / f'photo-{i}.png'
+                cv2.imwrite(str(path), image)
+                # This regression isolates report storage from object classification.
+                from unittest.mock import patch
+                with patch('routes.board_analyzer.classify_object', return_value={'mode': 'board'}):
+                    result = analyze_board(str(path))
+                blueprint = result['board_blueprint']
+                self.assertTrue(blueprint['available'], blueprint)
+                names.append(blueprint['image_url'])
+                self.assertTrue((reports / blueprint['image_filename']).is_file())
+            self.assertNotEqual(names[0], names[1])
+            app = FastAPI()
+            app.mount('/blueprints', StaticFiles(directory=reports))
+            with TestClient(app) as client:
+                pictures = [client.get(name) for name in names]
+                self.assertTrue(all(p.status_code == 200 for p in pictures))
+                self.assertTrue(all(p.headers['content-type'] == 'image/png' for p in pictures))
+                self.assertNotEqual(pictures[0].content, pictures[1].content)
+
     def test_orientation_and_error_cleanup(self):
         with tempfile.TemporaryDirectory() as directory:
             original = Path(directory) / 'rotated.jpg'

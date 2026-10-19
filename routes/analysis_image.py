@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from uuid import uuid4
 
 from PIL import Image, ImageOps
 
@@ -23,6 +24,6 @@ def board_analysis_image(image_path):
         working = ImageOps.exif_transpose(source).convert("RGB")
         working.thumbnail((MAX_ANALYSIS_SIDE, MAX_ANALYSIS_SIDE), Image.Resampling.LANCZOS)
         with TemporaryDirectory(prefix="board-analysis-") as directory:
-            path = Path(directory) / "working.png"
+            path = Path(directory) / f"{uuid4().hex}.png"
             working.save(path, format="PNG")
             yield str(path)

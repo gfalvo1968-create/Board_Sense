@@ -84,11 +84,12 @@ def _non_board_result(object_gate,photo_quality,fingerprint):
 
 def analyze_board(image_path):
  with board_analysis_image(image_path) as working_path:
-  result=_analyze_board(working_path)
+  blueprint_dir=Path(image_path).resolve().parent.parent/"Blueprints"
+  result=_analyze_board(working_path,blueprint_dir=blueprint_dir)
   result["analysis_image"]={"max_side":1600,"normalized":str(working_path)!=str(image_path),"rule":"All board detectors and marker coordinates use one oriented working image; recovery quantities are not inferred from resolution."}
   return result
 
-def _analyze_board(image_path):
+def _analyze_board(image_path,blueprint_dir=None):
  photo_quality=assess_photo_quality(image_path);fingerprint=extract_board_fingerprint(image_path);object_gate=classify_object(image_path)
  if object_gate.get("mode")!="board":return _non_board_result(object_gate,photo_quality,fingerprint)
 
@@ -129,7 +130,7 @@ def _analyze_board(image_path):
  if visual_ic_signal and not component_ic_support and fused_component_count<8:confidence=max(25,confidence-5)
  if not photo_quality.get("usable",False):confidence=max(20,min(confidence,50))
 
- blueprint_dir=Path(image_path).resolve().parent.parent/"Blueprints"
+ blueprint_dir=Path(blueprint_dir) if blueprint_dir is not None else Path(image_path).resolve().parent.parent/"Blueprints"
  blueprint=generate_blueprint(image_path,components.get("regions",[]),blueprint_dir)
  if blueprint.get("available"):blueprint["image_url"]="/blueprints/"+blueprint["image_filename"]
 
