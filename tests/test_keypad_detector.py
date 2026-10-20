@@ -62,7 +62,8 @@ class KeypadDetectorTests(unittest.TestCase):
             case=reconcile_case(views)
             self.assertEqual(case["board_type"],"Keypad / Handheld Controller Board")
             self.assertEqual(case["score"],3)
-            self.assertEqual(case["grade"],"LOW")
+            self.assertEqual(case["grade"],"MANUAL REVIEW")
+            self.assertEqual(case["grade_assessment"]["provisional_grade"],"LOW")
             self.assertEqual(case["recovery_economics"]["status"],"needs_values")
             self.assertIn("Unconfirmed",case["equipment_subtype"]["subtype"])
 

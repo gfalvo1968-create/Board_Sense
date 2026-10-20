@@ -129,6 +129,8 @@ class BoardInsight:
         board_type = analysis.get("board_type", "General PCB")
         steps = []
 
+        if grade == "MANUAL REVIEW":
+            return ["Keep this board separate for manual grade review.", "Inspect packages, connectors, and condition before choosing a buyer category or processing path."]
         if grade == "HIGH":
             steps.extend([
                 "Separate this board from general e-waste.",

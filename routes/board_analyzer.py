@@ -1,4 +1,5 @@
 from pathlib import Path
+from routes.recovery_grade_guard import apply_grade_review
 from routes.analysis_image import board_analysis_image
 import numpy as np
 from routes.board_features import detect_board_features
@@ -144,6 +145,7 @@ def _analyze_board(image_path,blueprint_dir=None):
  modification=detect_modifications(image_path,result)
  result["modification_intelligence"]=modification
  result["condition_and_harvest"]=condition_harvest_check(result,modification.get("observations"))
+ result=apply_grade_review(result)
  result["recovery_lab"]=build_recovery_plan(spike_glass,result)
  result["insight"]=BoardInsight().generate(result)
  return result

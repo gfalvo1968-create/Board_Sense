@@ -12,6 +12,8 @@ multiple IC evidence corroborate one another.
 
 def apply_recovery_grade_guard(result):
     out=dict(result)
+    if out.get("grade")=="MANUAL REVIEW":
+        out["grade"]=(out.get("grade_assessment") or {}).get("provisional_grade","LOW")
     signals=out.get("signals") or {}
     board=str(out.get("board_type","")).lower()
     grade=str(out.get("grade","LOW")).upper()
@@ -100,4 +102,41 @@ def apply_recovery_grade_guard(result):
         "pay_dirt_ready":bool(out.get("pay_dirt_ready",False)),
         "model":"SPIKE Recovery Grade Guard v0.5",
     }
+    return apply_grade_review(out)
+
+
+def apply_grade_review(result):
+    """Withhold a final LOW label when sparse detection cannot settle logic value.
+
+    Scores remain observed-feature scores. Review never adds points or promotes
+    a grade, and absence of a detection is not evidence of absent material.
+    """
+    out = dict(result)
+    prior = out.get("grade_assessment") or {}
+    grade = prior.get("provisional_grade", "LOW") if out.get("grade") == "MANUAL REVIEW" else out.get("grade", "N/A")
+    signals = out.get("signals") or {}
+    regions = (out.get("component_intelligence") or {}).get("regions") or []
+    unresolved = any(any(term in str(r.get("type", "")).lower() for term in ("candidate", "unverified")) and
+                     any(x in str(r.get("type", "")).lower() for x in ("package", "die")) for r in regions)
+    logic = any(x in str(out.get("board_type", "")).lower() for x in ("logic", "motherboard", "processor", "controller"))
+    supported = bool(signals.get("large_ic_chips") or signals.get("ic_signal_confirmed") or signals.get("processor"))
+    review = str(grade).upper() == "LOW" and (unresolved or (logic and supported))
+    out["grade_assessment"] = {
+        "status": "MANUAL_REVIEW_REQUIRED" if review else "VISUAL_ESTIMATE",
+        "provisional_grade": grade,
+        "observed_feature_score": out.get("score", 0),
+        "final_buyer_grade_verified": False,
+        "reason": "Detected logic/package evidence is incomplete; a low feature score does not establish low recovery value." if review else "Visual estimate only; buyer grade, metal yield, and payout remain unverified.",
+        "model": "SPIKE Grade Review v0.1",
+    }
+    if review:
+        out["grade"] = "MANUAL REVIEW"
+        out["recommendation"] = "Keep this board separate for manual grade review. Check the visible packages, connectors, and condition before choosing a buyer category or processing path."
+        out["grade_notes"] = out["grade_assessment"]["reason"]
+        out["recovery_signals"] = [x for x in out.get("recovery_signals", []) if "limited precious metal recovery" not in str(x).lower()]
+        out["recovery_signals"].append("Recovery grade withheld pending manual review; detected-feature score is not a metal-yield estimate.")
+        if out.get("recovery_grade_guard"):
+            out["recovery_grade_guard"]["final_grade"] = "MANUAL REVIEW"
+        out["pay_dirt_ready"] = False
+        out["pay_dirt_reason"] = "Manual grade review required; recovery potential has not been settled."
     return out
