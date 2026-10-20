@@ -135,6 +135,7 @@ def apply_grade_review(result):
         out["grade_notes"] = out["grade_assessment"]["reason"]
         out["recovery_signals"] = [x for x in out.get("recovery_signals", []) if "limited precious metal recovery" not in str(x).lower()]
         out["recovery_signals"].append("Recovery grade withheld pending manual review; detected-feature score is not a metal-yield estimate.")
+        out["recovery_signals"] = list(dict.fromkeys(out["recovery_signals"]))
         if out.get("recovery_grade_guard"):
             out["recovery_grade_guard"]["final_grade"] = "MANUAL REVIEW"
         out["pay_dirt_ready"] = False

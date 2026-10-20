@@ -28,3 +28,15 @@ class GradeReviewTests(unittest.TestCase):
                     'component_intelligence':{'regions':[{'type':'Exposed-die / package candidate'}]}})
         self.assertEqual(result['grade'], 'MANUAL REVIEW')
         self.assertEqual(result['score'], 0)
+
+    def test_repeated_review_emits_one_warning_without_mutating_input(self):
+        original = {'board_type':'Motherboard / Main Logic Board','grade':'LOW','score':3,
+                    'signals':{'large_ic_chips':True}, 'recovery_signals':['visible logic packages']}
+        result = apply_grade_review(original)
+        for _ in range(3):
+            result = apply_recovery_grade_guard(result)
+        warnings = [x for x in result['recovery_signals'] if x.startswith('Recovery grade withheld')]
+        self.assertEqual(len(warnings), 1)
+        self.assertEqual(result['score'], 3)
+        self.assertEqual(result['grade'], 'MANUAL REVIEW')
+        self.assertEqual(original['recovery_signals'], ['visible logic packages'])
