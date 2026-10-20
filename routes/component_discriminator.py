@@ -1,6 +1,6 @@
 """Visual component-family discrimination for Board Sense.
 
-SPIKE Vision v1.4 keeps body-before-label filtering and conservative power cues.
+SPIKE Vision v1.5 keeps body-before-label filtering and conservative power cues.
 Density-aware logic detection now preserves smaller legacy IC packages instead of
 letting one large package represent an entire populated board.
 """
@@ -72,6 +72,40 @@ def _gold_ratio(hsv_roi):
     if hsv_roi.size==0:return 0.0
     gold=cv2.inRange(hsv_roi,np.array([8,70,65]),np.array([34,255,255]))
     return float(cv2.countNonZero(gold)/max(gold.size,1))
+
+def _round_body_support(image,cx,cy,radius):
+    """Require a coherent circular rim, not scattered edges in a large disk."""
+    height,width=image.shape[:2]
+    if radius<4 or cx-radius<1 or cy-radius<1 or cx+radius>=width-1 or cy+radius>=height-1:return False
+    # Average short arcs on either side of the proposed rim. A real body
+    # boundary produces a color transition across most angular sectors.
+    theta=np.linspace(0,2*np.pi,108,endpoint=False).astype(np.float32)
+    rings=[]
+    for factor in (.87,.93,1.07,1.13):
+        x=(cx+np.cos(theta)*radius*factor).astype(np.float32).reshape(1,-1)
+        y=(cy+np.sin(theta)*radius*factor).astype(np.float32).reshape(1,-1)
+        rings.append(cv2.remap(image,x,y,cv2.INTER_LINEAR,borderMode=cv2.BORDER_REFLECT).astype(np.float32))
+    delta=((rings[0]+rings[1]-rings[2]-rings[3])/2).reshape(36,3,3).mean(axis=1)
+    transition=np.linalg.norm(delta,axis=1)
+    if np.mean(transition>=24)<.67:return False
+    if np.linalg.norm(delta.mean(axis=0))/max(1,float(transition.mean()))<.60:return False
+    # The strongest local transition should trace the proposed rim, rather
+    # than unrelated parts scattered at different distances from the center.
+    radii=np.linspace(.70,1.30,13,dtype=np.float32)
+    mx=(cx+radius*radii[:,None]*np.cos(theta)[None,:]).astype(np.float32)
+    my=(cy+radius*radii[:,None]*np.sin(theta)[None,:]).astype(np.float32)
+    profile=cv2.remap(image,mx,my,cv2.INTER_LINEAR,borderMode=cv2.BORDER_REFLECT).astype(np.float32)
+    profile=profile.reshape(13,36,3,3).mean(axis=2)
+    gradients=np.linalg.norm(np.diff(profile,axis=0),axis=2)
+    strongest=gradients.argmax(axis=0)
+    rim=(radii[:-1]+radii[1:])/2
+    if np.mean((np.abs(rim[strongest]-1)<=.11)&(gradients.max(axis=0)>=15))<.72:return False
+    # A dark open center surrounded by a rim is more consistent with a hole
+    # than an independently supported capacitor top.
+    gray=cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
+    rr=max(2,int(radius*.35));core=gray[int(cy)-rr:int(cy)+rr+1,int(cx)-rr:int(cx)+rr+1]
+    if np.mean(core<35)>.65:return False
+    return True
 
 def _contact_pattern_score(candidates,width,height):
     if len(candidates)<4:return 0.0
@@ -202,6 +236,21 @@ def discriminate_components(image_path):
                 winding_like+=1;conf=min(88,int(56+edge_density*160+min(ar,.06)*120));regions.append({"type":"Copper-wound magnetic candidate","x":int(x*inv),"y":int(y*inv),"w":int(w*inv),"h":int(h*inv),"confidence":conf})
             winding_like=min(winding_like,4)
 
+        raw_cap_candidates=len(caps)
+        accepted_caps=[]
+        package_regions=[q for q in regions if q['type'] in ('IC-like package','Unverified package-like region','Exposed-die / package candidate')]
+        for candidate in sorted(caps,key=lambda c:c[2],reverse=True):
+            cx,cy,r=candidate[:3]
+            circle={'x':int((cx-r)*inv),'y':int((cy-r)*inv),'w':int(r*2*inv),'h':int(r*2*inv)}
+            # Package geometry takes precedence over a circle fitted through
+            # chip corners, die paste or nearby scattered components.
+            if any(q['x']<=cx*inv<=q['x']+q['w'] and q['y']<=cy*inv<=q['y']+q['h'] for q in package_regions):continue
+            if not region_on_board(mask,{'x':cx-r,'y':cy-r,'w':r*2,'h':r*2},minimum_coverage=.80):continue
+            if not _round_body_support(image,cx,cy,r):continue
+            if any(_overlap(circle,{'x':int((a[0]-a[2])*inv),'y':int((a[1]-a[2])*inv),'w':int(a[2]*2*inv),'h':int(a[2]*2*inv)})>.40 for a in accepted_caps):continue
+            accepted_caps.append(candidate)
+        caps=accepted_caps
+        result['round_body_guard']={'raw_candidates':raw_cap_candidates,'supported_candidates':len(caps),'rejected_candidates':raw_cap_candidates-len(caps),'rule':'Round component candidates require a PCB-supported circular rim; package-centered circles and duplicate circles are excluded.'}
         caps=sorted(caps,key=lambda c:c[2],reverse=True)[:12];contacts=sorted(contacts,key=lambda c:c[2],reverse=True)[:24];suppressed_caps=0
         if solder_side_likelihood>=65 and caps:suppressed_caps=len(caps);caps=[]
         for cx,cy,r,ed,ms,mv in caps:
@@ -229,7 +278,7 @@ def discriminate_components(image_path):
         elif ic_like or capacitor_like or block_like or power_package_like or winding_like:
             result["dominant_family"]="mixed"
 
-        result["notes"].append("SPIKE Vision v1.4 PCB-outline and package-body filtering is active.")
+        result["notes"].append("SPIKE Vision v1.5 PCB-outline and package-body filtering is active.")
         if ic_like>=8:result["notes"].append(f"Dense logic population detected: {ic_like} IC-like package candidates.")
         if solder_side_likelihood>=65:result["notes"].append(f"PCB solder/trace-side pattern detected ({solder_side_likelihood}% likelihood); capacitor and copper-winding promotion is suppressed on this view.")
         if winding_like:result["notes"].append(f"Found {winding_like} copper-wound magnetic candidate(s) on a component-side-compatible view.")
