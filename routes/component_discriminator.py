@@ -1,6 +1,6 @@
 """Visual component-family discrimination for Board Sense.
 
-SPIKE Vision v1.2 keeps body-before-label filtering and conservative power cues.
+SPIKE Vision v1.3 keeps body-before-label filtering and conservative power cues.
 Density-aware logic detection now preserves smaller legacy IC packages instead of
 letting one large package represent an entire populated board.
 """
@@ -63,7 +63,7 @@ def _contact_pattern_score(candidates,width,height):
     return min(score,1.0)
 
 def discriminate_components(image_path):
-    result={"ic_like":0,"capacitor_like":0,"contact_pad_like":0,"solder_joint_like":0,"solder_side_likelihood":0,"contact_pattern_score":0.0,"transformer_relay_like":0,"large_power_package_like":0,"magnetic_winding_like":0,"small_component_like":0,"uncertain_like":0,"dominant_family":"unknown","logic_component_ratio":0.0,"power_component_ratio":0.0,"regions":[],"notes":[]}
+    result={"ic_like":0,"unverified_package_like":0,"capacitor_like":0,"contact_pad_like":0,"solder_joint_like":0,"solder_side_likelihood":0,"contact_pattern_score":0.0,"transformer_relay_like":0,"large_power_package_like":0,"magnetic_winding_like":0,"small_component_like":0,"uncertain_like":0,"dominant_family":"unknown","logic_component_ratio":0.0,"power_component_ratio":0.0,"regions":[],"notes":[]}
     try:
         image=cv2.imread(image_path)
         if image is None:return result
@@ -119,8 +119,17 @@ def discriminate_components(image_path):
             for contour in package_contours:
                 x,y,w,h=cv2.boundingRect(contour);a=cv2.contourArea(contour);ar=a/board_area;rect=a/max(1,w*h)
                 if not (.001<=ar<=.15 and rect>=.65 and max(w,h)/max(1,min(w,h))<=4.8):continue
-                if not region_on_board(mask,{'x':x,'y':y,'w':w,'h':h}) or np.mean(gray[y:y+h,x:x+w])>=100:continue
-                if not _package_body_support(gray,hsv,x,y,w,h) or not _pin_edge_support(gray,x,y,w,h):continue
+                if not region_on_board(mask,{'x':x,'y':y,'w':w,'h':h}):continue
+                body_supported=_package_body_support(gray,hsv,x,y,w,h)
+                pins_supported=_pin_edge_support(gray,x,y,w,h)
+                mean_face=float(np.mean(gray[y:y+h,x:x+w]))
+                # An enclosed square face without visible opposing pins is an
+                # inspection candidate, never a confirmed IC or recovery anchor.
+                # High rectangularity excludes circular mounting-hole contours.
+                if body_supported and not pins_supported and .002<=ar<=.065 and rect>=.88 and max(w,h)/max(1,min(w,h))<=1.65 and mean_face<150:
+                    candidate={'type':'Unverified package-like region','x':int(x*inv),'y':int(y*inv),'w':max(1,int(w*inv)),'h':max(1,int(h*inv)),'confidence':50,'geometry_guard':'Enclosed package-like face; opposing pins are not confirmed. Hidden connections are possible, but this may be another rectangular feature. Excluded from IC counts, recovery points, and metal-yield claims.'}
+                    if not any(_overlap(candidate,r)>.42 for r in regions):regions.append(candidate)
+                if mean_face>=100 or not body_supported or not pins_supported:continue
                 region={'type':'IC-like package','x':int(x*inv),'y':int(y*inv),'w':max(1,int(w*inv)),'h':max(1,int(h*inv)),'confidence':min(90,int(65+rect*25)),'geometry_guard':'Enclosed dark package with repeated pin-like edges on opposing sides; part markings and composition still require inspection.'}
                 duplicate=next((r for r in regions if _overlap(region,r)>.42),None)
                 if duplicate:
@@ -149,6 +158,13 @@ def discriminate_components(image_path):
         solder_count=min(len(solder),80);board_edge_density=cv2.countNonZero(cv2.bitwise_and(edges,mask))/max(board_area,1);solder_side_likelihood=int(min(100,solder_count*2+max(0,board_edge_density-.06)*240))
         if solder_count>=10 and board_edge_density>=.055:solder_side_likelihood=max(solder_side_likelihood,72)
 
+        raw_solder_side_likelihood=solder_side_likelihood
+        # Solder joints exist on populated faces too. Three independently
+        # supported package bodies defeat a solder-only interpretation; retain
+        # the raw cue for audit and keep each capacitor/winding geometry gate.
+        component_face_supported=ic_like>=3
+        if component_face_supported:solder_side_likelihood=min(solder_side_likelihood,64)
+        result['side_context']={'raw_solder_pattern_score':raw_solder_side_likelihood,'component_face_supported':component_face_supported,'supported_ic_packages':ic_like,'status':'populated_or_mixed_face' if component_face_supported else ('solder_pattern_dominant' if solder_side_likelihood>=65 else 'unresolved'),'rule':'Solder patterns alone cannot suppress component candidates when multiple supported package bodies are present.'}
         winding_like=0
         if solder_side_likelihood<65:
             copper=cv2.inRange(hsv,np.array([4,90,55]),np.array([24,255,245]));copper=cv2.bitwise_and(copper,mask);copper=cv2.morphologyEx(copper,cv2.MORPH_CLOSE,np.ones((5,5),np.uint8));cc,_=cv2.findContours(copper,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
@@ -175,19 +191,23 @@ def discriminate_components(image_path):
 
         capacitor_like,contact_pad_like=len(caps),len(contacts)
         result.update({"ic_like":ic_like,"capacitor_like":capacitor_like,"contact_pad_like":contact_pad_like,"solder_joint_like":solder_count,"solder_side_likelihood":solder_side_likelihood,"contact_pattern_score":round(pattern_score,3),"transformer_relay_like":block_like,"large_power_package_like":power_package_like,"magnetic_winding_like":winding_like,"small_component_like":small_like,"uncertain_like":uncertain_like})
+        result["unverified_package_like"]=sum(r["type"]=="Unverified package-like region" for r in regions)
         result["regions"]=sorted(regions,key=lambda i:(i["confidence"],i["w"]*i["h"]),reverse=True)[:48]
         total=max(ic_like+capacitor_like+block_like+power_package_like+winding_like,1)
         result["logic_component_ratio"]=round(ic_like/total,3)
         result["power_component_ratio"]=round((capacitor_like+block_like+power_package_like+winding_like)/total,3)
 
-        if ic_like>=4 and ic_like>capacitor_like+block_like+power_package_like+winding_like:
+        if component_face_supported and not (block_like or power_package_like or winding_like):
+            # Round capacitor candidates alone do not prove power topology.
+            result["dominant_family"]="logic_ic"
+        elif ic_like>=4 and ic_like>capacitor_like+block_like+power_package_like+winding_like:
             result["dominant_family"]="logic_ic"
         elif capacitor_like+block_like+power_package_like+winding_like>=4 and capacitor_like+block_like+power_package_like+winding_like>ic_like*1.35:
             result["dominant_family"]="power_components"
         elif ic_like or capacitor_like or block_like or power_package_like or winding_like:
             result["dominant_family"]="mixed"
 
-        result["notes"].append("SPIKE Vision v1.2 PCB-outline and package-body filtering is active.")
+        result["notes"].append("SPIKE Vision v1.3 PCB-outline and package-body filtering is active.")
         if ic_like>=8:result["notes"].append(f"Dense logic population detected: {ic_like} IC-like package candidates.")
         if solder_side_likelihood>=65:result["notes"].append(f"PCB solder/trace-side pattern detected ({solder_side_likelihood}% likelihood); capacitor and copper-winding promotion is suppressed on this view.")
         if winding_like:result["notes"].append(f"Found {winding_like} copper-wound magnetic candidate(s) on a component-side-compatible view.")
