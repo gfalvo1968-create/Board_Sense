@@ -1,6 +1,6 @@
 """Visual component-family discrimination for Board Sense.
 
-SPIKE Vision v1.3 keeps body-before-label filtering and conservative power cues.
+SPIKE Vision v1.4 keeps body-before-label filtering and conservative power cues.
 Density-aware logic detection now preserves smaller legacy IC packages instead of
 letting one large package represent an entire populated board.
 """
@@ -24,6 +24,25 @@ def _package_body_support(gray,hsv,x,y,w,h):
     if cv2.countNonZero(surface)/core.size>.45:return False
     texture=cv2.Canny(core,35,95)
     return coherent>=.65 and cv2.countNonZero(texture)/core.size<=.14
+
+def _nested_die_support(gray,hsv,x,y,w,h):
+    """Inspection-only nested face geometry; never establishes chip identity."""
+    if max(w,h)/max(1,min(w,h))>1.4:return False
+    face=gray[y:y+h,x:x+w];color=hsv[y:y+h,x:x+w]
+    if face.size==0 or float(np.median(face))>=115:return False
+    surface=cv2.inRange(color,np.array([14,70,22]),np.array([105,255,255]))
+    if np.mean(surface>0)>.35:return False
+    _,bright=cv2.threshold(face,max(110,float(np.median(face))+35),255,cv2.THRESH_BINARY)
+    contours,_=cv2.findContours(bright,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+    for c in contours:
+        ix,iy,iw,ih=cv2.boundingRect(c);area=cv2.contourArea(c)
+        if not (.04<=area/(w*h)<=.32 and area/max(1,iw*ih)>=.60):continue
+        if max(iw,ih)/max(1,min(iw,ih))>1.4:continue
+        if abs((ix+iw/2)/w-.5)>.18 or abs((iy+ih/2)/h-.5)>.18:continue
+        if ix<w*.12 or iy<h*.12 or ix+iw>w*.88 or iy+ih>h*.88:continue
+        if float(np.median(color[iy:iy+ih,ix:ix+iw,1]))>95:continue
+        return True
+    return False
 
 def _pin_edge_support(gray,x,y,w,h):
     """Require repeated pin-like contrast along two opposing package sides."""
@@ -123,6 +142,9 @@ def discriminate_components(image_path):
                 body_supported=_package_body_support(gray,hsv,x,y,w,h)
                 pins_supported=_pin_edge_support(gray,x,y,w,h)
                 mean_face=float(np.mean(gray[y:y+h,x:x+w]))
+                if .002<=ar<=.065 and rect>=.80 and _nested_die_support(gray,hsv,x,y,w,h):
+                    candidate={'type':'Exposed-die / package candidate','x':int(x*inv),'y':int(y*inv),'w':max(1,int(w*inv)),'h':max(1,int(h*inv)),'confidence':50,'geometry_guard':'Central light die-like area inside an enclosed dark package-like face. Connections, part family, and composition are unverified; paste or other features can imitate this geometry. Inspection only: excluded from IC counts and recovery points.'}
+                    if not any(_overlap(candidate,r)>.42 for r in regions):regions.append(candidate)
                 # An enclosed square face without visible opposing pins is an
                 # inspection candidate, never a confirmed IC or recovery anchor.
                 # High rectangularity excludes circular mounting-hole contours.
@@ -191,7 +213,7 @@ def discriminate_components(image_path):
 
         capacitor_like,contact_pad_like=len(caps),len(contacts)
         result.update({"ic_like":ic_like,"capacitor_like":capacitor_like,"contact_pad_like":contact_pad_like,"solder_joint_like":solder_count,"solder_side_likelihood":solder_side_likelihood,"contact_pattern_score":round(pattern_score,3),"transformer_relay_like":block_like,"large_power_package_like":power_package_like,"magnetic_winding_like":winding_like,"small_component_like":small_like,"uncertain_like":uncertain_like})
-        result["unverified_package_like"]=sum(r["type"]=="Unverified package-like region" for r in regions)
+        result["unverified_package_like"]=sum(r["type"] in ("Unverified package-like region","Exposed-die / package candidate") for r in regions)
         result["regions"]=sorted(regions,key=lambda i:(i["confidence"],i["w"]*i["h"]),reverse=True)[:48]
         total=max(ic_like+capacitor_like+block_like+power_package_like+winding_like,1)
         result["logic_component_ratio"]=round(ic_like/total,3)
@@ -207,7 +229,7 @@ def discriminate_components(image_path):
         elif ic_like or capacitor_like or block_like or power_package_like or winding_like:
             result["dominant_family"]="mixed"
 
-        result["notes"].append("SPIKE Vision v1.3 PCB-outline and package-body filtering is active.")
+        result["notes"].append("SPIKE Vision v1.4 PCB-outline and package-body filtering is active.")
         if ic_like>=8:result["notes"].append(f"Dense logic population detected: {ic_like} IC-like package candidates.")
         if solder_side_likelihood>=65:result["notes"].append(f"PCB solder/trace-side pattern detected ({solder_side_likelihood}% likelihood); capacitor and copper-winding promotion is suppressed on this view.")
         if winding_like:result["notes"].append(f"Found {winding_like} copper-wound magnetic candidate(s) on a component-side-compatible view.")
