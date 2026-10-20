@@ -1,6 +1,6 @@
 """Visual component-family discrimination for Board Sense.
 
-SPIKE Vision v1.5 keeps body-before-label filtering and conservative power cues.
+SPIKE Vision v1.6 keeps body-before-label filtering and conservative power cues.
 Density-aware logic detection now preserves smaller legacy IC packages instead of
 letting one large package represent an entire populated board.
 """
@@ -73,10 +73,31 @@ def _gold_ratio(hsv_roi):
     gold=cv2.inRange(hsv_roi,np.array([8,70,65]),np.array([34,255,255]))
     return float(cv2.countNonZero(gold)/max(gold.size,1))
 
+def _annular_hole_like(image,cx,cy,radius):
+    """Withhold a dark open center bounded by a brighter annular rim.
+
+    Relative contrast handles shaded holes that evade a fixed black threshold.
+    This is an ambiguity veto, not a positive identification of hole chemistry.
+    """
+    left=max(0,int(cx-radius)-1);top=max(0,int(cy-radius)-1)
+    right=min(image.shape[1],int(cx+radius)+2);bottom=min(image.shape[0],int(cy+radius)+2)
+    gray=cv2.cvtColor(image[top:bottom,left:right],cv2.COLOR_BGR2GRAY)
+    cx,cy=cx-left,cy-top
+    theta=np.linspace(0,2*np.pi,72,endpoint=False).astype(np.float32)
+    values=[]
+    for factor in (.15,.30,.50,.65,.75):
+        x=(cx+np.cos(theta)*radius*factor).astype(np.float32).reshape(1,-1)
+        y=(cy+np.sin(theta)*radius*factor).astype(np.float32).reshape(1,-1)
+        values.append(cv2.remap(gray,x,y,cv2.INTER_LINEAR,borderMode=cv2.BORDER_REFLECT).astype(np.float32).ravel())
+    center=(values[0]+values[1])/2
+    ring=np.median(np.stack(values[2:]),axis=0)
+    return bool(np.median(center)<np.median(ring)*.70 and np.mean(ring-center>=25)>=.72)
+
 def _round_body_support(image,cx,cy,radius):
     """Require a coherent circular rim, not scattered edges in a large disk."""
     height,width=image.shape[:2]
     if radius<4 or cx-radius<1 or cy-radius<1 or cx+radius>=width-1 or cy+radius>=height-1:return False
+    if _annular_hole_like(image,cx,cy,radius):return False
     # Average short arcs on either side of the proposed rim. A real body
     # boundary produces a color transition across most angular sectors.
     theta=np.linspace(0,2*np.pi,108,endpoint=False).astype(np.float32)
@@ -250,7 +271,7 @@ def discriminate_components(image_path):
             if any(_overlap(circle,{'x':int((a[0]-a[2])*inv),'y':int((a[1]-a[2])*inv),'w':int(a[2]*2*inv),'h':int(a[2]*2*inv)})>.40 for a in accepted_caps):continue
             accepted_caps.append(candidate)
         caps=accepted_caps
-        result['round_body_guard']={'raw_candidates':raw_cap_candidates,'supported_candidates':len(caps),'rejected_candidates':raw_cap_candidates-len(caps),'rule':'Round component candidates require a PCB-supported circular rim; package-centered circles and duplicate circles are excluded.'}
+        result['round_body_guard']={'raw_candidates':raw_cap_candidates,'supported_candidates':len(caps),'rejected_candidates':raw_cap_candidates-len(caps),'rule':'Round component candidates require a PCB-supported circular rim. Dark-center annular features, package-centered circles, and duplicate circles are withheld.'}
         caps=sorted(caps,key=lambda c:c[2],reverse=True)[:12];contacts=sorted(contacts,key=lambda c:c[2],reverse=True)[:24];suppressed_caps=0
         if solder_side_likelihood>=65 and caps:suppressed_caps=len(caps);caps=[]
         for cx,cy,r,ed,ms,mv in caps:
@@ -278,7 +299,7 @@ def discriminate_components(image_path):
         elif ic_like or capacitor_like or block_like or power_package_like or winding_like:
             result["dominant_family"]="mixed"
 
-        result["notes"].append("SPIKE Vision v1.5 PCB-outline and package-body filtering is active.")
+        result["notes"].append("SPIKE Vision v1.6 PCB-outline and package-body filtering is active.")
         if ic_like>=8:result["notes"].append(f"Dense logic population detected: {ic_like} IC-like package candidates.")
         if solder_side_likelihood>=65:result["notes"].append(f"PCB solder/trace-side pattern detected ({solder_side_likelihood}% likelihood); capacitor and copper-winding promotion is suppressed on this view.")
         if winding_like:result["notes"].append(f"Found {winding_like} copper-wound magnetic candidate(s) on a component-side-compatible view.")
