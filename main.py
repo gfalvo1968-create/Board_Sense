@@ -69,7 +69,7 @@ def ecosystem_data():
 @app.get("/health")
 def health():
     """Deployment probe; no scan, visitor data or private contacts."""
-    return {"status": "ok", "service": "Board Sense", "release": "board-grade-review-v0.2", "processor_markings_reader": bool(shutil.which("tesseract"))}
+    return {"status": "ok", "service": "Board Sense", "release": "board-speaker-routing-v0.1", "processor_markings_reader": bool(shutil.which("tesseract"))}
 
 
 @app.get("/free-usage")

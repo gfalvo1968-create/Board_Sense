@@ -1,4 +1,6 @@
 """Routing regressions: wide PCB photos, non-board color and real ring geometry."""
+import os
+from unittest.mock import patch
 import tempfile
 import unittest
 from pathlib import Path
@@ -7,6 +9,7 @@ import cv2
 import numpy as np
 
 from routes.object_gate import classify_object, _speaker_signature
+from routes.analysis_image import board_analysis_image
 
 
 def populated_board():
@@ -40,6 +43,33 @@ class ObjectGateFramingTests(unittest.TestCase):
                 result=self.gate(image)
                 self.assertEqual(result["mode"],"board",result)
                 self.assertNotEqual(result["label"],"Speaker / audio driver")
+
+    def test_supported_local_circuitry_defeats_false_speaker_score(self):
+        with patch('routes.object_gate._speaker_signature', return_value=(95,['false circle'],{})):
+            result=self.gate(populated_board())
+        self.assertEqual(result['mode'],'board',result)
+
+    def test_dim_solder_back_routes_as_pcb_without_package_bodies(self):
+        image=np.full((800,1000,3),35,dtype=np.uint8)
+        cv2.rectangle(image,(100,100),(900,700),(30,75,35),-1)
+        for y in range(160,660,24):
+            for x in range(160,860,24):
+                cv2.circle(image,(x,y),3,(150,150,150),-1)
+                cv2.line(image,(x+6,y),(x+28,y+20),(55,120,60),2)
+        result=self.gate(image)
+        self.assertEqual(result['mode'],'board',result)
+        self.assertTrue(result['metrics']['localized_pcb_evidence']['solder_pad_pattern']['supported'])
+
+    def test_private_telecom_front_and_back_do_not_become_speakers(self):
+        directory=os.environ.get('BOARD_SENSE_TELECOM_FIXTURES')
+        if not directory:
+            self.skipTest('Optional private telecom fixtures not configured')
+        for name in ('IMG_5636.jpeg','IMG_5638.jpeg'):
+            with self.subTest(photo=name):
+                with board_analysis_image(str(Path(directory)/name)) as normalized:
+                    result=classify_object(normalized)
+                self.assertEqual(result['mode'],'board',result)
+                self.assertNotEqual(result['label'],'Speaker / audio driver')
 
     def test_color_without_circuit_construction_cannot_rescue_a_plain_sheet(self):
         image=np.full((1100,900,3),35,dtype=np.uint8)

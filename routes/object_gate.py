@@ -1,6 +1,6 @@
 """Conservative first-stage object gate for Board Sense.
 
-SPIKE Object Gate v0.5 answers whether an upload is a PCB, loose component,
+SPIKE Object Gate v0.6 answers whether an upload is a PCB, loose component,
 speaker/audio driver, or unknown. PCB construction is judged from structure
 first, not solder-mask color, so tan/brown, blue, red and black boards can pass
 alongside green boards.
@@ -45,6 +45,31 @@ def _pcb_color_ratio(hsv):
     return float(cv2.countNonZero(combined)/max(combined.size,1))
 
 
+def _localized_solder_pads(hsv, mask):
+    """Distributed neutral highlights support PCB routing, never recovery points."""
+    gray = cv2.cvtColor(cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR), cv2.COLOR_BGR2GRAY)
+    highlights = cv2.morphologyEx(gray, cv2.MORPH_TOPHAT,
+                    cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11,11)))
+    binary = np.uint8((highlights >= 25) & (gray >= 90) &
+                     (hsv[:,:,1] <= 110) & (mask > 0)) * 255
+    contours,_ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    centers = []
+    for contour in contours:
+        area = cv2.contourArea(contour)
+        x,y,w,h = cv2.boundingRect(contour)
+        perimeter = cv2.arcLength(contour, True)
+        if (2 <= area <= mask.size*.0003 and .5 <= w/max(h,1) <= 2 and
+                perimeter and 4*math.pi*area/(perimeter*perimeter) >= .5):
+            centers.append((x+w/2, y+h/2))
+    span = [0.0, 0.0]
+    if len(centers) >= 2:
+        _,_,width,height = cv2.boundingRect(mask)
+        span = (np.ptp(np.array(centers),axis=0) /
+                np.array([max(width,1),max(height,1)])).tolist()
+    return {"supported":bool(len(centers) >= 40 and min(span) >= .35),
+            "highlight_count":len(centers), "span_fraction":[round(x,3) for x in span]}
+
+
 def _localized_pcb_evidence(hsv, edges, components, scale_x=1.0, scale_y=1.0):
     """Check circuit detail inside an isolated surface, not the whole photo.
 
@@ -80,11 +105,13 @@ def _localized_pcb_evidence(hsv, edges, components, scale_x=1.0, scale_y=1.0):
             roi = mask[y:y+rh,x:x+rw]
             if roi.size == rw*rh and cv2.countNonZero(roi)/roi.size >= .65:
                 local_packages += 1
-        supported = ((local_packages >= 1 or other_construction) and detail >= .055 or
+        pads = _localized_solder_pads(hsv, mask)
+        supported = (pads["supported"] and detail >= .025 or
+                     (local_packages >= 1 or other_construction) and detail >= .055 or
                      local_packages >= 2 and detail >= .025)
         if supported or ratio > best["surface_ratio"]:
             best = {"supported":bool(supported),"surface_ratio":round(ratio,4),
-                    "circuit_edge_ratio":round(detail,4),"supported_local_packages":local_packages}
+                    "circuit_edge_ratio":round(detail,4),"supported_local_packages":local_packages, "solder_pad_pattern":pads}
         if supported:
             break
     return best
@@ -144,6 +171,23 @@ def _speaker_signature(gray, board_score, foreground_ratio):
     m["perimeter_sector_coverage"] = round(float(np.mean(bins >= 4)),3)
     if m["perimeter_sector_coverage"] < .75:
         return 0,[],m
+    # Clutter can fill every angular bin without one physical circular edge.
+    # Require a coherent signed brightness step across the circumference.
+    angles = np.arange(180,dtype=np.float32) * (2*np.pi/180)
+    def radial_sample(factor):
+        xs = (m["x"] + m["radius"]*factor*np.cos(angles)).astype(np.float32)
+        ys = (m["y"] + m["radius"]*factor*np.sin(angles)).astype(np.float32)
+        valid = (xs >= 0) & (xs < w-1) & (ys >= 0) & (ys < h-1)
+        values = cv2.remap(blur,xs[None,:],ys[None,:],cv2.INTER_LINEAR)[0].astype(float)
+        return values, valid
+    inside, valid_in = radial_sample(.95)
+    outside, valid_out = radial_sample(1.05)
+    valid = valid_in & valid_out
+    delta = inside-outside
+    coverage = max(np.mean(valid & (delta >= 12)), np.mean(valid & (delta <= -12)))
+    m["coherent_boundary_fraction"] = round(float(coverage),3)
+    if coverage < .65:
+        return 0,[],m
     score=30;evidence=["Large centered circular driver/magnet geometry detected"]
     radius_ratio=float(m["radius"])/min_dim
     if radius_ratio>=.24:score+=15
@@ -164,7 +208,7 @@ def _speaker_signature(gray, board_score, foreground_ratio):
 
 def classify_object(image_path):
     result={"mode":"unknown","label":"Unknown object","confidence":35,
-            "model":"SPIKE Object Gate v0.5",
+            "model":"SPIKE Object Gate v0.6",
             "board_likelihood":0,"component_likelihood":0,"camera_module_likelihood":0,
             "speaker_likelihood":0,"evidence":[],"message":"Not enough evidence to run board grading safely."}
     try:
@@ -222,7 +266,7 @@ def classify_object(image_path):
         if structural_rescue: board_score+=12
         localized = _localized_pcb_evidence(hsv,edges,comps,w/w0,h/h0)
         if localized["supported"]:
-            board_score += 18
+            board_score += 26 if (localized.get("solder_pad_pattern") or {}).get("supported") else 18
         board_score=min(board_score,100)
 
         component_score=0
@@ -257,7 +301,8 @@ def classify_object(image_path):
 
         # Speaker guard runs before PCB/component routing, but only on a strong
         # large-scale circular signature. It deliberately makes no magnet-chemistry claim.
-        if speaker_score>=82 and speaker_score>=max(component_score,board_score-5):
+        if (speaker_score>=82 and speaker_score>=max(component_score,board_score-5)
+                and not localized["supported"]):
             result.update({"mode":"component","label":"Speaker / audio driver",
                            "confidence":max(82,min(97,speaker_score)),
                            "evidence":speaker_evidence,
