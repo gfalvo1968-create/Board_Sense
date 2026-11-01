@@ -27,7 +27,7 @@ app.add_middleware(UploadBodyLimitMiddleware)
 app.add_middleware(OriginProtectionMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://gfalvo1968-create.github.io", "https://boardsense.scrapradarfamily.com"],
+    allow_origins=["https://gfalvo1968-create.github.io", "https://boardsense.scrapradarfamily.com", "https://scrap-radar-family-phase7c-test.vercel.app"],
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
