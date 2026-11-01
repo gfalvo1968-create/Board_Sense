@@ -2,7 +2,35 @@
 Separates pure power conversion from boards that combine substantial power handling
 with digital/control logic. PC/server labels still require confirmed architecture.
 """
+def _phone_family_evidence(result):
+    """Conservative Phase 7D equipment-origin gate; no effect on recovery grade.
+
+    Requires independently recorded visual observations. A keypad or gold-colored
+    contacts alone are not sufficient to identify a mobile phone.
+    """
+    evidence=result.get("phone_family_evidence") or {}
+    if not isinstance(evidence,dict):
+        return None
+    if evidence.get("conflicting_equipment_origin"):
+        return None
+    shape=bool(evidence.get("handset_mainboard_outline"))
+    cues=[("handset-specific contact layout",evidence.get("handset_contact_layout")),
+          ("radio/antenna section",evidence.get("rf_antenna_section")),
+          ("phone-specific connector arrangement",evidence.get("phone_connector_arrangement"))]
+    supported=[name for name,present in cues if present is True]
+    if shape and len(supported)>=2:
+        return {"subtype":"Likely Mobile Phone Main PCB; Model Unconfirmed",
+                "confidence":"moderate",
+                "evidence":["handset-shaped mainboard"]+supported,
+                "candidates":[],
+                "rule":"Origin inference only; does not establish buyer grade, gold content, assay, or device model.",
+                "model":"SPIKE Phone Family Evidence Gate v0.1"}
+    return None
+
 def infer_equipment_subtype(result):
+    phone=_phone_family_evidence(result)
+    if phone is not None:
+        return phone
     if (result.get("keypad_intelligence") or {}).get("supported"):
         return {"subtype":"Keypad-Equipped Controller; Original Equipment Unconfirmed",
                 "confidence":"moderate","evidence":["repeated round contact bank"],
