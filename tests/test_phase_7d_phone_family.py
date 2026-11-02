@@ -98,3 +98,22 @@ def test_partial_board_does_not_claim_handset_outline():
     from routes.phone_visual_evidence import observe_handset_candidate
     fp={"board_aspect":3.2,"coverage":"detail_or_partial_view","geometry_quality":"low"}
     assert observe_handset_candidate(fp,{"supported":True,"contact_count":12})["handset_mainboard_outline"] is False
+
+def test_line_of_gold_vias_is_not_phone_keypad():
+    from routes.phone_visual_evidence import observe_handset_candidate
+    fp={"board_aspect":3.0,"coverage":"whole_or_large_view","geometry_quality":"good"}
+    contacts=[{"x":20+i*18,"y":50,"radius":5} for i in range(12)]
+    result=observe_handset_candidate(fp,{"supported":True,"contact_count":12,"contacts":contacts})
+    assert result["handset_mainboard_outline"] is True
+    assert result["handset_contact_layout"] is False
+    assert result["rf_antenna_section"] is False
+
+def test_two_dimensional_contact_grid_remains_candidate_not_confirmed_phone():
+    from routes.phone_visual_evidence import observe_handset_candidate
+    fp={"board_aspect":3.0,"coverage":"whole_or_large_view","geometry_quality":"good"}
+    contacts=[{"x":40+col*35,"y":50+row*38,"radius":6} for row in range(4) for col in range(3)]
+    result=observe_handset_candidate(fp,{"supported":True,"contact_count":12,"contacts":contacts})
+    assert result["handset_contact_layout"] is True
+    assert result["keypad_spatial_evidence"] == "two_axis_contact_spread"
+    assert result["rf_antenna_section"] is False
+    assert "Mobile Phone" not in infer_equipment_subtype({"board_type":"General PCB","phone_family_evidence":result})["subtype"]
