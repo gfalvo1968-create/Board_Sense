@@ -75,3 +75,26 @@ def test_explicit_conflicting_origin_overrides_phone_evidence_across_views():
                                       "conflicting_equipment_origin":True}}]
     combined=_collect_phone_family_evidence(views, True)
     assert "Mobile Phone" not in infer_equipment_subtype({"board_type":"General PCB","phone_family_evidence":combined})["subtype"]
+
+def test_visual_candidate_requires_good_outline_and_keypad():
+    from routes.phone_visual_evidence import observe_handset_candidate
+    fp={"board_aspect":3.1,"coverage":"whole_or_large_view","geometry_quality":"good"}
+    keypad={"supported":True,"contact_count":12}
+    observed=observe_handset_candidate(fp,keypad)
+    assert observed["handset_mainboard_outline"] is True
+    assert observed["handset_contact_layout"] is True
+    assert observed["rf_antenna_section"] is False
+    assert "Mobile Phone" not in infer_equipment_subtype({
+        "board_type":"General PCB", "phone_family_evidence":observed})["subtype"]
+
+def test_no_phone_candidate_for_rectangular_controller():
+    from routes.phone_visual_evidence import observe_handset_candidate
+    fp={"board_aspect":1.45,"coverage":"whole_or_large_view","geometry_quality":"good"}
+    observed=observe_handset_candidate(fp,{"supported":True,"contact_count":12})
+    assert observed["handset_mainboard_outline"] is False
+    assert observed["handset_contact_layout"] is False
+
+def test_partial_board_does_not_claim_handset_outline():
+    from routes.phone_visual_evidence import observe_handset_candidate
+    fp={"board_aspect":3.2,"coverage":"detail_or_partial_view","geometry_quality":"low"}
+    assert observe_handset_candidate(fp,{"supported":True,"contact_count":12})["handset_mainboard_outline"] is False
