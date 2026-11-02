@@ -48,3 +48,30 @@ def test_conflict_blocks_phone_even_with_three_corroborators():
                                    "phone_connector_arrangement":True,
                                    "conflicting_equipment_origin":True}}
     assert "Mobile Phone" not in infer_equipment_subtype(case)["subtype"]
+
+def test_case_merges_explicit_phone_evidence_only_after_same_board_check():
+    from routes.case_reasoner import _collect_phone_family_evidence
+    views=[
+       {"phone_family_evidence":{"handset_mainboard_outline":True,
+                                   "handset_contact_layout":True}},
+       {"phone_family_evidence":{"rf_antenna_section":True}},
+    ]
+    assert _collect_phone_family_evidence(views, False)=={}
+    combined=_collect_phone_family_evidence(views, True)
+    assert combined["handset_mainboard_outline"] is True
+    assert combined["rf_antenna_section"] is True
+    assert infer_equipment_subtype({"board_type":"General PCB","phone_family_evidence":combined})["subtype"]=="Likely Mobile Phone Main PCB; Model Unconfirmed"
+
+def test_keypad_alone_does_not_create_phone_case_evidence():
+    from routes.case_reasoner import _collect_phone_family_evidence
+    views=[{"keypad_intelligence":{"supported":True},"board_type":"Keypad / Handheld Controller Board"}]
+    assert _collect_phone_family_evidence(views, True)=={}
+
+def test_explicit_conflicting_origin_overrides_phone_evidence_across_views():
+    from routes.case_reasoner import _collect_phone_family_evidence
+    views=[{"phone_family_evidence":{"handset_mainboard_outline":True,
+                                      "handset_contact_layout":True}},
+           {"phone_family_evidence":{"rf_antenna_section":True,
+                                      "conflicting_equipment_origin":True}}]
+    combined=_collect_phone_family_evidence(views, True)
+    assert "Mobile Phone" not in infer_equipment_subtype({"board_type":"General PCB","phone_family_evidence":combined})["subtype"]
