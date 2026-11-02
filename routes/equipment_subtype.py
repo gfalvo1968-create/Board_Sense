@@ -13,7 +13,7 @@ def _phone_family_evidence(result):
         return None
     if evidence.get("conflicting_equipment_origin"):
         return None
-    shape=bool(evidence.get("handset_mainboard_outline"))
+    shape=evidence.get("handset_mainboard_outline") is True
     cues=[("handset-specific contact layout",evidence.get("handset_contact_layout")),
           ("radio/antenna section",evidence.get("rf_antenna_section")),
           ("phone-specific connector arrangement",evidence.get("phone_connector_arrangement"))]
