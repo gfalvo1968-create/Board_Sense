@@ -17,6 +17,33 @@ def _edge_geometry_confirmed(r):
  s=r.get("signals") or {};v=r.get("visual") or {};ri=r.get("reference_intelligence") or {};return bool(s.get("gold_finger_geometry") and s.get("repeated_edge_contacts") or v.get("gold_finger_geometry") and v.get("repeated_edge_contacts") or ri.get("gold_finger_geometry_confirmed"))
 def _evidence_signature(r):
  s=r.get("signals") or {};mb=r.get("motherboard") or {};return(str(r.get("board_type","Unknown Board")),bool(s.get("ram") or s.get("possible_ram")),bool(s.get("processor")),bool(s.get("large_ic_chips")),bool(s.get("possible_power_board") or s.get("power_board") or s.get("power_stage_present")),_edge_geometry_confirmed(r),bool(s.get("possible_motherboard")),bool(s.get("confirmed_slot_bank") or mb.get("confirmed_slot_bank")),bool(mb.get("edge_connector_bank")))
+def _collect_phone_family_evidence(results, same_board):
+ """Merge explicit, detector-backed phone observations only across one verified case.
+
+ Never convert generic keypad detection, gold colour, or board labels into
+ handset origin evidence. Unavailable observations remain unknown, not false.
+ """
+ if same_board is not True:
+  return {}
+ keys=("handset_mainboard_outline","handset_contact_layout",
+       "rf_antenna_section","phone_connector_arrangement")
+ merged={}
+ sources={}
+ for index, view in enumerate(results, 1):
+  observed=view.get("phone_family_evidence") or {}
+  if not isinstance(observed, dict):
+   continue
+  if observed.get("conflicting_equipment_origin") is True:
+   merged["conflicting_equipment_origin"]=True
+  for key in keys:
+   if observed.get(key) is True:
+    merged[key]=True
+    sources.setdefault(key, []).append(index)
+ if sources:
+  merged["supporting_views"]=sources
+  merged["provenance"]="explicit per-view phone observations; not inferred from generic keypad or board type"
+ return merged
+
 def _view_role(r):
  sg=r.get("spike_glass") or {};top=sg.get("top_match") or {};label=str(top.get("label","")).lower();comps=r.get("component_intelligence") or {}
  if "solder" in label or "trace side" in label:return "solder_or_trace_side"
@@ -98,7 +125,7 @@ def reconcile_case(results, operator_same_board_confirmation=False):
   combined["board_type"]="Keypad / Handheld Controller Board"
   combined["board_type_reason"]="A repeated contact bank in verified same-board views supports a keypad-equipped controller. Phone origin is possible, not proved; power-component cues from another view do not identify the original device."
   combined["keypad_intelligence"]={"supported":True,"supporting_views":keypad_views,"model":"Keypad Array v0.1","rule":"Repeated views corroborate identity only; contacts and recovery quantities are not added across photos."}
- condition=condition_harvest_check(combined,observations);combined["condition_and_harvest"]=condition;combined["cross_view_harvest"]=cross;combined["equipment_subtype"]=infer_equipment_subtype(combined);combined=apply_recovery_grade_guard(combined);econ=_economics_inputs(combined);combined["recovery_economics"]=compare_paths(condition_factor=condition.get("remaining_value_factor",1.0),**econ);combined["same_board_verification"]=identity;combined["case_analysis"]={"mode":"same_board_multi_photo","views_analyzed":len(results),"independent_evidence_patterns":len(signatures),"view_summaries":view_summaries,"identity_gate":identity,"cross_view_harvest":cross,"mixed_power_control_evidence":mixed,"suppressed_unconfirmed_edge_votes":suppressed_edge_votes,"edge_identity_guard":{"active":True,"rule":"Gold-like color near an image edge is an inspection cue only. Expansion/gold-finger identity requires strict repeated edge-contact geometry."},"duplicate_evidence_guard":{"active":True,"rule":"Repeated equivalent views corroborate but do not multiply authority at full weight."},"message":"Case identity is checked before evidence reconciliation. Strict edge geometry gates expansion identity; raw physical power-stage evidence is preserved; recovery value remains independently graded."}
+ condition=condition_harvest_check(combined,observations);combined["condition_and_harvest"]=condition;combined["cross_view_harvest"]=cross;combined["phone_family_evidence"]=_collect_phone_family_evidence(results,identity.get("same_board"));combined["equipment_subtype"]=infer_equipment_subtype(combined);combined=apply_recovery_grade_guard(combined);econ=_economics_inputs(combined);combined["recovery_economics"]=compare_paths(condition_factor=condition.get("remaining_value_factor",1.0),**econ);combined["same_board_verification"]=identity;combined["case_analysis"]={"mode":"same_board_multi_photo","views_analyzed":len(results),"independent_evidence_patterns":len(signatures),"view_summaries":view_summaries,"identity_gate":identity,"cross_view_harvest":cross,"mixed_power_control_evidence":mixed,"suppressed_unconfirmed_edge_votes":suppressed_edge_votes,"edge_identity_guard":{"active":True,"rule":"Gold-like color near an image edge is an inspection cue only. Expansion/gold-finger identity requires strict repeated edge-contact geometry."},"duplicate_evidence_guard":{"active":True,"rule":"Repeated equivalent views corroborate but do not multiply authority at full weight."},"message":"Case identity is checked before evidence reconciliation. Strict edge geometry gates expansion identity; raw physical power-stage evidence is preserved; recovery value remains independently graded."}
  best=max(float(r.get("confidence",0) or 0) for r in results);combined["confidence"]=min(98,max(float(combined.get("confidence",0) or 0),best))
  if identity.get("status") in ("IDENTITY_UNCERTAIN", "OPERATOR_CONFIRMED_SAME_BOARD"):combined["confidence"]=min(combined["confidence"],65);combined["recommendation"]=identity.get("identity_next_step") or "Add a clear full-board photo."
  if combined.get("grade")=="MANUAL REVIEW":
