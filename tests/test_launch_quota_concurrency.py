@@ -24,6 +24,7 @@ def visitor_request(extra=None):
 
 def production_stubs(monkeypatch):
     monkeypatch.setenv("BOARD_SENSE_ENV", "production")
+    monkeypatch.setattr(gate, "BOARD_SENSE_ENV", "production")
     monkeypatch.setenv("BOARD_SENSE_VISITOR_SALT", "synthetic-offline-test-salt")
     monkeypatch.setattr(gate, "SUPABASE_URL", "https://example.invalid")
     monkeypatch.setattr(gate, "SUPABASE_SECRET", "offline-placeholder-not-a-secret")
