@@ -81,6 +81,7 @@ def _localized_pcb_evidence(hsv, edges, components, scale_x=1.0, scale_y=1.0):
     # Black laptop logic boards can be neutral/dark and deeply notched.
     # This mask only LOCATES candidates: packages, pads, or solder structure
     # plus edge detail are still required below before accepting a PCB.
+    chromatic_surface = surface.copy()
     dark_surface = cv2.inRange(hsv, np.array([0,0,0]), np.array([179,255,80]))
     surface = cv2.bitwise_or(surface, dark_surface)
     k = max(3, (min(surface.shape)//100) | 1)
@@ -113,9 +114,16 @@ def _localized_pcb_evidence(hsv, edges, components, scale_x=1.0, scale_y=1.0):
             if roi.size == rw*rh and cv2.countNonZero(roi)/roi.size >= .65:
                 local_packages += 1
         pads = _localized_solder_pads(hsv, mask)
+        # Bright screw-heads and fan edges in an EMPTY dark laptop chassis
+        # can imitate isolated pads. Dark/neutral candidates need a locally
+        # supported IC-like package as positive PCB construction evidence.
+        chromatic_fraction = cv2.countNonZero(cv2.bitwise_and(chromatic_surface, mask)) / max(1, cv2.countNonZero(mask))
+        dark_dominant = chromatic_fraction < .25
         supported = (pads["supported"] and detail >= .025 or
                      (local_packages >= 1 or other_construction) and detail >= .055 or
                      local_packages >= 2 and detail >= .025)
+        if dark_dominant and local_packages < 1:
+            supported = False
         if supported or ratio > best["surface_ratio"]:
             best = {"supported":bool(supported),"surface_ratio":round(ratio,4),
                     "circuit_edge_ratio":round(detail,4),"supported_local_packages":local_packages, "solder_pad_pattern":pads}
