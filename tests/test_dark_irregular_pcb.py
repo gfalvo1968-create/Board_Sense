@@ -20,10 +20,10 @@ class DarkIrregularPCBTests(unittest.TestCase):
         ], dtype=np.int32)
         cv2.fillPoly(image, [polygon], (27, 27, 27))
         # Repeated small pads and routed component edges on the PCB surface.
-        for y in range(265, 570, 20):
-            for x in (288, 318, 348, 378, 408, 438):
-                cv2.rectangle(image, (x, y), (x + 7, y + 6),
-                              (165, 165, 165), -1)
+        for y in range(240, 585, 16):
+            for x in range(275, 475, 16):
+                cv2.rectangle(image, (x, y), (x + 6, y + 6),
+                              (200, 200, 200), -1)
         components = {
             "regions": [
                 {"type": "IC-like package", "x": 330, "y": 300, "w": 32, "h": 32},
