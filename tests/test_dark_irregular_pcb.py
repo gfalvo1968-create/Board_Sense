@@ -3,10 +3,12 @@
 These fixtures are synthetic and do not assert any particular scrap grade.
 """
 import unittest
+import os
+from pathlib import Path
 import cv2
 import numpy as np
 
-from routes.object_gate import _localized_pcb_evidence
+from routes.object_gate import _localized_pcb_evidence, classify_object
 
 
 class DarkIrregularPCBTests(unittest.TestCase):
@@ -40,6 +42,16 @@ class DarkIrregularPCBTests(unittest.TestCase):
         evidence = _localized_pcb_evidence(hsv, edges, components)
         self.assertTrue(evidence["supported"], evidence)
         self.assertGreaterEqual(evidence["supported_local_packages"], 2)
+
+    def test_optional_private_laptop_photo_routes_as_board(self):
+        """Opt-in real specimen; never commit private operator photographs."""
+        image_path = os.environ.get("BOARD_SENSE_LAPTOP_PCB_PHOTO")
+        if not image_path:
+            self.skipTest("Private laptop PCB specimen not configured")
+        self.assertTrue(Path(image_path).is_file())
+        result = classify_object(image_path)
+        self.assertEqual(result["mode"], "board", result)
+        self.assertNotEqual(result["label"], "Speaker / audio driver")
 
     def test_plain_dark_sheet_remains_unconfirmed(self):
         image = np.full((800, 800, 3), 215, dtype=np.uint8)
