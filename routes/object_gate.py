@@ -78,6 +78,11 @@ def _localized_pcb_evidence(hsv, edges, components, scale_x=1.0, scale_y=1.0):
     No recovery points or metal quantities come from this measurement.
     """
     surface = cv2.inRange(hsv, np.array([28,45,20]), np.array([135,255,255]))
+    # Black laptop logic boards can be neutral/dark and deeply notched.
+    # This mask only LOCATES candidates: packages, pads, or solder structure
+    # plus edge detail are still required below before accepting a PCB.
+    dark_surface = cv2.inRange(hsv, np.array([0,0,0]), np.array([179,255,80]))
+    surface = cv2.bitwise_or(surface, dark_surface)
     k = max(3, (min(surface.shape)//100) | 1)
     surface = cv2.morphologyEx(surface, cv2.MORPH_CLOSE,
                               np.ones((k,k),np.uint8), iterations=2)
@@ -90,7 +95,9 @@ def _localized_pcb_evidence(hsv, edges, components, scale_x=1.0, scale_y=1.0):
     for contour in contours:
         ratio = cv2.contourArea(contour)/max(1,surface.size)
         rw,rh = cv2.minAreaRect(contour)[1]
-        if not (.08 <= ratio <= .95 and cv2.contourArea(contour)/max(1,rw*rh) >= .50):
+        # A notched logic board can occupy less than half of its rotated
+        # bounding box. Accept the region for EVIDENCE CHECKING, not by shape.
+        if not (.08 <= ratio <= .95 and cv2.contourArea(contour)/max(1,rw*rh) >= .38):
             continue
         mask = np.zeros_like(surface)
         cv2.drawContours(mask,[contour],-1,255,-1)
