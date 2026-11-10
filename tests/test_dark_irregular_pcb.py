@@ -43,6 +43,28 @@ class DarkIrregularPCBTests(unittest.TestCase):
         self.assertTrue(evidence["supported"], evidence)
         self.assertGreaterEqual(evidence["supported_local_packages"], 2)
 
+    def test_empty_dark_chassis_with_fans_does_not_rescue_as_pcb(self):
+        image = np.full((800, 800, 3), 215, dtype=np.uint8)
+        cv2.rectangle(image, (95, 95), (705, 705), (32, 32, 32), -1)
+        # Fan rings, vents, and screw heads are not populated PCB evidence.
+        for cy in (250, 560):
+            cv2.circle(image, (440, cy), 108, (65, 65, 65), -1)
+            cv2.circle(image, (440, cy), 76, (18, 18, 18), -1)
+            cv2.circle(image, (440, cy), 35, (105, 105, 105), 5)
+        for y in range(150, 670, 24):
+            for x in (145, 185):
+                cv2.rectangle(image, (x, y), (x + 8, y + 10),
+                              (185, 185, 185), -1)
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        edges = cv2.Canny(cv2.GaussianBlur(gray, (5, 5), 0), 55, 145)
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        evidence = _localized_pcb_evidence(hsv, edges, {
+            "regions": [], "solder_side_likelihood": 0,
+            "solder_joint_like": 0, "contact_pad_like": 0,
+            "contact_pattern_score": 0,
+        })
+        self.assertFalse(evidence["supported"], evidence)
+
     def test_optional_private_laptop_photo_routes_as_board(self):
         """Opt-in real specimen; never commit private operator photographs."""
         image_path = os.environ.get("BOARD_SENSE_LAPTOP_PCB_PHOTO")
