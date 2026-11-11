@@ -282,37 +282,27 @@ def analyze_board_knowledge(image_path: str):
     if visual.get("green_board"):
         score += 0
 
-if visual.get("dense_components"):
-    score += 2
+    if visual.get("dense_components"):
+        score += 2
 
-if visual.get("large_chip") and features.get("gold_fingers"):
-    score += 2
+    if visual.get("large_chip") and features.get("gold_fingers"):
+        score += 2
 
-if visual.get("dark_board"):
-    score += 1
+    if visual.get("dark_board"):
+        score += 1
 
-# Bare / low-value board penalty
-if (
-    visual.get("green_board")
-    and not features.get("gold_fingers")
-    and not features.get("large_ic_chips")
-    and not features.get("processor")
-    and not features.get("memory_module")
-):
-    score = min(score, 2)
+    # Bare/low-value board penalty, with the score bounded at zero.
+    if (
+        visual.get("green_board")
+        and not features.get("gold_fingers")
+        and not features.get("large_ic_chips")
+        and not features.get("processor")
+        and not features.get("memory_module")
+    ):
+        score = min(score, 2)
 
-if features.get("power_board") and features.get("heavy_components"):
-    score -= 2
-
-score = max(score, 0)
-if (
-    visual.get("green_board")
-    and not features.get("gold_fingers")
-    and not features.get("large_ic_chips")
-    and not features.get("processor")
-    and not features.get("memory_module")
-):
-    score = min(score, 2)
+    if features.get("power_board") and features.get("heavy_components"):
+        score -= 2
 
     score = max(score, 0)
 
