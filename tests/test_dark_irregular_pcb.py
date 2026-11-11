@@ -72,6 +72,27 @@ class DarkIrregularPCBTests(unittest.TestCase):
             cv2.imwrite(str(filename), image)
             return classify_object(str(filename))
 
+    def test_complete_classifier_accepts_dark_populated_notched_pcb(self):
+        image = np.full((900, 800, 3), 215, dtype=np.uint8)
+        shape = np.array([
+            (130, 80), (600, 80), (600, 230), (525, 230),
+            (525, 660), (665, 660), (665, 835), (295, 835),
+            (295, 690), (255, 690), (255, 250), (130, 250),
+        ], dtype=np.int32)
+        cv2.fillPoly(image, [shape], (26, 26, 26))
+        # A deliberately populated component face, not a plain black shape.
+        # Replicate IC bodies with contrasting pin banks along two edges.
+        for x, y in ((300, 310), (400, 410), (310, 525), (430, 580)):
+            cv2.rectangle(image, (x, y), (x + 62, y + 42), (8, 8, 8), -1)
+            for delta in range(0, 56, 7):
+                cv2.rectangle(image, (x + delta, y - 5), (x + delta + 3, y + 4), (185, 185, 185), -1)
+                cv2.rectangle(image, (x + delta, y + 39), (x + delta + 3, y + 47), (185, 185, 185), -1)
+        for y in range(260, 650, 18):
+            for x in (280, 288, 510):
+                cv2.rectangle(image, (x, y), (x + 4, y + 5), (205, 205, 205), -1)
+        result = self._classify_pixels(image)
+        self.assertEqual(result["mode"], "board", result)
+
     def test_complete_classifier_rejects_plain_dark_sheet(self):
         image = np.full((800, 800, 3), 215, dtype=np.uint8)
         cv2.rectangle(image, (110, 110), (690, 690), (27, 27, 27), -1)
