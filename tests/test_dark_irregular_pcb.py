@@ -4,6 +4,7 @@ These fixtures are synthetic and do not assert any particular scrap grade.
 """
 import unittest
 import os
+import tempfile
 from pathlib import Path
 import cv2
 import numpy as np
@@ -64,6 +65,28 @@ class DarkIrregularPCBTests(unittest.TestCase):
             "contact_pattern_score": 0,
         })
         self.assertFalse(evidence["supported"], evidence)
+
+    def _classify_pixels(self, image):
+        with tempfile.TemporaryDirectory() as directory:
+            filename = Path(directory) / "case.png"
+            cv2.imwrite(str(filename), image)
+            return classify_object(str(filename))
+
+    def test_complete_classifier_rejects_plain_dark_sheet(self):
+        image = np.full((800, 800, 3), 215, dtype=np.uint8)
+        cv2.rectangle(image, (110, 110), (690, 690), (27, 27, 27), -1)
+        result = self._classify_pixels(image)
+        self.assertNotEqual(result["mode"], "board", result)
+
+    def test_complete_classifier_rejects_empty_fan_chassis(self):
+        image = np.full((800, 800, 3), 215, dtype=np.uint8)
+        cv2.rectangle(image, (95, 95), (705, 705), (32, 32, 32), -1)
+        for cy in (250, 560):
+            cv2.circle(image, (440, cy), 108, (65, 65, 65), -1)
+            cv2.circle(image, (440, cy), 76, (18, 18, 18), -1)
+            cv2.circle(image, (440, cy), 35, (105, 105, 105), 5)
+        result = self._classify_pixels(image)
+        self.assertNotEqual(result["mode"], "board", result)
 
     def test_optional_private_laptop_photo_routes_as_board(self):
         """Opt-in real specimen; never commit private operator photographs."""
