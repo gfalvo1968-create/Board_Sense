@@ -10,6 +10,7 @@ import cv2
 import numpy as np
 
 from routes.object_gate import _localized_pcb_evidence, classify_object
+from routes.board_region import board_region_mask
 
 
 class DarkIrregularPCBTests(unittest.TestCase):
@@ -112,6 +113,39 @@ class DarkIrregularPCBTests(unittest.TestCase):
             cv2.circle(image, (440, cy), 35, (105, 105, 105), 5)
         result = self._classify_pixels(image)
         self.assertNotEqual(result["mode"], "board", result)
+
+    def test_dark_irregular_surface_on_textured_background_gets_candidate_mask(self):
+        rng = np.random.default_rng(17)
+        image = rng.normal(184, 22, (900, 800, 1))
+        image = np.clip(image, 0, 255).astype(np.uint8)
+        image = np.repeat(image, 3, axis=2)
+        shape = np.array([
+            (140, 85), (600, 85), (600, 230), (510, 230),
+            (510, 630), (650, 630), (650, 830), (300, 830),
+            (300, 680), (250, 680), (250, 250), (140, 250),
+        ], dtype=np.int32)
+        cv2.fillPoly(image, [shape], (28, 28, 28))
+        mask = board_region_mask(image)
+        self.assertGreater(cv2.countNonZero(mask)/mask.size, .08)
+        self.assertLess(cv2.countNonZero(mask)/mask.size, .60)
+
+    def test_dark_chassis_touching_photo_edge_is_not_isolated_board(self):
+        rng = np.random.default_rng(17)
+        image = rng.normal(184, 22, (900, 800, 1))
+        image = np.clip(image, 0, 255).astype(np.uint8)
+        image = np.repeat(image, 3, axis=2)
+        cv2.rectangle(image, (0, 70), (795, 870), (35, 35, 35), -1)
+        mask = board_region_mask(image)
+        self.assertEqual(cv2.countNonZero(mask), 0)
+
+    def test_optional_private_photo_isolate_board_surface(self):
+        image_path = os.environ.get("BOARD_SENSE_LAPTOP_PCB_PHOTO")
+        if not image_path:
+            self.skipTest("Private laptop PCB specimen not configured")
+        image = cv2.imread(image_path)
+        self.assertIsNotNone(image)
+        mask = board_region_mask(image)
+        self.assertGreater(cv2.countNonZero(mask)/mask.size, .08)
 
     def test_optional_private_laptop_photo_routes_as_board(self):
         """Opt-in real specimen; never commit private operator photographs."""
