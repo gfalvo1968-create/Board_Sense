@@ -49,7 +49,37 @@ def board_region_mask(image):
     border = np.concatenate([gray[:bh, :].ravel(), gray[-bh:, :].ravel(),
                              gray[:, :bw].ravel(), gray[:, -bw:].ravel()])
     if np.std(border) > 24:
-        return np.zeros((h, w), dtype=np.uint8)
+        # A dark, deeply notched laptop PCB on a patterned towel can have a
+        # variable border despite a well-isolated foreground. Recover only
+        # an enclosed, distinctly darker silhouette for component inspection.
+        # This is NOT a PCB classification: the object gate still requires
+        # independent component/trace evidence before allowing grading.
+        background = float(np.median(border))
+        mask = np.zeros((h, w), dtype=np.uint8)
+        if background >= 130:
+            cutoff = min(95, int(background - 45))
+            _, dark = cv2.threshold(gray, cutoff, 255, cv2.THRESH_BINARY_INV)
+            dark = cv2.morphologyEx(
+                dark, cv2.MORPH_CLOSE, np.ones((k, k), np.uint8),
+                iterations=2)
+            contours, _ = cv2.findContours(
+                dark, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            for contour in sorted(contours, key=cv2.contourArea, reverse=True):
+                a = cv2.contourArea(contour)
+                x, y, bw, bh = cv2.boundingRect(contour)
+                if not (.08 <= a / area <= .60):
+                    continue
+                if (x < .02 * w or y < .02 * h or
+                        x + bw > .98 * w or y + bh > .98 * h):
+                    continue
+                if a / max(1, bw * bh) < .30:
+                    continue
+                candidate = np.zeros((h, w), dtype=np.uint8)
+                cv2.drawContours(candidate, [contour], -1, 255, -1)
+                if cv2.medianBlur(gray, 5)[candidate > 0].mean() >= background - 55:
+                    continue
+                return candidate
+        return mask
     diff = cv2.absdiff(gray, np.full_like(gray, int(np.median(border))))
     _, foreground = cv2.threshold(diff, 22, 255, cv2.THRESH_BINARY)
     foreground = cv2.morphologyEx(foreground, cv2.MORPH_CLOSE,
