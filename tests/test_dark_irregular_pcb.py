@@ -79,27 +79,21 @@ class DarkIrregularPCBTests(unittest.TestCase):
             (525, 660), (665, 660), (665, 835), (295, 835),
             (295, 690), (255, 690), (255, 250), (130, 250),
         ], dtype=np.int32)
-        cv2.fillPoly(image, [shape], (26, 26, 26))
-        # A deliberately populated component face, not a plain black shape.
-        # Replicate IC bodies with contrasting pin banks along two edges.
-        for x, y in ((300, 310), (400, 410), (310, 525), (430, 580)):
-            cv2.rectangle(image, (x, y), (x + 62, y + 42), (8, 8, 8), -1)
-            for delta in range(0, 56, 7):
-                cv2.rectangle(image, (x + delta, y - 5), (x + delta + 3, y + 4), (185, 185, 185), -1)
-                cv2.rectangle(image, (x + delta, y + 39), (x + delta + 3, y + 47), (185, 185, 185), -1)
-        for y in range(260, 650, 18):
-            for x in (280, 288, 510):
-                cv2.rectangle(image, (x, y), (x + 4, y + 5), (205, 205, 205), -1)
-        # Fine traces are what make this a PCB rather than a smooth dark cutout.
-        # Keep traces thin and confined to the synthetic board interior.
+        cv2.fillPoly(image, [shape], (47, 47, 47))
+        # Circuit traces are behind components, not painted over their faces.
         for x in range(270, 515, 12):
-            cv2.line(image, (x, 265), (x, 635), (125, 125, 125), 1)
+            cv2.line(image, (x, 265), (x, 635), (115, 115, 115), 1)
         for y in range(270, 640, 15):
-            cv2.line(image, (270, y), (515, y), (135, 135, 135), 1)
-        # Discrete solder spots between traces, kept distinct from the fine lines.
+            cv2.line(image, (270, y), (515, y), (115, 115, 115), 1)
         for y in range(282, 625, 23):
             for x in range(281, 505, 21):
-                cv2.circle(image, (x, y), 3, (240, 240, 240), -1)
+                cv2.circle(image, (x, y), 3, (230, 230, 230), -1)
+        # Discrete dark IC faces with repeated opposing pin banks, drawn last.
+        for x, y in ((300, 310), (400, 410), (310, 525), (430, 580)):
+            cv2.rectangle(image, (x, y), (x + 62, y + 42), (4, 4, 4), -1)
+            for delta in range(0, 56, 7):
+                cv2.rectangle(image, (x + delta, y - 6), (x + delta + 3, y + 2), (205, 205, 205), -1)
+                cv2.rectangle(image, (x + delta, y + 40), (x + delta + 3, y + 48), (205, 205, 205), -1)
         result = self._classify_pixels(image)
         self.assertEqual(result["mode"], "board", result)
 
