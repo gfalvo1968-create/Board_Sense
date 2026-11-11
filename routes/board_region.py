@@ -58,7 +58,7 @@ def board_region_mask(image):
         mask = np.zeros((h, w), dtype=np.uint8)
         if background >= 130:
             cutoff = min(95, int(background - 45))
-            _, dark = cv2.threshold(gray, cutoff, 255, cv2.THRESH_BINARY_INV)
+            _, dark = cv2.threshold(cv2.medianBlur(gray, 5), cutoff, 255, cv2.THRESH_BINARY_INV)
             dark = cv2.morphologyEx(
                 dark, cv2.MORPH_CLOSE, np.ones((k, k), np.uint8),
                 iterations=2)
