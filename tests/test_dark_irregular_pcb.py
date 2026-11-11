@@ -90,6 +90,12 @@ class DarkIrregularPCBTests(unittest.TestCase):
         for y in range(260, 650, 18):
             for x in (280, 288, 510):
                 cv2.rectangle(image, (x, y), (x + 4, y + 5), (205, 205, 205), -1)
+        # Fine traces are what make this a PCB rather than a smooth dark cutout.
+        # Keep traces thin and confined to the synthetic board interior.
+        for x in range(270, 515, 12):
+            cv2.line(image, (x, 265), (x, 635), (125, 125, 125), 1)
+        for y in range(270, 640, 15):
+            cv2.line(image, (270, y), (515, y), (135, 135, 135), 1)
         result = self._classify_pixels(image)
         self.assertEqual(result["mode"], "board", result)
 
