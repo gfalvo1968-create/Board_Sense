@@ -116,7 +116,7 @@ class DarkIrregularPCBTests(unittest.TestCase):
 
     def test_dark_irregular_surface_on_textured_background_gets_candidate_mask(self):
         rng = np.random.default_rng(17)
-        image = rng.normal(184, 22, (900, 800, 1))
+        image = rng.normal(184, 36, (900, 800, 1))
         image = np.clip(image, 0, 255).astype(np.uint8)
         image = np.repeat(image, 3, axis=2)
         shape = np.array([
@@ -131,7 +131,7 @@ class DarkIrregularPCBTests(unittest.TestCase):
 
     def test_dark_chassis_touching_photo_edge_is_not_isolated_board(self):
         rng = np.random.default_rng(17)
-        image = rng.normal(184, 22, (900, 800, 1))
+        image = rng.normal(184, 36, (900, 800, 1))
         image = np.clip(image, 0, 255).astype(np.uint8)
         image = np.repeat(image, 3, axis=2)
         cv2.rectangle(image, (0, 70), (795, 870), (35, 35, 35), -1)
