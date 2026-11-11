@@ -96,6 +96,10 @@ class DarkIrregularPCBTests(unittest.TestCase):
             cv2.line(image, (x, 265), (x, 635), (125, 125, 125), 1)
         for y in range(270, 640, 15):
             cv2.line(image, (270, y), (515, y), (135, 135, 135), 1)
+        # Discrete solder spots between traces, kept distinct from the fine lines.
+        for y in range(282, 625, 23):
+            for x in range(281, 505, 21):
+                cv2.circle(image, (x, y), 3, (240, 240, 240), -1)
         result = self._classify_pixels(image)
         self.assertEqual(result["mode"], "board", result)
 
