@@ -122,15 +122,21 @@ def _localized_pcb_evidence(hsv, edges, components, scale_x=1.0, scale_y=1.0, _c
                 local_packages += 1
         pads = _localized_solder_pads(hsv, mask)
         # Bright screw-heads and fan edges in an EMPTY dark laptop chassis
-        # can imitate isolated pads. Dark/neutral candidates need a locally
-        # supported IC-like package as positive PCB construction evidence.
+        # can imitate solder pads. A dark candidate without a supported IC
+        # requires BOTH dense local circuit edges and distributed pad evidence.
+        # A pad count or black color by itself never rescues a board.
         chromatic_fraction = cv2.countNonZero(cv2.bitwise_and(chromatic_surface, mask)) / max(1, cv2.countNonZero(mask))
         dark_dominant = chromatic_fraction < .25
         supported = (pads["supported"] and detail >= .025 or
                      (local_packages >= 1 or other_construction) and detail >= .055 or
                      local_packages >= 2 and detail >= .025)
         if not _chromatic_only and dark_dominant and local_packages < 1:
-            supported = False
+            dense_pad_and_trace = (
+                pads["supported"]
+                and pads["highlight_count"] >= 70
+                and detail >= .065
+            )
+            supported = bool(dense_pad_and_trace)
         if supported or ratio > best["surface_ratio"]:
             best = {"supported":bool(supported),"surface_ratio":round(ratio,4),
                     "circuit_edge_ratio":round(detail,4),"supported_local_packages":local_packages, "solder_pad_pattern":pads}
