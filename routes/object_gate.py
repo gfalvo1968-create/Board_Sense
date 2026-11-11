@@ -70,20 +70,27 @@ def _localized_solder_pads(hsv, mask):
             "highlight_count":len(centers), "span_fraction":[round(x,3) for x in span]}
 
 
-def _localized_pcb_evidence(hsv, edges, components, scale_x=1.0, scale_y=1.0):
+def _localized_pcb_evidence(hsv, edges, components, scale_x=1.0, scale_y=1.0, _chromatic_only=False):
     """Check circuit detail inside an isolated surface, not the whole photo.
 
     Color only locates a candidate. Supported packages, solder patterns or
     repeated contact pads must also be present before this can rescue routing.
     No recovery points or metal quantities come from this measurement.
     """
+    # Preserve every previously accepted chromatic PCB. A new dark mask must
+    # never erase evidence from the original color-based candidate.
+    if not _chromatic_only:
+        original = _localized_pcb_evidence(hsv, edges, components, scale_x, scale_y, _chromatic_only=True)
+        if original["supported"]:
+            return original
     surface = cv2.inRange(hsv, np.array([28,45,20]), np.array([135,255,255]))
     # Black laptop logic boards can be neutral/dark and deeply notched.
     # This mask only LOCATES candidates: packages, pads, or solder structure
     # plus edge detail are still required below before accepting a PCB.
     chromatic_surface = surface.copy()
     dark_surface = cv2.inRange(hsv, np.array([0,0,0]), np.array([179,255,80]))
-    surface = cv2.bitwise_or(surface, dark_surface)
+    if not _chromatic_only:
+        surface = cv2.bitwise_or(surface, dark_surface)
     k = max(3, (min(surface.shape)//100) | 1)
     surface = cv2.morphologyEx(surface, cv2.MORPH_CLOSE,
                               np.ones((k,k),np.uint8), iterations=2)
@@ -98,7 +105,7 @@ def _localized_pcb_evidence(hsv, edges, components, scale_x=1.0, scale_y=1.0):
         rw,rh = cv2.minAreaRect(contour)[1]
         # A notched logic board can occupy less than half of its rotated
         # bounding box. Accept the region for EVIDENCE CHECKING, not by shape.
-        if not (.08 <= ratio <= .95 and cv2.contourArea(contour)/max(1,rw*rh) >= .38):
+        if not (.08 <= ratio <= .95 and cv2.contourArea(contour)/max(1,rw*rh) >= (.50 if _chromatic_only else .38)):
             continue
         mask = np.zeros_like(surface)
         cv2.drawContours(mask,[contour],-1,255,-1)
@@ -122,7 +129,7 @@ def _localized_pcb_evidence(hsv, edges, components, scale_x=1.0, scale_y=1.0):
         supported = (pads["supported"] and detail >= .025 or
                      (local_packages >= 1 or other_construction) and detail >= .055 or
                      local_packages >= 2 and detail >= .025)
-        if dark_dominant and local_packages < 1:
+        if not _chromatic_only and dark_dominant and local_packages < 1:
             supported = False
         if supported or ratio > best["surface_ratio"]:
             best = {"supported":bool(supported),"surface_ratio":round(ratio,4),
