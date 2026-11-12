@@ -294,8 +294,9 @@ def classify_object(image_path):
         elif solder_side>=50: board_score+=13
         if solder>=10: board_score+=8
         if contact>=4: board_score+=6
-        if chromatic_ratio>=0.22: board_score+=12
-        elif chromatic_ratio>=0.10: board_score+=7
+        # No independent color bonus here. Warm textile backgrounds and
+        # empty housings can resemble colored solder mask in HSV space.
+        # Only verified local circuit evidence may later reinforce this cue.
 
         # Rescue visibly board-scale circuitry even if mask/substrate color is odd.
         structural_rescue = foreground_ratio>=0.16 and edge_ratio>=0.045 and (major>=2 or solder_side>=55)
@@ -303,6 +304,10 @@ def classify_object(image_path):
         localized = _localized_pcb_evidence(hsv,edges,comps,w/w0,h/h0)
         if localized["supported"]:
             board_score += 26 if (localized.get("solder_pad_pattern") or {}).get("supported") else 18
+            # Color never certifies a PCB. It can only reinforce a region
+            # already demonstrating local electronic construction.
+            if chromatic_ratio >= 0.22: board_score += 12
+            elif chromatic_ratio >= 0.10: board_score += 7
         board_score=min(board_score,100)
 
         component_score=0
@@ -352,7 +357,7 @@ def classify_object(image_path):
             if edge_ratio>=0.025: ev.append("Circuit-detail edge density supports PCB construction")
             if major: ev.append(f"Electronic component population detected ({major} major candidates)")
             if solder_side>=55: ev.append(f"PCB solder/trace-side pattern detected ({solder_side}% likelihood)")
-            if chromatic_ratio>=0.10: ev.append("Chromatic PCB substrate/solder-mask color support detected")
+            if localized["supported"] and chromatic_ratio>=0.10: ev.append("Color supports locally confirmed PCB construction")
             if localized["supported"]: ev.append("Circuit detail on an isolated PCB surface supports routing independently of background size")
             result["evidence"]=ev or ["Multiple PCB construction signals agree"]
             result["message"]="Board evidence is strong enough to continue into Board Sense grading."
