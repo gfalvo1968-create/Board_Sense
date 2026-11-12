@@ -157,6 +157,24 @@ class DarkIrregularPCBTests(unittest.TestCase):
         self.assertEqual(result["mode"], "board", result)
         self.assertNotEqual(result["label"], "Speaker / audio driver")
 
+    def test_optional_private_installed_board_routes_as_board(self):
+        """Private second view: never place operator photographs in git."""
+        image_path = os.environ.get("BOARD_SENSE_LAPTOP_INSTALLED_PHOTO")
+        if not image_path:
+            self.skipTest("Private installed-board view not configured")
+        self.assertTrue(Path(image_path).is_file())
+        result = classify_object(image_path)
+        self.assertEqual(result["mode"], "board", result)
+
+    def test_optional_private_empty_chassis_never_routes_as_board(self):
+        """Private negative: a dismantled laptop chassis is NOT a PCB."""
+        image_path = os.environ.get("BOARD_SENSE_EMPTY_CHASSIS_PHOTO")
+        if not image_path:
+            self.skipTest("Private empty-chassis view not configured")
+        self.assertTrue(Path(image_path).is_file())
+        result = classify_object(image_path)
+        self.assertNotEqual(result["mode"], "board", result)
+
     def test_plain_dark_sheet_remains_unconfirmed(self):
         image = np.full((800, 800, 3), 215, dtype=np.uint8)
         cv2.rectangle(image, (100, 100), (680, 680), (27, 27, 27), -1)
