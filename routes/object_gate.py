@@ -254,6 +254,14 @@ def classify_object(image_path):
         edges=cv2.Canny(cv2.GaussianBlur(gray,(5,5),0),55,145)
         edge_ratio=float(cv2.countNonZero(edges)/area)
         color_ratio=_pcb_color_ratio(hsv)
+        # Dark plastic, rubber, and empty laptop housings are also black.
+        # Keep broad color ratio as a diagnostic, but do not award PCB
+        # solder-mask points merely for darkness. Neutral/dark PCB routing
+        # requires independent circuit structure through the localized gate.
+        chromatic_color = cv2.bitwise_or(
+            cv2.inRange(hsv,np.array([28,35,20]),np.array([135,255,255])),
+            cv2.inRange(hsv,np.array([0,35,20]),np.array([30,255,255])))
+        chromatic_ratio = float(cv2.countNonZero(chromatic_color)/area)
 
         foreground,foreground_ratio=_largest_foreground(gray)
         bbox_aspect=bbox_fill=0.0; compact=False; rectangularity=0.0
@@ -286,8 +294,8 @@ def classify_object(image_path):
         elif solder_side>=50: board_score+=13
         if solder>=10: board_score+=8
         if contact>=4: board_score+=6
-        if color_ratio>=0.22: board_score+=12
-        elif color_ratio>=0.10: board_score+=7
+        if chromatic_ratio>=0.22: board_score+=12
+        elif chromatic_ratio>=0.10: board_score+=7
 
         # Rescue visibly board-scale circuitry even if mask/substrate color is odd.
         structural_rescue = foreground_ratio>=0.16 and edge_ratio>=0.045 and (major>=2 or solder_side>=55)
@@ -320,7 +328,7 @@ def classify_object(image_path):
 
         result.update({"board_likelihood":int(board_score),"component_likelihood":int(component_score),
                        "camera_module_likelihood":int(camera_score),"speaker_likelihood":int(speaker_score),
-                       "metrics":{"pcb_color_support_ratio":round(color_ratio,4),"foreground_ratio":round(foreground_ratio,4),
+                       "metrics":{"pcb_color_support_ratio":round(color_ratio,4),"pcb_chromatic_support_ratio":round(chromatic_ratio,4),"foreground_ratio":round(foreground_ratio,4),
                                   "edge_ratio":round(edge_ratio,4),"foreground_rectangularity":round(rectangularity,3),
                                   "circle_count":int(circle_count),"speaker_signature":speaker_metrics,
                                   "ic_like":ic,"capacitor_like":cap,"contact_pad_like":contact,
@@ -344,7 +352,7 @@ def classify_object(image_path):
             if edge_ratio>=0.025: ev.append("Circuit-detail edge density supports PCB construction")
             if major: ev.append(f"Electronic component population detected ({major} major candidates)")
             if solder_side>=55: ev.append(f"PCB solder/trace-side pattern detected ({solder_side}% likelihood)")
-            if color_ratio>=0.10: ev.append("PCB substrate/solder-mask color support detected")
+            if chromatic_ratio>=0.10: ev.append("Chromatic PCB substrate/solder-mask color support detected")
             if localized["supported"]: ev.append("Circuit detail on an isolated PCB surface supports routing independently of background size")
             result["evidence"]=ev or ["Multiple PCB construction signals agree"]
             result["message"]="Board evidence is strong enough to continue into Board Sense grading."
