@@ -70,14 +70,27 @@ def _localized_solder_pads(hsv, mask):
             "highlight_count":len(centers), "span_fraction":[round(x,3) for x in span]}
 
 
-def _localized_pcb_evidence(hsv, edges, components, scale_x=1.0, scale_y=1.0):
+def _localized_pcb_evidence(hsv, edges, components, scale_x=1.0, scale_y=1.0, _chromatic_only=False):
     """Check circuit detail inside an isolated surface, not the whole photo.
 
     Color only locates a candidate. Supported packages, solder patterns or
     repeated contact pads must also be present before this can rescue routing.
     No recovery points or metal quantities come from this measurement.
     """
+    # Preserve every previously accepted chromatic PCB. A new dark mask must
+    # never erase evidence from the original color-based candidate.
+    if not _chromatic_only:
+        original = _localized_pcb_evidence(hsv, edges, components, scale_x, scale_y, _chromatic_only=True)
+        if original["supported"]:
+            return original
     surface = cv2.inRange(hsv, np.array([28,45,20]), np.array([135,255,255]))
+    # Black laptop logic boards can be neutral/dark and deeply notched.
+    # This mask only LOCATES candidates: packages, pads, or solder structure
+    # plus edge detail are still required below before accepting a PCB.
+    chromatic_surface = surface.copy()
+    dark_surface = cv2.inRange(hsv, np.array([0,0,0]), np.array([179,255,80]))
+    if not _chromatic_only:
+        surface = cv2.bitwise_or(surface, dark_surface)
     k = max(3, (min(surface.shape)//100) | 1)
     surface = cv2.morphologyEx(surface, cv2.MORPH_CLOSE,
                               np.ones((k,k),np.uint8), iterations=2)
@@ -90,7 +103,9 @@ def _localized_pcb_evidence(hsv, edges, components, scale_x=1.0, scale_y=1.0):
     for contour in contours:
         ratio = cv2.contourArea(contour)/max(1,surface.size)
         rw,rh = cv2.minAreaRect(contour)[1]
-        if not (.08 <= ratio <= .95 and cv2.contourArea(contour)/max(1,rw*rh) >= .50):
+        # A notched logic board can occupy less than half of its rotated
+        # bounding box. Accept the region for EVIDENCE CHECKING, not by shape.
+        if not (.08 <= ratio <= .95 and cv2.contourArea(contour)/max(1,rw*rh) >= (.50 if _chromatic_only else .38)):
             continue
         mask = np.zeros_like(surface)
         cv2.drawContours(mask,[contour],-1,255,-1)
@@ -106,9 +121,22 @@ def _localized_pcb_evidence(hsv, edges, components, scale_x=1.0, scale_y=1.0):
             if roi.size == rw*rh and cv2.countNonZero(roi)/roi.size >= .65:
                 local_packages += 1
         pads = _localized_solder_pads(hsv, mask)
+        # Bright screw-heads and fan edges in an EMPTY dark laptop chassis
+        # can imitate solder pads. A dark candidate without a supported IC
+        # requires BOTH dense local circuit edges and distributed pad evidence.
+        # A pad count or black color by itself never rescues a board.
+        chromatic_fraction = cv2.countNonZero(cv2.bitwise_and(chromatic_surface, mask)) / max(1, cv2.countNonZero(mask))
+        dark_dominant = chromatic_fraction < .25
         supported = (pads["supported"] and detail >= .025 or
                      (local_packages >= 1 or other_construction) and detail >= .055 or
                      local_packages >= 2 and detail >= .025)
+        if not _chromatic_only and dark_dominant and local_packages < 1:
+            dense_pad_and_trace = (
+                pads["supported"]
+                and pads["highlight_count"] >= 70
+                and detail >= .065
+            )
+            supported = bool(dense_pad_and_trace)
         if supported or ratio > best["surface_ratio"]:
             best = {"supported":bool(supported),"surface_ratio":round(ratio,4),
                     "circuit_edge_ratio":round(detail,4),"supported_local_packages":local_packages, "solder_pad_pattern":pads}
@@ -226,6 +254,14 @@ def classify_object(image_path):
         edges=cv2.Canny(cv2.GaussianBlur(gray,(5,5),0),55,145)
         edge_ratio=float(cv2.countNonZero(edges)/area)
         color_ratio=_pcb_color_ratio(hsv)
+        # Dark plastic, rubber, and empty laptop housings are also black.
+        # Keep broad color ratio as a diagnostic, but do not award PCB
+        # solder-mask points merely for darkness. Neutral/dark PCB routing
+        # requires independent circuit structure through the localized gate.
+        chromatic_color = cv2.bitwise_or(
+            cv2.inRange(hsv,np.array([28,35,20]),np.array([135,255,255])),
+            cv2.inRange(hsv,np.array([0,35,20]),np.array([30,255,255])))
+        chromatic_ratio = float(cv2.countNonZero(chromatic_color)/area)
 
         foreground,foreground_ratio=_largest_foreground(gray)
         bbox_aspect=bbox_fill=0.0; compact=False; rectangularity=0.0
@@ -258,8 +294,9 @@ def classify_object(image_path):
         elif solder_side>=50: board_score+=13
         if solder>=10: board_score+=8
         if contact>=4: board_score+=6
-        if color_ratio>=0.22: board_score+=12
-        elif color_ratio>=0.10: board_score+=7
+        # No independent color bonus here. Warm textile backgrounds and
+        # empty housings can resemble colored solder mask in HSV space.
+        # Only verified local circuit evidence may later reinforce this cue.
 
         # Rescue visibly board-scale circuitry even if mask/substrate color is odd.
         structural_rescue = foreground_ratio>=0.16 and edge_ratio>=0.045 and (major>=2 or solder_side>=55)
@@ -267,6 +304,10 @@ def classify_object(image_path):
         localized = _localized_pcb_evidence(hsv,edges,comps,w/w0,h/h0)
         if localized["supported"]:
             board_score += 26 if (localized.get("solder_pad_pattern") or {}).get("supported") else 18
+            # Color never certifies a PCB. It can only reinforce a region
+            # already demonstrating local electronic construction.
+            if chromatic_ratio >= 0.22: board_score += 12
+            elif chromatic_ratio >= 0.10: board_score += 7
         board_score=min(board_score,100)
 
         component_score=0
@@ -292,7 +333,7 @@ def classify_object(image_path):
 
         result.update({"board_likelihood":int(board_score),"component_likelihood":int(component_score),
                        "camera_module_likelihood":int(camera_score),"speaker_likelihood":int(speaker_score),
-                       "metrics":{"pcb_color_support_ratio":round(color_ratio,4),"foreground_ratio":round(foreground_ratio,4),
+                       "metrics":{"pcb_color_support_ratio":round(color_ratio,4),"pcb_chromatic_support_ratio":round(chromatic_ratio,4),"foreground_ratio":round(foreground_ratio,4),
                                   "edge_ratio":round(edge_ratio,4),"foreground_rectangularity":round(rectangularity,3),
                                   "circle_count":int(circle_count),"speaker_signature":speaker_metrics,
                                   "ic_like":ic,"capacitor_like":cap,"contact_pad_like":contact,
@@ -316,7 +357,7 @@ def classify_object(image_path):
             if edge_ratio>=0.025: ev.append("Circuit-detail edge density supports PCB construction")
             if major: ev.append(f"Electronic component population detected ({major} major candidates)")
             if solder_side>=55: ev.append(f"PCB solder/trace-side pattern detected ({solder_side}% likelihood)")
-            if color_ratio>=0.10: ev.append("PCB substrate/solder-mask color support detected")
+            if localized["supported"] and chromatic_ratio>=0.10: ev.append("Color supports locally confirmed PCB construction")
             if localized["supported"]: ev.append("Circuit detail on an isolated PCB surface supports routing independently of background size")
             result["evidence"]=ev or ["Multiple PCB construction signals agree"]
             result["message"]="Board evidence is strong enough to continue into Board Sense grading."
