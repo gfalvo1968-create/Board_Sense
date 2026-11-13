@@ -261,6 +261,23 @@ def classify_object(image_path):
         if color_ratio>=0.22: board_score+=12
         elif color_ratio>=0.10: board_score+=7
 
+        # Borderline black laptop PCB: require multiple independent structural
+        # signals, rather than lowering the universal PCB threshold. A dark
+        # solder mask is only context, never enough to classify a blank panel.
+        # Mounted components or solder/trace evidence must corroborate edges.
+        dark_laptop_support = (
+            color_ratio >= .10
+            and foreground_ratio >= .12
+            and edge_ratio >= .025
+            and (
+                major >= 2
+                or solder_side >= 50
+                or (contact >= 4 and solder >= 4)
+            )
+        )
+        if dark_laptop_support:
+            board_score += 8
+
         # Rescue visibly board-scale circuitry even if mask/substrate color is odd.
         structural_rescue = foreground_ratio>=0.16 and edge_ratio>=0.045 and (major>=2 or solder_side>=55)
         if structural_rescue: board_score+=12
