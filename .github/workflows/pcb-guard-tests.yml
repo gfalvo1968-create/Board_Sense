@@ -21,4 +21,4 @@ jobs:
       - name: Install project dependencies
         run: python -m pip install -r requirements-dev.txt
       - name: Run PCB recognition and grade regressions
-        run: python -m unittest tests.test_object_gate_framing tests.test_grade_review -v
+        run: python -m unittest tests.test_object_gate_framing tests.test_grade_review tests.test_case_identity_guard -v
