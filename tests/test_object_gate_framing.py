@@ -81,6 +81,22 @@ class ObjectGateFramingTests(unittest.TestCase):
         self.assertIn(result["mode"],("board","unknown"),result)
         self.assertNotEqual(result["label"],"Speaker / audio driver")
 
+    def test_private_irregular_laptop_front_and_back_are_both_pcbs(self):
+        # Keep user-owned photographs private. Engineers can supply an
+        # authorized local fixture directory without checking images into Git.
+        directory=os.environ.get('BOARD_SENSE_LAPTOP_FIXTURES')
+        if not directory:
+            self.skipTest('Optional private laptop fixtures not configured')
+        for name in ('IMG_5864.jpeg','IMG_5865.jpeg','IMG_5866.jpeg','IMG_5867.jpeg'):
+            photo=Path(directory)/name
+            if not photo.exists():
+                continue
+            with self.subTest(photo=name):
+                with board_analysis_image(str(photo)) as normalized:
+                    result=classify_object(normalized)
+                self.assertEqual(result['mode'],'board',result)
+                self.assertNotEqual(result['label'],'Speaker / audio driver')
+
     def test_color_without_circuit_construction_cannot_rescue_a_plain_sheet(self):
         image=np.full((1100,900,3),35,dtype=np.uint8)
         cv2.rectangle(image,(320,200),(580,900),(35,110,40),-1)
