@@ -144,7 +144,7 @@ def _dark_board_local_edge_ratio(gray, edges):
     isolated = np.zeros_like(gray)
     cv2.drawContours(isolated, [contour], -1, 255, -1)
     local_edge_ratio = cv2.countNonZero(cv2.bitwise_and(edges, isolated)) / max(1, cv2.countNonZero(isolated))
-    return {"supported": bool(local_edge_ratio >= .06),
+    return {"supported": bool(local_edge_ratio >= .045),
             "edge_ratio": round(local_edge_ratio, 4),
             "surface_ratio": round(surface_ratio, 4)}
 
