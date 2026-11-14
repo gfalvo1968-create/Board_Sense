@@ -120,13 +120,21 @@ def apply_grade_review(result):
                      any(x in str(r.get("type", "")).lower() for x in ("package", "die")) for r in regions)
     logic = any(x in str(out.get("board_type", "")).lower() for x in ("logic", "motherboard", "processor", "controller"))
     supported = bool(signals.get("large_ic_chips") or signals.get("ic_signal_confirmed") or signals.get("processor"))
-    review = str(grade).upper() == "LOW" and (unresolved or (logic and supported))
+    # A zero-feature, low-confidence *general* PCB cannot justify a final
+    # buyer grade. This is missing evidence, not evidence of low recovery value.
+    uncertain_general = (
+        str(out.get("board_type", "")).strip().lower() == "general pcb"
+        and float(out.get("confidence", 0) or 0) < 50
+        and float(out.get("score", 0) or 0) == 0
+        and not regions
+    )
+    review = str(grade).upper() == "LOW" and (unresolved or (logic and supported) or uncertain_general)
     out["grade_assessment"] = {
         "status": "MANUAL_REVIEW_REQUIRED" if review else "VISUAL_ESTIMATE",
         "provisional_grade": grade,
         "observed_feature_score": out.get("score", 0),
         "final_buyer_grade_verified": False,
-        "reason": "Detected logic/package evidence is incomplete; a low feature score does not establish low recovery value." if review else "Visual estimate only; buyer grade, metal yield, and payout remain unverified.",
+        "reason": "Evidence is insufficient to verify a LOW buyer grade; a zero-feature result is not a measured absence of recoverable components." if uncertain_general and review else "Detected logic/package evidence is incomplete; a low feature score does not establish low recovery value." if review else "Visual estimate only; buyer grade, metal yield, and payout remain unverified.",
         "model": "SPIKE Grade Review v0.1",
     }
     if review:
