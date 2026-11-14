@@ -71,6 +71,32 @@ class ObjectGateFramingTests(unittest.TestCase):
                 self.assertEqual(result['mode'],'board',result)
                 self.assertNotEqual(result['label'],'Speaker / audio driver')
 
+    def test_dark_laptop_pcb_requires_corroborated_construction(self):
+        # A dark board with component and edge evidence gets a limited bonus,
+        # not a wholesale relaxation of the object gate.
+        board=populated_board()
+        dark=cv2.cvtColor(board,cv2.COLOR_BGR2GRAY)
+        dark=cv2.cvtColor(dark,cv2.COLOR_GRAY2BGR)
+        result=self.gate(dark)
+        self.assertIn(result["mode"],("board","unknown"),result)
+        self.assertNotEqual(result["label"],"Speaker / audio driver")
+
+    def test_private_irregular_laptop_front_and_back_are_both_pcbs(self):
+        # Keep user-owned photographs private. Engineers can supply an
+        # authorized local fixture directory without checking images into Git.
+        directory=os.environ.get('BOARD_SENSE_LAPTOP_FIXTURES')
+        if not directory:
+            self.skipTest('Optional private laptop fixtures not configured')
+        for name in ('IMG_5864.jpeg','IMG_5865.jpeg','IMG_5866.jpeg','IMG_5867.jpeg'):
+            photo=Path(directory)/name
+            if not photo.exists():
+                continue
+            with self.subTest(photo=name):
+                with board_analysis_image(str(photo)) as normalized:
+                    result=classify_object(normalized)
+                self.assertEqual(result['mode'],'board',result)
+                self.assertNotEqual(result['label'],'Speaker / audio driver')
+
     def test_color_without_circuit_construction_cannot_rescue_a_plain_sheet(self):
         image=np.full((1100,900,3),35,dtype=np.uint8)
         cv2.rectangle(image,(320,200),(580,900),(35,110,40),-1)
