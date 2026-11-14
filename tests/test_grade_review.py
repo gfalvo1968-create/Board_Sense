@@ -19,6 +19,24 @@ class GradeReviewTests(unittest.TestCase):
                     'signals':{'large_ic_chips':True,'dense_component_board':True}})
         self.assertEqual(result['grade'], 'MEDIUM')
 
+    def test_unresolved_general_pcb_with_zero_detected_features_is_not_low(self):
+        original = {'board_type':'General PCB','confidence':33,'grade':'LOW','score':0,
+                    'component_intelligence':{'regions':[]},
+                    'recovery_signals':['limited precious metal recovery']}
+        result = apply_recovery_grade_guard(original)
+        self.assertEqual(result['grade'], 'MANUAL REVIEW')
+        self.assertEqual(result['score'], 0)
+        self.assertEqual(result['grade_assessment']['provisional_grade'], 'LOW')
+        self.assertFalse(result['pay_dirt_ready'])
+        self.assertNotIn('limited precious metal recovery',result['recovery_signals'])
+        self.assertEqual(apply_recovery_grade_guard(result)['grade'], 'MANUAL REVIEW')
+
+    def test_evidenced_general_pcb_grade_unchanged(self):
+        result = apply_grade_review({'board_type':'General PCB','confidence':77,
+                                     'grade':'LOW','score':5,
+                                     'component_intelligence':{'regions':[]}})
+        self.assertEqual(result['grade'], 'LOW')
+
     def test_power_board_not_promoted_or_withheld_by_identity(self):
         result = apply_grade_review({'board_type':'Power Supply Board','grade':'LOW','score':0})
         self.assertEqual(result['grade'], 'LOW')
