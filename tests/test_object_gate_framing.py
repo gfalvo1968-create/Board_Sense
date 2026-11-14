@@ -8,7 +8,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from routes.object_gate import classify_object, _speaker_signature
+from routes.object_gate import classify_object, _speaker_signature, _dark_board_local_edge_ratio
 from routes.analysis_image import board_analysis_image
 
 
@@ -96,6 +96,19 @@ class ObjectGateFramingTests(unittest.TestCase):
                     result=classify_object(normalized)
                 self.assertEqual(result['mode'],'board',result)
                 self.assertNotEqual(result['label'],'Speaker / audio driver')
+
+    def test_dark_surface_local_edges_need_real_texture(self):
+        blank=np.full((800,1000),240,dtype=np.uint8)
+        cv2.rectangle(blank,(100,100),(900,700),25,-1)
+        edges=cv2.Canny(blank,55,145)
+        self.assertFalse(_dark_board_local_edge_ratio(blank,edges)['supported'])
+        textured=blank.copy()
+        for y in range(160,660,18):
+            for x in range(160,860,18):
+                cv2.rectangle(textured,(x,y),(x+5,y+5),210,-1)
+        edges=cv2.Canny(textured,55,145)
+        result=_dark_board_local_edge_ratio(textured,edges)
+        self.assertTrue(result['supported'],result)
 
     def test_color_without_circuit_construction_cannot_rescue_a_plain_sheet(self):
         image=np.full((1100,900,3),35,dtype=np.uint8)
