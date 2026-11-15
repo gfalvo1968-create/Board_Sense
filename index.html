@@ -219,6 +219,7 @@ img.preview{
         <button id="analyzeBtn">
             Analyze Board
         </button>
+        <p id="uploadStatus" role="status" aria-live="polite">Choose a board photo to start.</p>
     </section>
 
     <section class="panel">
@@ -404,6 +405,9 @@ async function uploadImage() {
         });
 
         const data = await response.json();
+        if (!response.ok || data.status === "error") {
+            throw new Error(data.message || data.detail?.message || data.detail || `Server returned ${response.status}`);
+        }
         devLog("Response received");
         devLog("Grade: " + data.ai_grade);
         devLog("Confidence: " + data.confidence + "%");
@@ -428,11 +432,10 @@ async function uploadImage() {
 
     catch (err) {
 
-        $("predictionBox").innerHTML =
-            "Upload failed.<br><br>" + err;
+        $("predictionBox").textContent = "Analysis could not complete: " + (err?.message || String(err));
 
         $("uploadStatus").innerHTML =
-            "Upload failed.";
+            "Analysis could not complete.";
 
     }
 
