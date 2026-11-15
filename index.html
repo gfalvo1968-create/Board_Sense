@@ -381,6 +381,30 @@ if (enterBtn) {
 
 // ---------- Upload ----------
 
+async function prepareStagingBoardUpload(file) {
+    // Backend detection already scales images to 1400px. Resize before
+    // transfer on staging to prevent multi-megabyte mobile uploads stalling.
+    // Original file stays on the device; no compression fallback is silently used.
+    if (location.hostname !== "boardsensestaging-staging.up.railway.app" ||
+        file.size <= 650 * 1024) return file;
+    const source = await createImageBitmap(file, {imageOrientation: "from-image"});
+    try {
+        const scale = Math.min(1, 1400 / Math.max(source.width, source.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(source.width * scale));
+        canvas.height = Math.max(1, Math.round(source.height * scale));
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Image preparation is unavailable on this device.");
+        context.drawImage(source, 0, 0, canvas.width, canvas.height);
+        const jpeg = await new Promise((resolve, reject) =>
+            canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("Image preparation failed.")), "image/jpeg", 0.86));
+        if (jpeg.size >= file.size) return file;
+        return new File([jpeg], file.name.replace(/\.[^.]+$/, "") + "-staging.jpg", {type:"image/jpeg"});
+    } finally {
+        source.close();
+    }
+}
+
 async function uploadImage() {
 
     const input = $("boardImage");
@@ -426,9 +450,12 @@ async function uploadImage() {
     $("uploadStatus").innerHTML =
         "Uploading " + file.name + "...";
 
+    const preparedFile = await prepareStagingBoardUpload(file);
+    statusEl.textContent = "Uploading " + preparedFile.name + " (" +
+        Math.round(preparedFile.size / 1024) + " KB, original " +
+        Math.round(file.size / 1024) + " KB)...";
     const formData = new FormData();
-
-    formData.append("file", file);
+    formData.append("file", preparedFile);
     devLog("Packaging image...");
     devLog("Sending request to Harbor AI...");
 
