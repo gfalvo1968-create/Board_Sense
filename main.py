@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, Form, Request, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from typing import List, Optional
@@ -129,7 +130,8 @@ async def analyze_board_route(request: Request, file: UploadFile = File(...), in
         if blocked is not None:
             return blocked
         file_path = paths[0]
-        result = analyze_board(str(file_path))
+        # CPU-heavy image analysis must not block the async event loop.
+        result = await run_in_threadpool(analyze_board, str(file_path))
         target_packet = parse_inspection_target(inspection_target)
         if target_packet:
             result = apply_inspection_target(result, target_packet, str(file_path))
