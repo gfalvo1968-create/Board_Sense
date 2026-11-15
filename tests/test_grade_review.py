@@ -31,6 +31,23 @@ class GradeReviewTests(unittest.TestCase):
         self.assertNotIn('limited precious metal recovery',result['recovery_signals'])
         self.assertEqual(apply_recovery_grade_guard(result)['grade'], 'MANUAL REVIEW')
 
+    def test_zero_feature_general_pcb_with_inspection_regions_still_requires_review(self):
+        sample = {
+            'board_type': 'General PCB', 'confidence': 33, 'score': 0,
+            'grade': 'LOW', 'signals': {},
+            'component_intelligence': {'regions': [
+                {'type': 'Mounting structure', 'x': 10, 'y': 20, 'w': 10, 'h': 10},
+                {'type': 'Unconfirmed connector region', 'x': 40, 'y': 60, 'w': 20, 'h': 15}
+            ]},
+            'recovery_signals': ['limited precious metal recovery']
+        }
+        result = apply_grade_review(sample)
+        self.assertEqual(result['grade'], 'MANUAL REVIEW')
+        self.assertEqual(result['grade_assessment']['status'], 'MANUAL_REVIEW_REQUIRED')
+        self.assertEqual(result['score'], 0)
+        self.assertNotIn('limited precious metal recovery', result['recovery_signals'])
+        self.assertEqual(apply_grade_review(result)['grade'], 'MANUAL REVIEW')
+
     def test_evidenced_general_pcb_grade_unchanged(self):
         result = apply_grade_review({'board_type':'General PCB','confidence':77,
                                      'grade':'LOW','score':5,
