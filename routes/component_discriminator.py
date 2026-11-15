@@ -183,6 +183,8 @@ def discriminate_components(image_path):
             elif .006<=ar<=.20 and rect>=.45:
                 uncertain_like+=1
 
+        diagnostic = {"mask_coverage_pct": round(100*board_area/max(1,height*width),1), "threshold_contours": len(contours), "edge_contours": 0, "edge_geometry_candidates": 0, "outside_board": 0, "body_rejected": 0, "pin_rejected": 0, "face_rejected": 0, "body_and_pins_supported": 0}
+        # Diagnostic counts never establish a physical identity or recovery grade.
         # Dark solder mask can connect a chip body to nearby traces in a simple
         # threshold. Closed edge contours recover enclosed packages, with pin
         # geometry preventing PCB holes or printed rectangles becoming ICs.
@@ -190,13 +192,21 @@ def discriminate_components(image_path):
         for kernel_size in (3,7):
             closed=cv2.morphologyEx(package_edges,cv2.MORPH_CLOSE,np.ones((kernel_size,kernel_size),np.uint8))
             package_contours,_=cv2.findContours(closed,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
+            diagnostic['edge_contours'] += len(package_contours)
             for contour in package_contours:
                 x,y,w,h=cv2.boundingRect(contour);a=cv2.contourArea(contour);ar=a/board_area;rect=a/max(1,w*h)
                 if not (.001<=ar<=.15 and rect>=.65 and max(w,h)/max(1,min(w,h))<=4.8):continue
-                if not region_on_board(mask,{'x':x,'y':y,'w':w,'h':h}):continue
+                diagnostic['edge_geometry_candidates'] += 1
+                if not region_on_board(mask,{'x':x,'y':y,'w':w,'h':h}):
+                    diagnostic['outside_board'] += 1
+                    continue
                 body_supported=_package_body_support(gray,hsv,x,y,w,h)
                 pins_supported=_pin_edge_support(gray,x,y,w,h)
                 mean_face=float(np.mean(gray[y:y+h,x:x+w]))
+                if not body_supported: diagnostic['body_rejected'] += 1
+                elif not pins_supported: diagnostic['pin_rejected'] += 1
+                elif mean_face >= 100: diagnostic['face_rejected'] += 1
+                else: diagnostic['body_and_pins_supported'] += 1
                 if .002<=ar<=.065 and rect>=.80 and _nested_die_support(gray,hsv,x,y,w,h):
                     candidate={'type':'Exposed-die / package candidate','x':int(x*inv),'y':int(y*inv),'w':max(1,int(w*inv)),'h':max(1,int(h*inv)),'confidence':50,'geometry_guard':'Central light die-like area inside an enclosed dark package-like face. Connections, part family, and composition are unverified; paste or other features can imitate this geometry. Inspection only: excluded from IC counts and recovery points.'}
                     if not any(_overlap(candidate,r)>.42 for r in regions):regions.append(candidate)
@@ -216,6 +226,7 @@ def discriminate_components(image_path):
                     regions.remove(duplicate)
                 regions.append(region);ic_like+=1
 
+        result['diagnostics'] = diagnostic
         circle_blur=cv2.GaussianBlur(gray,(9,9),1.5);min_r=max(5,int(min(width,height)*.008));max_r=max(min_r+2,int(min(width,height)*.065));circles=cv2.HoughCircles(circle_blur,cv2.HOUGH_GRADIENT,dp=1.2,minDist=max(16,min_r*2.4),param1=115,param2=30,minRadius=min_r,maxRadius=max_r);caps=[];contacts=[];solder=[]
         if circles is not None:
             for cx,cy,r in np.round(circles[0]).astype(int):
