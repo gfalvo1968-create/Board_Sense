@@ -510,6 +510,11 @@ async function uploadImage() {
             const gate = data.object_gate || {};
             const pairs = [
                 ["Object gate", gate.mode ?? "Not reported"],
+                ["PCB likelihood", gate.board_likelihood ?? "Not reported"],
+                ["Other-component likelihood", gate.component_likelihood ?? "Not reported"],
+                ["Speaker likelihood", gate.speaker_likelihood ?? "Not reported"],
+                ["Object gate evidence", Array.isArray(gate.evidence) ? gate.evidence.join("; ") : "Not reported"],
+                ["Object gate metrics", gate.metrics ? Object.entries(gate.metrics).map(([key,value]) => key.replaceAll("_"," ") + ": " + (typeof value === "object" ? JSON.stringify(value) : value)).join("\n") : "Not reported"],
                 ["Board regions returned", Array.isArray(comp.regions) ? comp.regions.length : "Not reported"],
                 ["IC-like candidates", comp.ic_like ?? "Not reported"],
                 ["Unverified packages", comp.unverified_package_like ?? "Not reported"],
