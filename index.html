@@ -489,7 +489,8 @@ async function uploadImage() {
                 ["Small component candidates", comp.small_component_like ?? "Not reported"],
                 ["Uncertain component candidates", comp.uncertain_like ?? "Not reported"],
                 ["Solder-side likelihood", comp.solder_side_likelihood ?? "Not reported"],
-                ["Detector notes", Array.isArray(comp.notes) ? comp.notes.join("; ") : "Not reported"]
+                ["Detector notes", Array.isArray(comp.notes) ? comp.notes.join("; ") : "Not reported"],
+                ["Package-filter diagnostics", comp.diagnostics ? JSON.stringify(comp.diagnostics) : "Not reported"]
             ];
             const details = document.createElement("details");
             details.open = true;
