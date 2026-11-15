@@ -101,7 +101,7 @@ class BoardRegionTests(unittest.TestCase):
 
     def test_dark_populated_outline_on_textured_light_surface(self):
         yy, xx = np.indices((800, 1100))
-        gray = (170 + 29*np.sin(xx/15) + 14*np.cos(yy/23)).clip(0, 255).astype(np.uint8)
+        gray = (170 + 40*np.sin(xx/15) + 18*np.cos(yy/23)).clip(0, 255).astype(np.uint8)
         image = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
         cv2.rectangle(image, (170, 170), (940, 635), (25, 25, 25), -1)
         for y in range(230, 585, 30):
@@ -113,7 +113,7 @@ class BoardRegionTests(unittest.TestCase):
 
     def test_plain_dark_panel_on_textured_surface_is_not_a_supported_pcb_region(self):
         yy, xx = np.indices((800, 1100))
-        gray = (170 + 29*np.sin(xx/15) + 14*np.cos(yy/23)).clip(0, 255).astype(np.uint8)
+        gray = (170 + 40*np.sin(xx/15) + 18*np.cos(yy/23)).clip(0, 255).astype(np.uint8)
         image = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
         cv2.rectangle(image, (170, 170), (940, 635), (25, 25, 25), -1)
         mask = board_region_mask(image)
