@@ -394,6 +394,28 @@ async function uploadImage() {
 
     }
 
+    // Preflight the staging connection automatically. A separate Test
+    // Connection click must never be required for Analyze to function.
+    const statusEl = $("uploadStatus");
+    const reportEl = $("predictionBox");
+    const analyzeButton = $("analyzeBtn");
+    if (analyzeButton?.disabled) return;
+    if (analyzeButton) analyzeButton.disabled = true;
+    try {
+        statusEl.textContent = "Connecting to Board Sense...";
+        const health = await fetch("/health", { cache: "no-store" });
+        if (!health.ok) throw new Error("Staging server unavailable (HTTP " + health.status + ")");
+        statusEl.textContent = "Checking board allowance...";
+        const allowance = await fetch("/free-usage", { cache: "no-store" });
+        if (allowance.ok) {
+            const availability = await allowance.json();
+            if (availability?.free_usage?.allowed === false || availability?.allowed === false) {
+                const message = "Daily staging scan allowance reached. Please use a fresh test allowance or an authorized tester account.";
+                statusEl.textContent = message;
+                reportEl.textContent = message;
+                return;
+            }
+        }
     const file = input.files[0];
     $("uploadStatus").textContent = "Preparing " + file.name + " (" + Math.round(file.size / 1024) + " KB)";
     if (file) {
@@ -474,6 +496,12 @@ async function uploadImage() {
         $("uploadStatus").innerHTML =
             "Analysis could not complete.";
 
+    }
+    } catch (error) {
+        statusEl.textContent = "Connection/scan check failed.";
+        reportEl.textContent = error?.message || String(error);
+    } finally {
+        if (analyzeButton) analyzeButton.disabled = false;
     }
 
 }
