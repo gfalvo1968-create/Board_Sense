@@ -39,7 +39,8 @@ def _dark_board_on_light_surface(image, gray, k):
     # Reject plain panels: interior edges must support populated texture, but
     # this is only an outline mask, not an IC or monetary-value claim.
     edges = cv2.Canny(cv2.GaussianBlur(gray, (5, 5), 0), 55, 150)
-    evidence = cv2.countNonZero(cv2.bitwise_and(edges, mask)) / max(1, cv2.countNonZero(mask))
+    interior = cv2.erode(mask, np.ones((max(9, (min(h, w) // 50) | 1),) * 2, np.uint8))
+    evidence = cv2.countNonZero(cv2.bitwise_and(edges, interior)) / max(1, cv2.countNonZero(interior))
     if evidence < .045:
         return np.zeros((h, w), dtype=np.uint8)
     return mask
