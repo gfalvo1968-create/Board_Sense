@@ -126,7 +126,9 @@ def apply_grade_review(result):
         str(out.get("board_type", "")).strip().lower() == "general pcb"
         and float(out.get("confidence", 0) or 0) < 50
         and float(out.get("score", 0) or 0) == 0
-        and not regions
+        # Inspection-only regions, mounting structures and uncertain outlines
+        # are not evidence sufficient to establish a LOW buyer grade.
+        and not bool(signals.get("ic_signal_confirmed") or signals.get("processor") or signals.get("gold_fingers"))
     )
     review = str(grade).upper() == "LOW" and (unresolved or (logic and supported) or uncertain_general)
     out["grade_assessment"] = {
