@@ -104,8 +104,8 @@ class BoardRegionTests(unittest.TestCase):
         gray = (170 + 40*np.sin(xx/15) + 18*np.cos(yy/23)).clip(0, 255).astype(np.uint8)
         image = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
         cv2.rectangle(image, (170, 170), (940, 635), (25, 25, 25), -1)
-        for y in range(230, 585, 30):
-            for x in range(235, 895, 30):
+        for y in range(230, 585, 16):
+            for x in range(235, 895, 16):
                 cv2.rectangle(image, (x, y), (x+8, y+8), (175, 175, 175), -1)
         mask = board_region_mask(image)
         self.assertNotEqual(int(mask[400, 550]), 0)
