@@ -220,6 +220,8 @@ img.preview{
             Analyze Board
         </button>
         <p id="uploadStatus" role="status" aria-live="polite">Choose a board photo to start.</p>
+        <button type="button" id="testConnectionBtn">Test Connection</button>
+        <p id="connectionStatus" role="status" aria-live="polite">Connection not tested.</p>
     </section>
 
     <section class="panel">
@@ -347,6 +349,19 @@ if (enterBtn) {
         };
 
     }
+    const testConnectionBtn = $("testConnectionBtn");
+    if (testConnectionBtn) {
+        testConnectionBtn.addEventListener("click", async () => {
+            $("connectionStatus").textContent = "Checking staging server...";
+            try {
+                const response = await fetch("/health", {cache:"no-store"});
+                if (!response.ok) throw new Error("HTTP " + response.status);
+                $("connectionStatus").textContent = "Connection OK: staging server responded (HTTP " + response.status + ").";
+            } catch (error) {
+                $("connectionStatus").textContent = "Connection failed: " + (error?.message || String(error));
+            }
+        });
+    }
     const analyzeBtn = $("analyzeBtn");
 
     if (analyzeBtn) {
@@ -380,6 +395,7 @@ async function uploadImage() {
     }
 
     const file = input.files[0];
+    $("uploadStatus").textContent = "Preparing " + file.name + " (" + Math.round(file.size / 1024) + " KB)";
     if (file) {
     devLog("Selected file: " + file.name);
     devLog("File size: " + Math.round(file.size / 1024) + " KB");
