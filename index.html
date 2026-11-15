@@ -490,7 +490,7 @@ async function uploadImage() {
                 ["Uncertain component candidates", comp.uncertain_like ?? "Not reported"],
                 ["Solder-side likelihood", comp.solder_side_likelihood ?? "Not reported"],
                 ["Detector notes", Array.isArray(comp.notes) ? comp.notes.join("; ") : "Not reported"],
-                ["Package-filter diagnostics", comp.diagnostics ? JSON.stringify(comp.diagnostics) : "Not reported"]
+                ["Package-filter diagnostics", comp.diagnostics ? Object.entries(comp.diagnostics).map(([key,value]) => key.replaceAll("_"," ") + ": " + value).join("\n") : "Not reported"]
             ];
             const details = document.createElement("details");
             details.open = true;
@@ -502,7 +502,11 @@ async function uploadImage() {
                 const strong = document.createElement("strong");
                 strong.textContent = label + ": ";
                 line.appendChild(strong);
-                line.appendChild(document.createTextNode(String(value)));
+                const val = document.createElement("span");
+                val.textContent = String(value);
+                val.style.whiteSpace = "pre-wrap";
+                val.style.overflowWrap = "anywhere";
+                line.appendChild(val);
                 details.appendChild(line);
             }
             report.appendChild(details);
