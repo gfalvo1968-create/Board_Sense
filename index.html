@@ -476,6 +476,36 @@ async function uploadImage() {
             line.appendChild(document.createTextNode(String(value)));
             report.appendChild(line);
         }
+        // Diagnostic detail only on the isolated staging hostname.
+        // Counts are observations, not validated recoverable-material yields.
+        if (location.hostname === "boardsensestaging-staging.up.railway.app") {
+            const comp = data.component_intelligence || {};
+            const gate = data.object_gate || {};
+            const pairs = [
+                ["Object gate", gate.mode ?? "Not reported"],
+                ["Board regions returned", Array.isArray(comp.regions) ? comp.regions.length : "Not reported"],
+                ["IC-like candidates", comp.ic_like ?? "Not reported"],
+                ["Unverified packages", comp.unverified_package_like ?? "Not reported"],
+                ["Small component candidates", comp.small_component_like ?? "Not reported"],
+                ["Uncertain component candidates", comp.uncertain_like ?? "Not reported"],
+                ["Solder-side likelihood", comp.solder_side_likelihood ?? "Not reported"],
+                ["Detector notes", Array.isArray(comp.notes) ? comp.notes.join("; ") : "Not reported"]
+            ];
+            const details = document.createElement("details");
+            details.open = true;
+            const summary = document.createElement("summary");
+            summary.textContent = "Staging diagnostics (not a buyer grade)";
+            details.appendChild(summary);
+            for (const [label, value] of pairs) {
+                const line = document.createElement("div");
+                const strong = document.createElement("strong");
+                strong.textContent = label + ": ";
+                line.appendChild(strong);
+                line.appendChild(document.createTextNode(String(value)));
+                details.appendChild(line);
+            }
+            report.appendChild(details);
+        }
         devLog("Grade: " + grade);
         devLog("Confidence: " + confidence);
         $("uploadStatus").innerHTML =
