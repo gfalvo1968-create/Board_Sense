@@ -425,16 +425,37 @@ async function uploadImage() {
             throw new Error(data.message || data.detail?.message || data.detail || `Server returned ${response.status}`);
         }
         devLog("Response received");
-        devLog("Grade: " + data.ai_grade);
-        devLog("Confidence: " + data.confidence + "%");
-        devLog("Estimated Value: $" + data.value_estimate);
-
-        $("predictionBox").innerHTML =
-            "<b>Grade:</b> " + data.ai_grade +
-            "<br><b>Confidence:</b> " + data.confidence +
-            "<br><b>Action:</b> " + data.action +
-            "<br><b>Estimated Value:</b> $" + data.value_estimate;
-
+        // The /analyze endpoint returns the analyzer's grade/recommendation
+        // fields directly. Never fabricate a dollar estimate or final grade.
+        if (data.status !== "success") {
+            throw new Error(data.message || "Analyzer did not report success.");
+        }
+        const grade = data.grade ?? "UNRESOLVED";
+        const confidence = data.confidence ?? "Not reported";
+        const score = data.score ?? "Not reported";
+        const identity = data.board_type ?? "Unknown board";
+        const recommendation = data.recommendation ?? "Manual inspection required.";
+        const assessment = data.grade_assessment || {};
+        const report = $("predictionBox");
+        report.textContent = "";
+        for (const [label, value] of [
+            ["Board identity", identity],
+            ["Recovery grade", grade],
+            ["Identity confidence", String(confidence) + (typeof confidence === "number" ? "%" : "")],
+            ["Observed-feature score", score],
+            ["Assessment", assessment.status || "Not verified"],
+            ["Recommendation", recommendation],
+            ["Economics", "Not calculated: no verified sale, yield, or labor inputs."]
+        ]) {
+            const line = document.createElement("div");
+            const heading = document.createElement("strong");
+            heading.textContent = label + ": ";
+            line.appendChild(heading);
+            line.appendChild(document.createTextNode(String(value)));
+            report.appendChild(line);
+        }
+        devLog("Grade: " + grade);
+        devLog("Confidence: " + confidence);
         $("uploadStatus").innerHTML =
             "Analysis complete.";
 
