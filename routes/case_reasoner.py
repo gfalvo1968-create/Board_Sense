@@ -65,6 +65,47 @@ def reconcile_case(results, operator_same_board_confirmation=False):
   label="Multiple Boards / Case Split Required" if multiple else "Same-Board Identity Uncertain"
   advice="Separate the photos into one case per physical board and analyze again." if multiple else "Confirm every photo shows the same board or add clearer full-board views."
   return{"status":"case_identity_failed","board_type":label,"grade":"UNRESOLVED","confidence":0,"score":0,"recommendation":advice,"same_board_verification":identity,"three_answers":{"identity":{"question":"What is it?","answer":label,"case_identity_status":identity.get("status")},"recovery":{"question":"What recovery value is physically supported?","grade":"WITHHELD"},"economics":{"question":"What should we do with it?","winner":None}},"model":"SPIKE Multi-Photo Case Reasoner v0.19 + "+identity["version"]}
+ # Operator testimony helps route the case for inspection, but it is not
+ # independent visual registration. Never merge components, feature scores,
+ # board families, grades, or harvest observations from unverified photos.
+ if identity.get("status") == "OPERATOR_CONFIRMED_SAME_BOARD":
+  return {
+   "status": "case_identity_failed",
+   "board_type": "Operator-Confirmed / Physical Identity Unverified",
+   "grade": "UNRESOLVED",
+   "confidence": 0,
+   "score": 0,
+   "pay_dirt_ready": False,
+   "requires_manual_board_verification": True,
+   "recommendation": "The operator reports these photos show one physical board, but SPIKE has not independently matched them. Inspect each view separately; do not combine evidence or price this case.",
+   "same_board_verification": identity,
+   "recovery_economics": {
+    "status": "board_verification_required",
+    "winner": None,
+    "needs_values": True,
+    "message": "Combined economics withheld because independent same-board identity is not established.",
+   },
+   "three_answers": {
+    "identity": {
+     "question": "What is it?",
+     "answer": "Physical same-board identity unverified",
+     "case_identity_status": identity.get("status"),
+    },
+    "recovery": {
+     "question": "What recovery value is physically supported?",
+     "grade": "WITHHELD",
+     "score": 0,
+     "pay_dirt_ready": False,
+    },
+    "economics": {
+     "question": "What should we do with it?",
+     "winner": None,
+     "needs_values": True,
+    },
+    "separation_rule": "Per-view classifications remain separate until independent same-board matching.",
+   },
+   "model": "SPIKE Multi-Photo Identity Quarantine v0.1 + " + identity["version"],
+  }
  hard=[]
  for i,r in enumerate(results):
   s=strong_structural_family(r)
