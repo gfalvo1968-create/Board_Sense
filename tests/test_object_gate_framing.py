@@ -110,6 +110,35 @@ class ObjectGateFramingTests(unittest.TestCase):
         result=_dark_board_local_edge_ratio(textured,edges)
         self.assertTrue(result['supported'],result)
 
+    def test_dark_reverse_side_unverified_stays_review_only(self):
+        image = np.full((800, 1000, 3), 200, dtype=np.uint8)
+        cv2.rectangle(image, (120, 140), (880, 690), (32, 32, 32), -1)
+        contour = np.array([[[120,140]], [[880,140]], [[880,690]], [[120,690]]], dtype=np.int32)
+        overrides = [
+            patch('routes.object_gate._largest_foreground', return_value=(contour, .32)),
+            patch('routes.object_gate.discriminate_components', return_value={}),
+            patch('routes.object_gate._dark_board_local_edge_ratio', return_value={'supported': True, 'edge_ratio': .0741, 'surface_ratio': .1776}),
+            patch('routes.object_gate._speaker_signature', return_value=(0, [], {}))
+        ]
+        with overrides[0], overrides[1], overrides[2], overrides[3]:
+            result = self.gate(image)
+        self.assertEqual(result['mode'], 'pcb_review', result)
+        self.assertLess(result['confidence'], 50)
+
+    def test_dark_plain_panel_without_circuit_detail_cannot_enter_review(self):
+        image = np.full((800, 1000, 3), 200, dtype=np.uint8)
+        cv2.rectangle(image, (120, 140), (880, 690), (32, 32, 32), -1)
+        contour = np.array([[[120,140]], [[880,140]], [[880,690]], [[120,690]]], dtype=np.int32)
+        overrides = [
+            patch('routes.object_gate._largest_foreground', return_value=(contour, .32)),
+            patch('routes.object_gate.discriminate_components', return_value={}),
+            patch('routes.object_gate._dark_board_local_edge_ratio', return_value={'supported': False, 'edge_ratio': 0.0, 'surface_ratio': .1776}),
+            patch('routes.object_gate._speaker_signature', return_value=(0, [], {}))
+        ]
+        with overrides[0], overrides[1], overrides[2], overrides[3]:
+            result = self.gate(image)
+        self.assertNotEqual(result['mode'], 'pcb_review', result)
+
     def test_color_without_circuit_construction_cannot_rescue_a_plain_sheet(self):
         image=np.full((1100,900,3),35,dtype=np.uint8)
         cv2.rectangle(image,(320,200),(580,900),(35,110,40),-1)
