@@ -219,23 +219,6 @@ img.preview{
         <button id="analyzeBtn">
             Analyze Board
         </button>
-        <p id="uploadStatus" role="status" aria-live="polite">Choose a board photo to start.</p>
-        <button type="button" id="testConnectionBtn">Test Connection</button>
-        <p id="connectionStatus" role="status" aria-live="polite">Connection not tested.</p>
-    </section>
-
-    <section class="panel" id="stagingCasePanel" style="display:none;">
-        <h2>🧪 Two-Sided Board Case (Staging Only)</h2>
-        <p>Upload two sides of one physical board, in either order. An uncertain PCB-like view cannot automatically establish a buyer grade.</p>
-        <p><label for="caseFrontPhoto">Photo 1: first side (either side)</label>
-        <input type="file" id="caseFrontPhoto" accept="image/*"></p>
-        <p><label for="caseBackPhoto">Photo 2: opposite side</label>
-        <input type="file" id="caseBackPhoto" accept="image/*"></p>
-        <p><label><input type="checkbox" id="caseSameBoardConfirm">
-        I personally confirm these photographs show the same physical board.</label></p>
-        <button type="button" id="analyzeCaseBtn">Verify Two-Sided Case</button>
-        <p id="caseUploadStatus" role="status" aria-live="polite">Two-sided test not started.</p>
-        <div id="caseReport" class="result-box" style="white-space:pre-wrap;overflow-wrap:anywhere;">No case result yet.</div>
     </section>
 
     <section class="panel">
@@ -363,25 +346,6 @@ if (enterBtn) {
         };
 
     }
-    const testConnectionBtn = $("testConnectionBtn");
-    if (testConnectionBtn) {
-        testConnectionBtn.addEventListener("click", async () => {
-            $("connectionStatus").textContent = "Checking staging server...";
-            try {
-                const response = await fetch("/health", {cache:"no-store"});
-                if (!response.ok) throw new Error("HTTP " + response.status);
-                $("connectionStatus").textContent = "Connection OK: staging server responded (HTTP " + response.status + ").";
-            } catch (error) {
-                $("connectionStatus").textContent = "Connection failed: " + (error?.message || String(error));
-            }
-        });
-    }
-    if (location.hostname === "boardsensestaging-staging.up.railway.app") {
-        const casePanel = $("stagingCasePanel");
-        if (casePanel) casePanel.style.display = "block";
-        const caseBtn = $("analyzeCaseBtn");
-        if (caseBtn) caseBtn.addEventListener("click", analyzeTwoSidedCase);
-    }
     const analyzeBtn = $("analyzeBtn");
 
     if (analyzeBtn) {
@@ -401,110 +365,6 @@ if (enterBtn) {
 
 // ---------- Upload ----------
 
-async function prepareStagingBoardUpload(file) {
-    // Backend detection already scales images to 1400px. Resize before
-    // transfer on staging to prevent multi-megabyte mobile uploads stalling.
-    // Original file stays on the device; no compression fallback is silently used.
-    if (location.hostname !== "boardsensestaging-staging.up.railway.app" ||
-        file.size <= 650 * 1024) return file;
-    const source = await createImageBitmap(file, {imageOrientation: "from-image"});
-    try {
-        const scale = Math.min(1, 1400 / Math.max(source.width, source.height));
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.max(1, Math.round(source.width * scale));
-        canvas.height = Math.max(1, Math.round(source.height * scale));
-        const context = canvas.getContext("2d");
-        if (!context) throw new Error("Image preparation is unavailable on this device.");
-        context.drawImage(source, 0, 0, canvas.width, canvas.height);
-        const jpeg = await new Promise((resolve, reject) =>
-            canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("Image preparation failed.")), "image/jpeg", 0.86));
-        if (jpeg.size >= file.size) return file;
-        return new File([jpeg], file.name.replace(/\.[^.]+$/, "") + "-staging.jpg", {type:"image/jpeg"});
-    } finally {
-        source.close();
-    }
-}
-
-async function analyzeTwoSidedCase() {
-    const first = $("caseFrontPhoto")?.files?.[0];
-    const second = $("caseBackPhoto")?.files?.[0];
-    const status = $("caseUploadStatus");
-    const report = $("caseReport");
-    const button = $("analyzeCaseBtn");
-    if (!first || !second) {
-        status.textContent = "Choose both photographs before starting.";
-        return;
-    }
-    if (button.disabled) return;
-    button.disabled = true;
-    try {
-        status.textContent = "Checking staging availability...";
-        const health = await fetch("/health", {cache:"no-store"});
-        if (!health.ok) throw new Error("Staging API unavailable: HTTP " + health.status);
-        const available = await fetch("/free-usage", {cache:"no-store"});
-        if (!available.ok) throw new Error("Scan allowance check: HTTP " + available.status);
-        const allowance = (await available.json()).free_usage || {};
-        if (allowance.allowed === false) throw new Error("Daily staging scan allowance reached.");
-        status.textContent = "Preparing both images for upload...";
-        const a = await prepareStagingBoardUpload(first);
-        const b = await prepareStagingBoardUpload(second);
-        const form = new FormData();
-        form.append("files", a);
-        form.append("files", b);
-        form.append("operator_same_board_confirmation", $("caseSameBoardConfirm").checked ? "true" : "false");
-        form.append("item_kind", "auto");
-        status.textContent = "Submitting two-sided case (" +
-            Math.round((a.size+b.size)/1024) + " KB total)...";
-        const response = await fetch("/analyze-case", {method:"POST",body:form});
-        const payload = await response.json();
-        if (!response.ok || payload.status !== "success") {
-            throw new Error(payload.message || payload.detail || "Case analysis failed (HTTP " + response.status + ").");
-        }
-        const merged = payload.combined || {};
-        const identity = merged.same_board_verification || {};
-        const views = Array.isArray(payload.views) ? payload.views : [];
-        const grade = merged.grade ?? "WITHHELD";
-        const economics = merged.recovery_economics || {};
-        const overlap = payload.photo_overlap_diagnostics || {};
-        const photoPair = overlap.pairs?.[0] || {};
-        const exactDuplicates = overlap.duplicate_photo_pairs || [];
-        const fields = [
-            "Case: " + (payload.mode === "multi_photo_identity_blocked" ? "BLOCKED / REVIEW REQUIRED" : "REPORT RETURNED"),
-            "Same-board verification: " + (identity.status || "Not verified"),
-            "Automatic same-board confirmation: " + (identity.status === "PROBABLY_SAME_BOARD" ? "Probable, not certain" : "Not established"),
-            "Board identity: " + (merged.board_type || "Unresolved"),
-            "Recovery grade: " + grade,
-            "Confidence: " + (merged.confidence ?? "Not reported") + "%",
-            "Combined observed-feature score: " + (merged.score ?? 0),
-            "Economics: " + (economics.message || "Not verified"),
-            "Next step: " + (identity.status === "DUPLICATE_PHOTOS_IN_CASE"
-                ? identity.identity_next_step
-                : (merged.recommendation || identity.identity_next_step || payload.case_warning || "Manual review")),
-            "Photo 1 (" + (first.name || "selected file") + "): " + (views[0]?.board_type || "Not reported") + " (" + (views[0]?.confidence ?? "?") + "%)",
-            "Photo 2 (" + (second.name || "selected file") + "): " + (views[1]?.board_type || "Not reported") + " (" + (views[1]?.confidence ?? "?") + "%)",
-            "Exact duplicate photo check: " + (exactDuplicates.length
-                ? "BLOCKED. Repeated views: " + exactDuplicates.map(pair => pair.join(" and ")).join("; ")
-                : "No byte-identical uploads detected"),
-            "Visual landmark overlap: " + (photoPair.status === "duplicate_upload"
-                ? "Skipped: the same uploaded image cannot be independent evidence"
-                : (photoPair.status || "Not evaluated")),
-            "Geometrically aligned landmarks: " + (photoPair.geometric_inliers ?? "Not evaluated"),
-            "Identity proof from landmarks: NONE. Same-model boards can look identical; opposite sides may have no visual overlap.",
-            "Safety note: User confirmation is not AI verification. No final buyer grade without supported evidence."
-        ];
-        report.textContent = fields.join("\n");
-        status.textContent = exactDuplicates.length ?
-            "Duplicate uploaded photographs rejected. Choose a different view of the board." :
-            (payload.mode === "multi_photo_identity_blocked" ?
-                "Case held for identity review." : "Two-sided case returned; review the evidence below.");
-    } catch (error) {
-        report.textContent = "Two-sided analysis could not complete: " + (error?.message || String(error));
-        status.textContent = "Two-sided analysis was not completed.";
-    } finally {
-        button.disabled = false;
-    }
-}
-
 async function uploadImage() {
 
     const input = $("boardImage");
@@ -518,30 +378,7 @@ async function uploadImage() {
 
     }
 
-    // Preflight the staging connection automatically. A separate Test
-    // Connection click must never be required for Analyze to function.
-    const statusEl = $("uploadStatus");
-    const reportEl = $("predictionBox");
-    const analyzeButton = $("analyzeBtn");
-    if (analyzeButton?.disabled) return;
-    if (analyzeButton) analyzeButton.disabled = true;
-    try {
-        statusEl.textContent = "Connecting to Board Sense...";
-        const health = await fetch("/health", { cache: "no-store" });
-        if (!health.ok) throw new Error("Staging server unavailable (HTTP " + health.status + ")");
-        statusEl.textContent = "Checking board allowance...";
-        const allowance = await fetch("/free-usage", { cache: "no-store" });
-        if (allowance.ok) {
-            const availability = await allowance.json();
-            if (availability?.free_usage?.allowed === false || availability?.allowed === false) {
-                const message = "Daily staging scan allowance reached. Please use a fresh test allowance or an authorized tester account.";
-                statusEl.textContent = message;
-                reportEl.textContent = message;
-                return;
-            }
-        }
     const file = input.files[0];
-    $("uploadStatus").textContent = "Preparing " + file.name + " (" + Math.round(file.size / 1024) + " KB)";
     if (file) {
     devLog("Selected file: " + file.name);
     devLog("File size: " + Math.round(file.size / 1024) + " KB");
@@ -550,18 +387,15 @@ async function uploadImage() {
     $("uploadStatus").innerHTML =
         "Uploading " + file.name + "...";
 
-    const preparedFile = await prepareStagingBoardUpload(file);
-    statusEl.textContent = "Uploading " + preparedFile.name + " (" +
-        Math.round(preparedFile.size / 1024) + " KB, original " +
-        Math.round(file.size / 1024) + " KB)...";
     const formData = new FormData();
-    formData.append("file", preparedFile);
+
+    formData.append("file", file);
     devLog("Packaging image...");
     devLog("Sending request to Harbor AI...");
 
     try {
 
-        const response = await fetch("/analyze", {
+        const response = await fetch("https://boardsense.scrapradarfamily.com/analyze", {
 
             method: "POST",
 
@@ -570,81 +404,17 @@ async function uploadImage() {
         });
 
         const data = await response.json();
-        if (!response.ok || data.status === "error") {
-            throw new Error(data.message || data.detail?.message || data.detail || `Server returned ${response.status}`);
-        }
         devLog("Response received");
-        // The /analyze endpoint returns the analyzer's grade/recommendation
-        // fields directly. Never fabricate a dollar estimate or final grade.
-        if (data.status !== "success") {
-            throw new Error(data.message || "Analyzer did not report success.");
-        }
-        const grade = data.grade ?? "UNRESOLVED";
-        const confidence = data.confidence ?? "Not reported";
-        const score = data.score ?? "Not reported";
-        const identity = data.board_type ?? "Unknown board";
-        const recommendation = data.recommendation ?? "Manual inspection required.";
-        const assessment = data.grade_assessment || {};
-        const report = $("predictionBox");
-        report.textContent = "";
-        for (const [label, value] of [
-            ["Board identity", identity],
-            ["Recovery grade", grade],
-            ["Identity confidence", String(confidence) + (typeof confidence === "number" ? "%" : "")],
-            ["Observed-feature score", score],
-            ["Assessment", assessment.status || "Not verified"],
-            ["Recommendation", recommendation],
-            ["Economics", "Not calculated: no verified sale, yield, or labor inputs."]
-        ]) {
-            const line = document.createElement("div");
-            const heading = document.createElement("strong");
-            heading.textContent = label + ": ";
-            line.appendChild(heading);
-            line.appendChild(document.createTextNode(String(value)));
-            report.appendChild(line);
-        }
-        // Diagnostic detail only on the isolated staging hostname.
-        // Counts are observations, not validated recoverable-material yields.
-        if (location.hostname === "boardsensestaging-staging.up.railway.app") {
-            const comp = data.component_intelligence || {};
-            const gate = data.object_gate || {};
-            const pairs = [
-                ["Object gate", gate.mode ?? "Not reported"],
-                ["PCB likelihood", gate.board_likelihood ?? "Not reported"],
-                ["Other-component likelihood", gate.component_likelihood ?? "Not reported"],
-                ["Speaker likelihood", gate.speaker_likelihood ?? "Not reported"],
-                ["Object gate evidence", Array.isArray(gate.evidence) ? gate.evidence.join("; ") : "Not reported"],
-                ["Object gate metrics", gate.metrics ? Object.entries(gate.metrics).map(([key,value]) => key.replaceAll("_"," ") + ": " + (typeof value === "object" ? JSON.stringify(value) : value)).join("\n") : "Not reported"],
-                ["Board regions returned", Array.isArray(comp.regions) ? comp.regions.length : "Not reported"],
-                ["IC-like candidates", comp.ic_like ?? "Not reported"],
-                ["Unverified packages", comp.unverified_package_like ?? "Not reported"],
-                ["Small component candidates", comp.small_component_like ?? "Not reported"],
-                ["Uncertain component candidates", comp.uncertain_like ?? "Not reported"],
-                ["Solder-side likelihood", comp.solder_side_likelihood ?? "Not reported"],
-                ["Detector notes", Array.isArray(comp.notes) ? comp.notes.join("; ") : "Not reported"],
-                ["Package-filter diagnostics", comp.diagnostics ? Object.entries(comp.diagnostics).map(([key,value]) => key.replaceAll("_"," ") + ": " + value).join("\n") : "Not reported"]
-            ];
-            const details = document.createElement("details");
-            details.open = true;
-            const summary = document.createElement("summary");
-            summary.textContent = "Staging diagnostics (not a buyer grade)";
-            details.appendChild(summary);
-            for (const [label, value] of pairs) {
-                const line = document.createElement("div");
-                const strong = document.createElement("strong");
-                strong.textContent = label + ": ";
-                line.appendChild(strong);
-                const val = document.createElement("span");
-                val.textContent = String(value);
-                val.style.whiteSpace = "pre-wrap";
-                val.style.overflowWrap = "anywhere";
-                line.appendChild(val);
-                details.appendChild(line);
-            }
-            report.appendChild(details);
-        }
-        devLog("Grade: " + grade);
-        devLog("Confidence: " + confidence);
+        devLog("Grade: " + data.ai_grade);
+        devLog("Confidence: " + data.confidence + "%");
+        devLog("Estimated Value: $" + data.value_estimate);
+
+        $("predictionBox").innerHTML =
+            "<b>Grade:</b> " + data.ai_grade +
+            "<br><b>Confidence:</b> " + data.confidence +
+            "<br><b>Action:</b> " + data.action +
+            "<br><b>Estimated Value:</b> $" + data.value_estimate;
+
         $("uploadStatus").innerHTML =
             "Analysis complete.";
 
@@ -658,17 +428,12 @@ async function uploadImage() {
 
     catch (err) {
 
-        $("predictionBox").textContent = "Analysis could not complete: " + (err?.message || String(err));
+        $("predictionBox").innerHTML =
+            "Upload failed.<br><br>" + err;
 
         $("uploadStatus").innerHTML =
-            "Analysis could not complete.";
+            "Upload failed.";
 
-    }
-    } catch (error) {
-        statusEl.textContent = "Connection/scan check failed.";
-        reportEl.textContent = error?.message || String(error);
-    } finally {
-        if (analyzeButton) analyzeButton.disabled = false;
     }
 
 }
