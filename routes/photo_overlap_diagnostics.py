@@ -6,6 +6,7 @@ and opposite PCB faces may have no matching visual features. This module
 NEVER authorizes combined grades, payout, or automatic case reconciliation.
 """
 from itertools import combinations
+from hashlib import sha256
 import cv2
 import numpy as np
 
@@ -71,6 +72,18 @@ def _pair(a, b):
     }
 
 
+def _file_digest(path):
+    """Private exact-upload detector; no digest leaves this module."""
+    digest = sha256()
+    with open(path, "rb") as handle:
+        while True:
+            chunk = handle.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.digest()
+
+
 def examine_photo_overlap(paths):
     """Return optional per-pair diagnostic evidence, never proof of identity.
 
@@ -79,15 +92,31 @@ def examine_photo_overlap(paths):
     in the diagnostic response.
     """
     try:
-        features = [_features(path) for path in paths[:6]]
-        pairs = [{"views": [i + 1, j + 1], **_pair(features[i], features[j])}
-                 for i, j in combinations(range(len(features)), 2)]
+        sampled_paths = paths[:6]
+        digests = [_file_digest(path) for path in sampled_paths]
+        # Avoid manufacturing hundreds of impressive "landmarks" from an
+        # identical upload: identical file bytes are not independent evidence.
+        features = [_features(path) for path in sampled_paths]
+        pairs = []
+        for i, j in combinations(range(len(features)), 2):
+            if digests[i] == digests[j]:
+                pairs.append({
+                    "views": [i + 1, j + 1],
+                    "status": "duplicate_upload",
+                    "exact_duplicate": True,
+                    "geometric_inliers": 0,
+                    "independent_physical_identity_verified": False,
+                })
+            else:
+                pairs.append({"views": [i + 1, j + 1], **_pair(features[i], features[j])})
+        duplicates = [p["views"] for p in pairs if p.get("exact_duplicate")]
         return {
-            "status": "diagnostic_only",
+            "status": "duplicate_uploads_detected" if duplicates else "diagnostic_only",
+            "duplicate_photo_pairs": duplicates,
             "pairs": pairs,
             "independent_physical_identity_verified": False,
             "interpretation": (
-                "Visual correspondences cannot prove physical identity: boards of the same model "
+                "Exact duplicate uploads are not independent evidence. Visual correspondences cannot prove physical identity: boards of the same model "
                 "may match, and opposite faces may share no visual landmarks. Never merge grades or "
                 "economics based on these metrics."
             ),
