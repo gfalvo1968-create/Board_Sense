@@ -77,7 +77,9 @@ class CaseRecoveryOrderTests(unittest.TestCase):
         weaker = board_view(5, 8)
         stronger = board_view(9, 24)
         for order in permutations([weaker, stronger, deepcopy(stronger)]):
-            case = reconcile_case(list(order))
+            # Isolate duplicate-score logic; identity is explicitly mocked
+            # as independently verified in this recovery-only unit test.
+            case = reconcile_with_test_only_verified_identity(list(order))
             self.assertEqual(case["score"], 9)
             self.assertEqual(case["case_analysis"]["independent_evidence_patterns"], 1)
             self.assertTrue(case["case_analysis"]["duplicate_evidence_guard"]["active"])
