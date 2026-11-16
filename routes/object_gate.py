@@ -382,6 +382,33 @@ def classify_object(image_path):
             result["message"]="Board evidence is strong enough to continue into Board Sense grading."
             return result
 
+        # Non-grading review route for the reverse side of dark, irregular PCBs.
+        # This does NOT confirm board identity: neither colored substrate nor
+        # internal edges establishes components, pads, or recoverable material.
+        # Keep object gate's original >=58 verified-board threshold unchanged.
+        review_candidate = (
+            dark_surface["supported"]
+            and dark_surface["edge_ratio"] >= .065
+            and .10 <= dark_surface["surface_ratio"] <= .45
+            and foreground_ratio >= .12
+            and rectangularity >= .50
+            and board_score >= 40
+            and speaker_score < 82
+            and component_score < 58
+        )
+        if review_candidate:
+            result.update({
+                "mode": "pcb_review",
+                "label": "PCB-like object / manual verification required",
+                "confidence": min(49, max(30, int(board_score))),
+                "evidence": [
+                    "Dark board-scale surface with localized internal edge patterns",
+                    "Electronic components, solder joints, and board identity NOT confirmed",
+                ],
+                "message": "Possible PCB construction detected, but insufficient independent evidence for automated grading. Inspect both sides or use the verified multi-photo case.",
+            })
+            return result
+
         if camera_score>=65:
             result.update({"mode":"component","label":"Phone camera / optical module","confidence":max(65,min(94,camera_score)),
                            "evidence":["Compact loose electronic module detected","Circular lens-like structure detected","Insufficient whole-PCB structural evidence"],
