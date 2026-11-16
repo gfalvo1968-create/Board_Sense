@@ -29,6 +29,21 @@ def patterned_board(seed):
 
 
 class PhotoOverlapDiagnosticTests(unittest.TestCase):
+    def test_identical_file_uploads_report_duplicate_not_independent_landmarks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            a, b = Path(directory) / "first.png", Path(directory) / "second.png"
+            image = patterned_board(41)
+            cv2.imwrite(str(a), image)
+            b.write_bytes(a.read_bytes())
+            result = examine_photo_overlap([a, b])
+        self.assertEqual(result["status"], "duplicate_uploads_detected")
+        self.assertEqual(result["duplicate_photo_pairs"], [[1, 2]])
+        self.assertEqual(result["pairs"][0]["status"], "duplicate_upload")
+        self.assertTrue(result["pairs"][0]["exact_duplicate"])
+        self.assertFalse(result["pairs"][0]["independent_physical_identity_verified"])
+        self.assertNotIn("geometric_inliers", result["pairs"][0])
+        self.assertNotIn("same_board", result)
+
     def test_overlapping_same_surface_can_produce_candidate_not_verification(self):
         image = patterned_board(41)
         homography = np.float32([[1.02, .03, 11], [-.03, 1.01, -5],
