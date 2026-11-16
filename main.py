@@ -280,6 +280,13 @@ async def analyze_board_case_route(
         # identity. Keep the validated temporary images scoped to this block.
         photo_overlap = (await run_in_threadpool(examine_photo_overlap, paths)
                          if item_kind != "processor" else None)
+        if photo_overlap:
+            # The core identity gate, not just the staging UI, must block
+            # repeated upload bytes even if operator confirmation is checked.
+            duplicates = photo_overlap.get("duplicate_photo_pairs") or []
+            if duplicates:
+                for result in results:
+                    result["photo_integrity"] = {"exact_duplicate_pairs": duplicates}
     if item_kind == "processor":
         from routes.processor_case import processor_case
         return _attach_usage({"status": "success", "mode": "component_inspection", "photo_count": len(results), "views": results, "combined": processor_case(results)}, usage)
