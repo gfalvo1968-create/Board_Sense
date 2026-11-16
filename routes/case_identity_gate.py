@@ -93,6 +93,47 @@ def verify_same_board(results, operator_confirmed=False):
             "rule": "One physical board per photo is required before multi-photo same-board verification can begin.",
         }
 
+    # A multi-photo upload may include a genuine low-detail reverse face
+    # classified as pcb_review. It is not independent proof of board identity.
+    # Conversely, a view identified as a loose component or unknown object
+    # is not permitted into whole-board reconciliation, even with an operator
+    # checkbox. Missing object_gate data is retained for legacy test fixtures.
+    unsupported_views = []
+    review_views = []
+    for i, view in enumerate(results, 1):
+        gate = view.get("object_gate") or {}
+        mode = str(gate.get("mode") or "").lower()
+        if mode in ("component", "unknown"):
+            unsupported_views.append({"view": i, "mode": mode, "label": gate.get("label")})
+        elif mode == "pcb_review":
+            review_views.append(i)
+    if unsupported_views:
+        return {
+            "version": version,
+            "status": "NON_BOARD_VIEW_REQUIRES_RETAKE",
+            "same_board": None,
+            "confidence": 0,
+            "block_reconciliation": True,
+            "whole_view_count": 0,
+            "unsupported_views": unsupported_views,
+            "identity_next_step": "Replace the unconfirmed non-board photo with a clearer view of the same physical PCB before continuing.",
+            "reasons": ["A whole-board case contains a view that has not passed PCB candidate screening."],
+            "rule": "Operator confirmation never converts a non-board or unknown object into PCB evidence.",
+        }
+    if review_views and not operator_confirmed:
+        return {
+            "version": version,
+            "status": "PCB_REVIEW_VIEWS_REQUIRE_CONFIRMATION",
+            "same_board": None,
+            "confidence": 44,
+            "block_reconciliation": True,
+            "whole_view_count": 0,
+            "pcb_review_views": review_views,
+            "identity_next_step": "Verify the photographed items are the same physical board and explicitly confirm, or replace the uncertain reverse-side photo.",
+            "reasons": ["PCB-like views are candidates for inspection, not independently confirmed board identity."],
+            "rule": "A PCB-like reverse side cannot silently raise same-board confidence or contribute recovery grades.",
+        }
+
     families = [_family(r) for r in results]
     known = [f for f in families if f != "unknown"]
     unique = set(known)
@@ -214,6 +255,7 @@ def verify_same_board(results, operator_confirmed=False):
             "status": "OPERATOR_CONFIRMED_SAME_BOARD",
             "same_board": True,
             "operator_confirmed": True,
+            "pcb_review_views": review_views,
             "confidence": 60,
             "block_reconciliation": False,
             "whole_view_count": len(whole_views),
