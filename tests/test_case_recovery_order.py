@@ -1,6 +1,7 @@
 from copy import deepcopy
 from itertools import permutations
 import unittest
+from unittest.mock import patch
 
 from routes.case_reasoner import reconcile_case
 
@@ -29,6 +30,25 @@ def board_view(score, count, label="Dense Logic / Controller Board", confidence=
         "model": "Board Sense v4.4 + Board Blueprint v1.1",
     }
 
+    
+def reconcile_with_test_only_verified_identity(views):
+    """Exercise recovery mechanics AFTER an explicitly mocked identity pass.
+
+    This mock is not physical image registration. Production must establish
+    an independently supported identity before granting automated grades.
+    """
+    identity = {
+        "version": "TEST FIXTURE: independently verified identity only",
+        "status": "PROBABLY_SAME_BOARD",
+        "same_board": True,
+        "confidence": 94,
+        "block_reconciliation": False,
+        "whole_view_count": len(views),
+        "identity_next_step": "No additional identity check required in this unit test.",
+    }
+    with patch("routes.case_reasoner.verify_same_board", return_value=identity):
+        return reconcile_case(views)
+
 
 class CaseRecoveryOrderTests(unittest.TestCase):
     def test_equal_confidence_keeps_recovery_score_in_both_photo_orders(self):
@@ -42,7 +62,7 @@ class CaseRecoveryOrderTests(unittest.TestCase):
             original = deepcopy(views)
             for order in permutations(views):
                 with self.subTest(label=label, scores=[r["score"] for r in order]):
-                    case = reconcile_case(list(order))
+                    case = reconcile_with_test_only_verified_identity(list(order))
                     self.assertEqual(case["score"], 9)
                     expected_grade = "LOW" if label == "Edge-Connector Board" else "MEDIUM"
                     self.assertEqual(case["grade"], expected_grade)
@@ -65,7 +85,7 @@ class CaseRecoveryOrderTests(unittest.TestCase):
     def test_higher_confidence_still_outranks_a_higher_recovery_score(self):
         views = [board_view(5, 8, confidence=90), board_view(9, 24)]
         for order in permutations(views):
-            case = reconcile_case(list(order))
+            case = reconcile_with_test_only_verified_identity(list(order))
             self.assertEqual(case["score"], 5)
             self.assertEqual(case["confidence"], 90)
 
