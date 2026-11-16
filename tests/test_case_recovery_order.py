@@ -69,6 +69,28 @@ class CaseRecoveryOrderTests(unittest.TestCase):
             self.assertEqual(case["score"], 5)
             self.assertEqual(case["confidence"], 90)
 
+    def test_user_confirmed_pcb_like_reverse_cannot_assign_case_grade(self):
+        populated = board_view(9, 24)
+        populated["object_gate"] = {"mode": "board"}
+        reverse = board_view(0, 0, label="PCB-like object / manual verification required", confidence=44)
+        reverse["object_gate"] = {"mode": "pcb_review"}
+        reverse["grade"] = "N/A"
+        reverse["signals"] = {}
+        for order in permutations([populated, reverse]):
+            with self.subTest(order=[v["board_type"] for v in order]):
+                blocked = reconcile_case(list(order))
+                self.assertEqual(blocked["status"], "case_identity_failed")
+                self.assertEqual(blocked["grade"], "UNRESOLVED")
+                result = reconcile_case(list(order), operator_same_board_confirmation=True)
+                self.assertEqual(result["board_type"], "Dense Logic / Controller Board")
+                self.assertEqual(result["grade"], "MANUAL REVIEW")
+                self.assertLessEqual(result["confidence"], 60)
+                self.assertFalse(result["pay_dirt_ready"])
+                self.assertEqual(result["grade_assessment"]["status"], "MANUAL_REVIEW_REQUIRED")
+                self.assertIsNone(result["recovery_economics"]["winner"])
+                self.assertTrue(result["requires_manual_board_verification"])
+                self.assertEqual(result["three_answers"]["recovery"]["grade"], "MANUAL REVIEW")
+
     def test_recovery_tie_cannot_override_separate_boards_in_one_frame(self):
         views = [board_view(5, 8), board_view(9, 24)]
         views[1]["board_blueprint"] = {
