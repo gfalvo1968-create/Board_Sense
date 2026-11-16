@@ -310,8 +310,18 @@ async def analyze_board_case_route(
         sell_basis = "INTACT BOARD BASELINE"
     else:
         sell_basis = "NOT PROVIDED"
-    combined["recovery_economics"] = compare_paths(condition_factor=factor, **econ)
-    combined["recovery_economics"]["sell_value_basis"] = sell_basis
+    if combined.get("requires_manual_board_verification"):
+        # Inputs may be collected, but an unresolved PCB-like face must never
+        # produce a sell/strip/recover winner in an automated combined case.
+        combined["recovery_economics"] = {
+            "status": "board_verification_required", "winner": None,
+            "needs_values": True,
+            "sell_value_basis": sell_basis,
+            "message": "No economics recommendation until the PCB-like view and buyer category are verified.",
+        }
+    else:
+        combined["recovery_economics"] = compare_paths(condition_factor=factor, **econ)
+        combined["recovery_economics"]["sell_value_basis"] = sell_basis
     combined["recovery_economics"]["condition_link"] = {
         "condition": condition.get("condition"),
         "remaining_value_factor": condition.get("remaining_value_factor", 1.0),
