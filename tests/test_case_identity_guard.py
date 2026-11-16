@@ -122,6 +122,24 @@ class CaseIdentityGuardTests(unittest.TestCase):
         self.assertIsNone(response["same_board"])
         self.assertFalse(response["positive_geometry_evidence"])
 
+    def test_three_to_six_generic_compatible_views_never_auto_merge(self):
+        # Many matching class labels or generic outlines still do not prove
+        # that every photograph depicts one physical circuit board.
+        for count in (3, 4, 5, 6):
+            with self.subTest(photo_count=count):
+                photos = [view(aspect=1.5, holes=2, landmarks=20, rect=.9)
+                          for _ in range(count)]
+                for photo in photos:
+                    photo["board_type"] = "Dense Logic / Controller Board"
+                    photo["object_gate"] = {"mode": "board"}
+                result = verify_same_board(photos)
+                self.assertEqual(result["status"], "IDENTITY_UNCERTAIN")
+                self.assertTrue(result["block_reconciliation"])
+                self.assertIsNone(result["same_board"])
+                self.assertFalse(result["positive_geometry_evidence"])
+                confirmed = verify_same_board(photos, operator_confirmed=True)
+                self.assertEqual(confirmed["status"], "OPERATOR_CONFIRMED_SAME_BOARD")
+
     def test_confirmed_pair_is_operator_only_not_ai_verified(self):
         first, second = view(), view()
         for photo in (first, second):
