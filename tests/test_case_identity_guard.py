@@ -56,6 +56,34 @@ class CaseIdentityGuardTests(unittest.TestCase):
         self.assertEqual(result["status"], "MULTIPLE_BOARDS_SUSPECTED")
         self.assertTrue(result["block_reconciliation"])
 
+    def test_pcb_review_face_blocks_automatic_same_board_confidence(self):
+        front = view()
+        front["object_gate"] = {"mode": "board"}
+        back = view()
+        back["object_gate"] = {"mode": "pcb_review"}
+        back["board_type"] = "PCB-like object / manual verification required"
+        back["confidence"] = 44
+        result = verify_same_board([front, back])
+        self.assertEqual(result["status"], "PCB_REVIEW_VIEWS_REQUIRE_CONFIRMATION")
+        self.assertTrue(result["block_reconciliation"])
+        self.assertIsNone(result["same_board"])
+        confirmed = verify_same_board([front, back], operator_confirmed=True)
+        self.assertEqual(confirmed["status"], "OPERATOR_CONFIRMED_SAME_BOARD")
+        self.assertEqual(confirmed["pcb_review_views"], [2])
+        self.assertFalse(confirmed["block_reconciliation"])
+        self.assertLessEqual(confirmed["confidence"], 60)
+
+    def test_operator_cannot_merge_unknown_or_component_into_board_case(self):
+        front = view()
+        front["object_gate"] = {"mode": "board"}
+        for kind in ("unknown", "component"):
+            with self.subTest(kind=kind):
+                other = view()
+                other["object_gate"] = {"mode": kind, "label": "unverified object"}
+                result = verify_same_board([front, other], operator_confirmed=True)
+                self.assertTrue(result["block_reconciliation"])
+                self.assertEqual(result["status"], "NON_BOARD_VIEW_REQUIRES_RETAKE")
+
     def test_operator_cannot_override_separate_boards_in_one_frame(self):
         photos = [view(), view()]
         photos[0]["board_blueprint"] = {"frame_identity_gate": {"block_analysis": True, "confidence": 92}}
