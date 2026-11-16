@@ -467,6 +467,7 @@ async function analyzeTwoSidedCase() {
         const economics = merged.recovery_economics || {};
         const overlap = payload.photo_overlap_diagnostics || {};
         const photoPair = overlap.pairs?.[0] || {};
+        const exactDuplicates = overlap.duplicate_photo_pairs || [];
         const fields = [
             "Case: " + (payload.mode === "multi_photo_identity_blocked" ? "BLOCKED / REVIEW REQUIRED" : "REPORT RETURNED"),
             "Same-board verification: " + (identity.status || "Not verified"),
@@ -476,17 +477,26 @@ async function analyzeTwoSidedCase() {
             "Confidence: " + (merged.confidence ?? "Not reported") + "%",
             "Combined observed-feature score: " + (merged.score ?? 0),
             "Economics: " + (economics.message || "Not verified"),
-            "Next step: " + (merged.recommendation || identity.identity_next_step || payload.case_warning || "Manual review"),
+            "Next step: " + (identity.status === "DUPLICATE_PHOTOS_IN_CASE"
+                ? identity.identity_next_step
+                : (merged.recommendation || identity.identity_next_step || payload.case_warning || "Manual review")),
             "Photo 1 (" + (first.name || "selected file") + "): " + (views[0]?.board_type || "Not reported") + " (" + (views[0]?.confidence ?? "?") + "%)",
             "Photo 2 (" + (second.name || "selected file") + "): " + (views[1]?.board_type || "Not reported") + " (" + (views[1]?.confidence ?? "?") + "%)",
-            "Visual landmark overlap: " + (photoPair.status || "Not evaluated"),
-            "Geometrically aligned landmarks: " + (photoPair.geometric_inliers ?? "Not established"),
+            "Exact duplicate photo check: " + (exactDuplicates.length
+                ? "BLOCKED. Repeated views: " + exactDuplicates.map(pair => pair.join(" and ")).join("; ")
+                : "No byte-identical uploads detected"),
+            "Visual landmark overlap: " + (photoPair.status === "duplicate_upload"
+                ? "Skipped: the same uploaded image cannot be independent evidence"
+                : (photoPair.status || "Not evaluated")),
+            "Geometrically aligned landmarks: " + (photoPair.geometric_inliers ?? "Not evaluated"),
             "Identity proof from landmarks: NONE. Same-model boards can look identical; opposite sides may have no visual overlap.",
             "Safety note: User confirmation is not AI verification. No final buyer grade without supported evidence."
         ];
         report.textContent = fields.join("\n");
-        status.textContent = payload.mode === "multi_photo_identity_blocked" ?
-            "Case held for identity review." : "Two-sided case returned; review the evidence below.";
+        status.textContent = exactDuplicates.length ?
+            "Duplicate uploaded photographs rejected. Choose a different view of the board." :
+            (payload.mode === "multi_photo_identity_blocked" ?
+                "Case held for identity review." : "Two-sided case returned; review the evidence below.");
     } catch (error) {
         report.textContent = "Two-sided analysis could not complete: " + (error?.message || String(error));
         status.textContent = "Two-sided analysis was not completed.";
