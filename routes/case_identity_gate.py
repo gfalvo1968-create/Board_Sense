@@ -279,13 +279,14 @@ def verify_same_board(results, operator_confirmed=False):
     if physical_outlier and not strong_split:
         reasons.append("The conflict does not establish two independently coherent board groups; identity needs review.")
 
-    # A pair with compatible *generic* outlines and class labels does not
-    # establish physical identity. fingerprint_conflict() only rules out gross
-    # contradictions; it does not compare distinctive traces, serial markings
-    # or registered components. Until a positive image-registration matcher is
-    # implemented, all two-view cases require explicit operator provenance.
-    # Without that provenance, stop BEFORE grade/feature reconciliation.
-    if n == 2 and not operator_confirmed:
+    # Generic outline compatibility and shared classifier labels can never
+    # prove physical identity, even with 3-6 photos. fingerprint_conflict()
+    # only detects some contradictions; it does not register unique trace,
+    # marking, or component landmarks. Until a positive physical-matching
+    # method is validated, reject EVERY unconfirmed multi-photo merge.
+    # User-confirmed cases remain quarantined by case_reasoner and must not
+    # merge evidence or produce grades.
+    if not operator_confirmed:
         return {
             "version": version,
             "status": "IDENTITY_UNCERTAIN",
@@ -300,9 +301,9 @@ def verify_same_board(results, operator_confirmed=False):
             "identity_next_step": "Confirm these are two views of the same physical board, or analyze each board in a separate case.",
             "reasons": [
                 "Board family and absence of a strong geometry contradiction do not establish physical same-board identity.",
-                "No independently registered matching landmarks were verified between these two images.",
+                "No independently registered matching landmarks were verified across all uploaded images.",
             ],
-            "rule": "Two unverified photos must not be automatically merged or graded based only on compatible shape and classifier labels.",
+            "rule": "Unverified photos cannot be merged or graded based on compatible generic shapes, labels, or number of uploaded views.",
         }
 
     if operator_confirmed and not strong_split:
