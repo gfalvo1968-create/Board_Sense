@@ -84,6 +84,30 @@ class CaseIdentityGuardTests(unittest.TestCase):
                 self.assertTrue(result["block_reconciliation"])
                 self.assertEqual(result["status"], "NON_BOARD_VIEW_REQUIRES_RETAKE")
 
+    def test_two_strongly_incompatible_whole_board_shapes_cannot_be_confirmed(self):
+        # Two whole-board views with extreme shape AND corroborating
+        # geometry differences are incompatible even with the checkbox.
+        photos = [view(1.5, 2, 20, .9), view(4.1, 9, 60, .55)]
+        for confirmed in (False, True):
+            with self.subTest(operator_confirmed=confirmed):
+                result = verify_same_board(photos, operator_confirmed=confirmed)
+                self.assertEqual(result["status"], "MULTIPLE_BOARDS_SUSPECTED")
+                self.assertTrue(result["block_reconciliation"])
+                self.assertEqual(result["conflicting_views"], [1, 2])
+                self.assertFalse(result["same_board"])
+
+    def test_noisy_or_moderate_two_view_geometry_does_not_hard_split(self):
+        for ambiguous in (
+            view(3.0, 3, 20, .9),
+            view(4.1, 9, 60, .55),
+        ):
+            with self.subTest(aspect=ambiguous["physical_fingerprint"]["board_aspect"]):
+                # Medium quality is not strong enough for an automatic split.
+                ambiguous["physical_fingerprint"]["geometry_quality"] = "medium"
+                result = verify_same_board([view(), ambiguous], operator_confirmed=True)
+                self.assertEqual(result["status"], "OPERATOR_CONFIRMED_SAME_BOARD")
+                self.assertFalse(result["block_reconciliation"])
+
     def test_operator_cannot_override_separate_boards_in_one_frame(self):
         photos = [view(), view()]
         photos[0]["board_blueprint"] = {"frame_identity_gate": {"block_analysis": True, "confidence": 92}}
