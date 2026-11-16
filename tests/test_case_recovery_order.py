@@ -91,6 +91,21 @@ class CaseRecoveryOrderTests(unittest.TestCase):
             self.assertEqual(case["score"], 5)
             self.assertEqual(case["confidence"], 90)
 
+    def test_identical_uploaded_photo_cannot_double_count_score_or_grade(self):
+        first = board_view(9, 24)
+        second = deepcopy(first)
+        first["photo_integrity"] = {"exact_duplicate_pairs": [[1, 2]]}
+        for operator in (False, True):
+            with self.subTest(operator_confirmed=operator):
+                result = reconcile_case([first, second],
+                    operator_same_board_confirmation=operator)
+                self.assertEqual(result["status"], "case_identity_failed")
+                self.assertEqual(result["same_board_verification"]["status"],
+                                 "DUPLICATE_PHOTOS_IN_CASE")
+                self.assertEqual(result["grade"], "UNRESOLVED")
+                self.assertEqual(result["score"], 0)
+                self.assertIsNone(result["three_answers"]["economics"]["winner"])
+
     def test_distinct_logic_boards_never_get_unverified_combined_medium_grade(self):
         first = board_view(3, 6, confidence=60)
         second = board_view(9, 24, confidence=78)
