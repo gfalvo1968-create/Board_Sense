@@ -279,6 +279,32 @@ def verify_same_board(results, operator_confirmed=False):
     if physical_outlier and not strong_split:
         reasons.append("The conflict does not establish two independently coherent board groups; identity needs review.")
 
+    # A pair with compatible *generic* outlines and class labels does not
+    # establish physical identity. fingerprint_conflict() only rules out gross
+    # contradictions; it does not compare distinctive traces, serial markings
+    # or registered components. Until a positive image-registration matcher is
+    # implemented, all two-view cases require explicit operator provenance.
+    # Without that provenance, stop BEFORE grade/feature reconciliation.
+    if n == 2 and not operator_confirmed:
+        return {
+            "version": version,
+            "status": "IDENTITY_UNCERTAIN",
+            "same_board": None,
+            "confidence": 0,
+            "block_reconciliation": True,
+            "whole_view_count": len(whole_views),
+            "whole_view_indices": whole_views,
+            "physical_pair_checks": physical,
+            "conflict_graph": conflict_graph,
+            "positive_geometry_evidence": False,
+            "identity_next_step": "Confirm these are two views of the same physical board, or analyze each board in a separate case.",
+            "reasons": [
+                "Board family and absence of a strong geometry contradiction do not establish physical same-board identity.",
+                "No independently registered matching landmarks were verified between these two images.",
+            ],
+            "rule": "Two unverified photos must not be automatically merged or graded based only on compatible shape and classifier labels.",
+        }
+
     if operator_confirmed and not strong_split:
         return {
             "version": version,
