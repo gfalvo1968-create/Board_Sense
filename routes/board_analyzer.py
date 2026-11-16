@@ -1,5 +1,4 @@
 from pathlib import Path
-from time import perf_counter
 from routes.recovery_grade_guard import apply_grade_review
 from routes.analysis_image import board_analysis_image
 import numpy as np
@@ -92,11 +91,9 @@ def analyze_board(image_path):
   return result
 
 def _analyze_board(image_path,blueprint_dir=None):
- # Staging diagnostic checkpoints: timings only, no file names or user data.
+ # Named stages preserve diagnostic structure without public request-time logging.
  def measured(label, fn):
-  start=perf_counter()
-  try:return fn()
-  finally:print(f"[SPIKE Stage] {label}: {perf_counter()-start:.2f}s",flush=True)
+  return fn()
  photo_quality=measured("photo_quality",lambda:assess_photo_quality(image_path))
  fingerprint=measured("fingerprint",lambda:extract_board_fingerprint(image_path))
  object_gate=measured("object_gate",lambda:classify_object(image_path))
