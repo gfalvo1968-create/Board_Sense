@@ -56,6 +56,24 @@ class CaseIdentityGuardTests(unittest.TestCase):
         self.assertEqual(result["status"], "MULTIPLE_BOARDS_SUSPECTED")
         self.assertTrue(result["block_reconciliation"])
 
+    def test_exact_duplicate_photo_pair_blocks_even_with_operator_checkbox(self):
+        photos = [view(), view()]
+        photos[0]["photo_integrity"] = {"exact_duplicate_pairs": [[1, 2]]}
+        for confirmed in (False, True):
+            with self.subTest(operator_confirmed=confirmed):
+                result = verify_same_board(photos, operator_confirmed=confirmed)
+                self.assertEqual(result["status"], "DUPLICATE_PHOTOS_IN_CASE")
+                self.assertTrue(result["block_reconciliation"])
+                self.assertIsNone(result["same_board"])
+                self.assertEqual(result["duplicate_photo_pairs"], [[1, 2]])
+
+    def test_multi_photo_case_blocks_duplicate_even_with_other_unique_views(self):
+        photos = [view() for _ in range(4)]
+        photos[2]["photo_integrity"] = {"exact_duplicate_pairs": [[2, 4]]}
+        result = verify_same_board(photos, operator_confirmed=True)
+        self.assertEqual(result["status"], "DUPLICATE_PHOTOS_IN_CASE")
+        self.assertTrue(result["block_reconciliation"])
+
     def test_pcb_review_face_blocks_automatic_same_board_confidence(self):
         front = view()
         front["object_gate"] = {"mode": "board"}
