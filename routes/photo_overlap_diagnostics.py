@@ -104,7 +104,6 @@ def examine_photo_overlap(paths):
                     "views": [i + 1, j + 1],
                     "status": "duplicate_upload",
                     "exact_duplicate": True,
-                    "geometric_inliers": 0,
                     "independent_physical_identity_verified": False,
                 })
             else:
