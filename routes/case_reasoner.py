@@ -104,23 +104,23 @@ def reconcile_case(results, operator_same_board_confirmation=False):
  # A user-confirmed PCB-like reverse face is not proof of a completed
  # board classification. Keep observed feature evidence without final grade,
  # Pay Dirt, or an economics recommendation for the merged case.
- if identity.get("pcb_review_views"):
+ if identity.get("status") == "OPERATOR_CONFIRMED_SAME_BOARD":
   provisional=combined.get("grade","UNRESOLVED")
   combined["grade"]="MANUAL REVIEW"
   combined["pay_dirt_ready"]=False
-  combined["pay_dirt_reason"]="PCB-like reverse view remains unverified."
+  combined["pay_dirt_reason"]="User confirmation has not been independently corroborated by a physical same-board match."
   combined["confidence"]=min(float(combined.get("confidence",0) or 0),60)
   combined["grade_assessment"]={
    "status":"MANUAL_REVIEW_REQUIRED",
    "provisional_grade":provisional,
    "observed_feature_score":combined.get("score",0),
    "final_buyer_grade_verified":False,
-   "reason":"At least one case view is PCB-like but unverified. Another face cannot automatically establish the whole-case buyer grade.",
+   "reason":"Same-board identity was supplied by the operator, not independently verified across images. The combined case cannot receive an automated buyer grade.",
    "model":"SPIKE Multi-Photo Review Guard v0.1"
   }
   combined["grade_notes"]=combined["grade_assessment"]["reason"]
-  combined["recommendation"]="User-confirmed same-board case: verify the PCB-like face, board condition, and components before assigning a buyer grade."
-  combined["recovery_economics"]={"status":"board_verification_required","winner":None,"needs_values":True,"message":"Economics withheld until the PCB-like view and buyer category are verified."}
+  combined["recommendation"]="User-confirmed case: independently verify the physical board identity, condition, and components before assigning a combined buyer grade."
+  combined["recovery_economics"]={"status":"board_verification_required","winner":None,"needs_values":True,"message":"Economics withheld until same-board identity and buyer category are independently verified."}
   combined["requires_manual_board_verification"]=True
  if combined.get("grade")=="MANUAL REVIEW":
   combined["insight"]={"summary":combined["grade_notes"],"recommendation":combined["recommendation"],"next_steps":["Confirm buyer category by manual inspection."]}
