@@ -226,10 +226,10 @@ img.preview{
 
     <section class="panel" id="stagingCasePanel" style="display:none;">
         <h2>🧪 Two-Sided Board Case (Staging Only)</h2>
-        <p>Upload two views of one physical board. An uncertain PCB-like view cannot automatically establish a buyer grade.</p>
-        <p><label for="caseFrontPhoto">Photo 1: component side</label>
+        <p>Upload two sides of one physical board, in either order. An uncertain PCB-like view cannot automatically establish a buyer grade.</p>
+        <p><label for="caseFrontPhoto">Photo 1: first side (either side)</label>
         <input type="file" id="caseFrontPhoto" accept="image/*"></p>
-        <p><label for="caseBackPhoto">Photo 2: reverse side</label>
+        <p><label for="caseBackPhoto">Photo 2: opposite side</label>
         <input type="file" id="caseBackPhoto" accept="image/*"></p>
         <p><label><input type="checkbox" id="caseSameBoardConfirm">
         I personally confirm these photographs show the same physical board.</label></p>
@@ -475,8 +475,8 @@ async function analyzeTwoSidedCase() {
             "Combined observed-feature score: " + (merged.score ?? 0),
             "Economics: " + (economics.message || "Not verified"),
             "Next step: " + (merged.recommendation || identity.identity_next_step || payload.case_warning || "Manual review"),
-            "Photo 1: " + (views[0]?.board_type || "Not reported") + " (" + (views[0]?.confidence ?? "?") + "%)",
-            "Photo 2: " + (views[1]?.board_type || "Not reported") + " (" + (views[1]?.confidence ?? "?") + "%)",
+            "Photo 1 (" + (first.name || "selected file") + "): " + (views[0]?.board_type || "Not reported") + " (" + (views[0]?.confidence ?? "?") + "%)",
+            "Photo 2 (" + (second.name || "selected file") + "): " + (views[1]?.board_type || "Not reported") + " (" + (views[1]?.confidence ?? "?") + "%)",
             "Safety note: User confirmation is not AI verification. No final buyer grade without supported evidence."
         ];
         report.textContent = fields.join("\n");
