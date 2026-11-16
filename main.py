@@ -269,7 +269,8 @@ async def analyze_board_case_route(
                 from routes.processor_case import inspect_processor
                 result = inspect_processor(str(path))
             else:
-                result = analyze_board(str(path))
+                # Two-photo cases can be CPU-intensive; keep API health responsive.
+                result = await run_in_threadpool(analyze_board, str(path))
             result["board"] = upload.filename
             result["view_number"] = i
             result["spike_evidence"] = ({"identity_basis": "USER_SELECTED_COMPONENT", "whole_board_valuation": False} if item_kind == "processor" else build_evidence_packet(result))
