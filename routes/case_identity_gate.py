@@ -170,6 +170,36 @@ def verify_same_board(results, operator_confirmed=False):
             if c:
                 physical.append({"views": [i + 1, j + 1], **c})
 
+    # Two strong, independent whole-board shape contradictions must not be
+    # overruled by an operator checkbox. This is deliberately much stricter
+    # than one disagreement from a noisy reverse view: both outlines must be
+    # high quality, aspect mismatch extreme, and two other geometry cues must
+    # disagree. A single ambiguous photo still receives review rather than a
+    # definite different-board judgement.
+    if n == 2 and len(whole_views) == 2:
+        pair = next((p for p in physical if p.get("views") == [1, 2]), None)
+        both_good = all(f.get("geometry_quality") == "good" for f in fps)
+        extreme = bool(
+            pair and pair.get("conflict")
+            and float(pair.get("aspect_mismatch", 0) or 0) >= 2.60
+            and int(pair.get("supporting_mismatches", 0) or 0) >= 2
+        )
+        if both_good and extreme:
+            return {
+                "version": version,
+                "status": "MULTIPLE_BOARDS_SUSPECTED",
+                "same_board": False,
+                "confidence": 90,
+                "block_reconciliation": True,
+                "whole_view_count": 2,
+                "whole_view_indices": [1, 2],
+                "physical_pair_checks": physical,
+                "conflicting_views": [1, 2],
+                "identity_next_step": "Two whole-board photos show strongly incompatible outlines. Start separate cases or provide clearer evidence before any merge.",
+                "reasons": ["Both high-quality whole-board fingerprints disagree in extreme aspect and at least two corroborating geometry measures."],
+                "rule": "A user checkbox cannot override multiple strong physical contradictions between high-quality whole-board photos.",
+            }
+
     conflicts = [p for p in physical if p.get("conflict")]
     compatible = [p for p in physical if not p.get("conflict")]
     compatible_pairs = len(compatible)
