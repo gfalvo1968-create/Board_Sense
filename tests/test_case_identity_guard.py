@@ -108,6 +108,29 @@ class CaseIdentityGuardTests(unittest.TestCase):
                 self.assertEqual(result["status"], "OPERATOR_CONFIRMED_SAME_BOARD")
                 self.assertFalse(result["block_reconciliation"])
 
+    def test_distinct_boards_same_classifier_label_cannot_be_auto_merged(self):
+        # Recreates staging's false-positive class of error: two physical
+        # boards both look like logic/controllers and generic outlines agree.
+        first = view(aspect=1.6, holes=2, landmarks=25, rect=.85)
+        second = view(aspect=1.62, holes=2, landmarks=28, rect=.84)
+        for photo in (first, second):
+            photo["board_type"] = "Dense Logic / Controller Board"
+            photo["object_gate"] = {"mode": "board"}
+        response = verify_same_board([first, second])
+        self.assertEqual(response["status"], "IDENTITY_UNCERTAIN", response)
+        self.assertTrue(response["block_reconciliation"])
+        self.assertIsNone(response["same_board"])
+        self.assertFalse(response["positive_geometry_evidence"])
+
+    def test_confirmed_pair_is_operator_only_not_ai_verified(self):
+        first, second = view(), view()
+        for photo in (first, second):
+            photo["object_gate"] = {"mode": "board"}
+        response = verify_same_board([first, second], operator_confirmed=True)
+        self.assertEqual(response["status"], "OPERATOR_CONFIRMED_SAME_BOARD")
+        self.assertEqual(response["confidence"], 60)
+        self.assertTrue(response["operator_confirmed"])
+
     def test_operator_cannot_override_separate_boards_in_one_frame(self):
         photos = [view(), view()]
         photos[0]["board_blueprint"] = {"frame_identity_gate": {"block_analysis": True, "confidence": 92}}
