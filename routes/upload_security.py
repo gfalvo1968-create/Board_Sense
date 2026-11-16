@@ -3,6 +3,7 @@
 from pathlib import Path
 from contextlib import contextmanager
 from uuid import uuid4
+from time import perf_counter
 
 from fastapi import HTTPException, UploadFile
 from fastapi.responses import JSONResponse
@@ -49,14 +50,28 @@ class UploadBodyLimitMiddleware:
 
         seen = 0
         response_started = False
+        # Staging upload transport diagnostics: elapsed time and byte counts
+        # only. Never print filenames, image contents, addresses, or tokens.
+        diagnostic = scope.get("path") == "/analyze"
+        started = perf_counter()
+        first_chunk = False
+        if diagnostic:
+            print(f"[SPIKE Transport] request entered middleware; declared_bytes={declared}", flush=True)
 
         async def bounded_receive():
-            nonlocal seen
+            nonlocal seen, first_chunk
             message = await receive()
             if message["type"] == "http.request":
                 seen += len(message.get("body", b""))
+                if diagnostic and not first_chunk:
+                    first_chunk = True
+                    print(f"[SPIKE Transport] first_chunk elapsed={perf_counter()-started:.2f}s", flush=True)
+                if diagnostic and not message.get("more_body", False):
+                    print(f"[SPIKE Transport] upload_body_complete bytes={seen} elapsed={perf_counter()-started:.2f}s", flush=True)
                 if seen > limit:
                     raise _BodyTooLarge()
+            elif diagnostic and message["type"] == "http.disconnect":
+                print(f"[SPIKE Transport] disconnected bytes={seen} elapsed={perf_counter()-started:.2f}s", flush=True)
             return message
 
         async def tracked_send(message):

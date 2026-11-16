@@ -10,7 +10,7 @@ from routes.keypad_detector import detect_keypad
 from routes.board_scoring import calculate_score
 from routes.board_type import classify_board_type
 from routes.case_reasoner import reconcile_case
-from test_case_recovery_order import board_view
+from test_case_recovery_order import board_view, reconcile_with_test_only_verified_identity
 
 
 def keypad_scene():
@@ -59,7 +59,7 @@ class KeypadDetectorTests(unittest.TestCase):
         front["keypad_intelligence"]={"supported":True,"contact_count":18}
         back=deepcopy(front);back.pop("keypad_intelligence");back["board_type"]="Power-Control / Controller Board"
         for views in ([front,back],[back,front]):
-            case=reconcile_case(views)
+            case=reconcile_with_test_only_verified_identity(views)
             self.assertEqual(case["board_type"],"Keypad / Handheld Controller Board")
             self.assertEqual(case["score"],3)
             self.assertEqual(case["grade"],"MANUAL REVIEW")

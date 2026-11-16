@@ -8,7 +8,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from routes.object_gate import classify_object, _speaker_signature
+from routes.object_gate import classify_object, _speaker_signature, _dark_board_local_edge_ratio
 from routes.analysis_image import board_analysis_image
 
 
@@ -70,6 +70,74 @@ class ObjectGateFramingTests(unittest.TestCase):
                     result=classify_object(normalized)
                 self.assertEqual(result['mode'],'board',result)
                 self.assertNotEqual(result['label'],'Speaker / audio driver')
+
+    def test_dark_laptop_pcb_requires_corroborated_construction(self):
+        # A dark board with component and edge evidence gets a limited bonus,
+        # not a wholesale relaxation of the object gate.
+        board=populated_board()
+        dark=cv2.cvtColor(board,cv2.COLOR_BGR2GRAY)
+        dark=cv2.cvtColor(dark,cv2.COLOR_GRAY2BGR)
+        result=self.gate(dark)
+        self.assertIn(result["mode"],("board","unknown"),result)
+        self.assertNotEqual(result["label"],"Speaker / audio driver")
+
+    def test_private_irregular_laptop_front_and_back_are_both_pcbs(self):
+        # Keep user-owned photographs private. Engineers can supply an
+        # authorized local fixture directory without checking images into Git.
+        directory=os.environ.get('BOARD_SENSE_LAPTOP_FIXTURES')
+        if not directory:
+            self.skipTest('Optional private laptop fixtures not configured')
+        for name in ('IMG_5864.jpeg','IMG_5865.jpeg','IMG_5866.jpeg','IMG_5867.jpeg'):
+            photo=Path(directory)/name
+            if not photo.exists():
+                continue
+            with self.subTest(photo=name):
+                with board_analysis_image(str(photo)) as normalized:
+                    result=classify_object(normalized)
+                self.assertEqual(result['mode'],'board',result)
+                self.assertNotEqual(result['label'],'Speaker / audio driver')
+
+    def test_dark_surface_local_edges_need_real_texture(self):
+        blank=np.full((800,1000),240,dtype=np.uint8)
+        cv2.rectangle(blank,(100,100),(900,700),25,-1)
+        edges=cv2.Canny(blank,55,145)
+        self.assertFalse(_dark_board_local_edge_ratio(blank,edges)['supported'])
+        textured=blank.copy()
+        for y in range(160,660,18):
+            for x in range(160,860,18):
+                cv2.rectangle(textured,(x,y),(x+5,y+5),210,-1)
+        edges=cv2.Canny(textured,55,145)
+        result=_dark_board_local_edge_ratio(textured,edges)
+        self.assertTrue(result['supported'],result)
+
+    def test_dark_reverse_side_unverified_stays_review_only(self):
+        image = np.full((800, 1000, 3), 200, dtype=np.uint8)
+        cv2.rectangle(image, (120, 140), (880, 690), (32, 32, 32), -1)
+        contour = np.array([[[120,140]], [[880,140]], [[880,690]], [[120,690]]], dtype=np.int32)
+        overrides = [
+            patch('routes.object_gate._largest_foreground', return_value=(contour, .32)),
+            patch('routes.object_gate.discriminate_components', return_value={}),
+            patch('routes.object_gate._dark_board_local_edge_ratio', return_value={'supported': True, 'edge_ratio': .0741, 'surface_ratio': .1776}),
+            patch('routes.object_gate._speaker_signature', return_value=(0, [], {}))
+        ]
+        with overrides[0], overrides[1], overrides[2], overrides[3]:
+            result = self.gate(image)
+        self.assertEqual(result['mode'], 'pcb_review', result)
+        self.assertLess(result['confidence'], 50)
+
+    def test_dark_plain_panel_without_circuit_detail_cannot_enter_review(self):
+        image = np.full((800, 1000, 3), 200, dtype=np.uint8)
+        cv2.rectangle(image, (120, 140), (880, 690), (32, 32, 32), -1)
+        contour = np.array([[[120,140]], [[880,140]], [[880,690]], [[120,690]]], dtype=np.int32)
+        overrides = [
+            patch('routes.object_gate._largest_foreground', return_value=(contour, .32)),
+            patch('routes.object_gate.discriminate_components', return_value={}),
+            patch('routes.object_gate._dark_board_local_edge_ratio', return_value={'supported': False, 'edge_ratio': 0.0, 'surface_ratio': .1776}),
+            patch('routes.object_gate._speaker_signature', return_value=(0, [], {}))
+        ]
+        with overrides[0], overrides[1], overrides[2], overrides[3]:
+            result = self.gate(image)
+        self.assertNotEqual(result['mode'], 'pcb_review', result)
 
     def test_color_without_circuit_construction_cannot_rescue_a_plain_sheet(self):
         image=np.full((1100,900,3),35,dtype=np.uint8)

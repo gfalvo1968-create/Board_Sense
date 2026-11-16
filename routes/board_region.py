@@ -7,6 +7,45 @@ import cv2
 import numpy as np
 
 
+
+def _dark_board_on_light_surface(image, gray, k):
+    """Locate a dark PCB silhouette on moderately textured light surroundings.
+
+    A silhouette is *not* evidence of components or recoverable material.
+    Clipped frames, highly variable backgrounds and plain dark objects do not
+    acquire board identity from this helper.
+    """
+    h, w = gray.shape[:2]
+    bh, bw = max(2, h // 20), max(2, w // 20)
+    border = np.concatenate([gray[:bh, :].ravel(), gray[-bh:, :].ravel(),
+                             gray[:, :bw].ravel(), gray[:, -bw:].ravel()])
+    if np.median(border) < 145 or np.std(border) > 55:
+        return np.zeros((h, w), dtype=np.uint8)
+    foreground = cv2.inRange(gray, 0, 110)
+    foreground = cv2.morphologyEx(foreground, cv2.MORPH_CLOSE,
+                                  np.ones((k, k), np.uint8), iterations=2)
+    contours, _ = cv2.findContours(foreground, cv2.RETR_EXTERNAL,
+                                   cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return np.zeros((h, w), dtype=np.uint8)
+    c = max(contours, key=cv2.contourArea)
+    x, y, rw, rh = cv2.boundingRect(c)
+    area = cv2.contourArea(c) / max(1, h * w)
+    margin = max(4, int(min(h, w) * .012))
+    if not (.10 <= area <= .60) or x < margin or y < margin or x + rw > w - margin or y + rh > h - margin:
+        return np.zeros((h, w), dtype=np.uint8)
+    mask = np.zeros((h, w), dtype=np.uint8)
+    cv2.drawContours(mask, [c], -1, 255, -1)
+    # Reject plain panels: interior edges must support populated texture, but
+    # this is only an outline mask, not an IC or monetary-value claim.
+    edges = cv2.Canny(cv2.GaussianBlur(gray, (5, 5), 0), 55, 150)
+    interior = cv2.erode(mask, np.ones((max(9, (min(h, w) // 50) | 1),) * 2, np.uint8))
+    evidence = cv2.countNonZero(cv2.bitwise_and(edges, interior)) / max(1, cv2.countNonZero(interior))
+    if evidence < .045:
+        return np.zeros((h, w), dtype=np.uint8)
+    return mask
+
+
 def board_region_mask(image):
     h, w = image.shape[:2]
     area = max(1, h * w)
@@ -49,7 +88,7 @@ def board_region_mask(image):
     border = np.concatenate([gray[:bh, :].ravel(), gray[-bh:, :].ravel(),
                              gray[:, :bw].ravel(), gray[:, -bw:].ravel()])
     if np.std(border) > 24:
-        return np.zeros((h, w), dtype=np.uint8)
+        return _dark_board_on_light_surface(image, gray, k)
     diff = cv2.absdiff(gray, np.full_like(gray, int(np.median(border))))
     _, foreground = cv2.threshold(diff, 22, 255, cv2.THRESH_BINARY)
     foreground = cv2.morphologyEx(foreground, cv2.MORPH_CLOSE,

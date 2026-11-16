@@ -56,6 +56,117 @@ class CaseIdentityGuardTests(unittest.TestCase):
         self.assertEqual(result["status"], "MULTIPLE_BOARDS_SUSPECTED")
         self.assertTrue(result["block_reconciliation"])
 
+    def test_exact_duplicate_photo_pair_blocks_even_with_operator_checkbox(self):
+        photos = [view(), view()]
+        photos[0]["photo_integrity"] = {"exact_duplicate_pairs": [[1, 2]]}
+        for confirmed in (False, True):
+            with self.subTest(operator_confirmed=confirmed):
+                result = verify_same_board(photos, operator_confirmed=confirmed)
+                self.assertEqual(result["status"], "DUPLICATE_PHOTOS_IN_CASE")
+                self.assertTrue(result["block_reconciliation"])
+                self.assertIsNone(result["same_board"])
+                self.assertEqual(result["duplicate_photo_pairs"], [[1, 2]])
+
+    def test_multi_photo_case_blocks_duplicate_even_with_other_unique_views(self):
+        photos = [view() for _ in range(4)]
+        photos[2]["photo_integrity"] = {"exact_duplicate_pairs": [[2, 4]]}
+        result = verify_same_board(photos, operator_confirmed=True)
+        self.assertEqual(result["status"], "DUPLICATE_PHOTOS_IN_CASE")
+        self.assertTrue(result["block_reconciliation"])
+
+    def test_pcb_review_face_blocks_automatic_same_board_confidence(self):
+        front = view()
+        front["object_gate"] = {"mode": "board"}
+        back = view()
+        back["object_gate"] = {"mode": "pcb_review"}
+        back["board_type"] = "PCB-like object / manual verification required"
+        back["confidence"] = 44
+        result = verify_same_board([front, back])
+        self.assertEqual(result["status"], "PCB_REVIEW_VIEWS_REQUIRE_CONFIRMATION")
+        self.assertTrue(result["block_reconciliation"])
+        self.assertIsNone(result["same_board"])
+        confirmed = verify_same_board([front, back], operator_confirmed=True)
+        self.assertEqual(confirmed["status"], "OPERATOR_CONFIRMED_SAME_BOARD")
+        self.assertEqual(confirmed["pcb_review_views"], [2])
+        self.assertFalse(confirmed["block_reconciliation"])
+        self.assertLessEqual(confirmed["confidence"], 60)
+
+    def test_operator_cannot_merge_unknown_or_component_into_board_case(self):
+        front = view()
+        front["object_gate"] = {"mode": "board"}
+        for kind in ("unknown", "component"):
+            with self.subTest(kind=kind):
+                other = view()
+                other["object_gate"] = {"mode": kind, "label": "unverified object"}
+                result = verify_same_board([front, other], operator_confirmed=True)
+                self.assertTrue(result["block_reconciliation"])
+                self.assertEqual(result["status"], "NON_BOARD_VIEW_REQUIRES_RETAKE")
+
+    def test_two_strongly_incompatible_whole_board_shapes_cannot_be_confirmed(self):
+        # Two whole-board views with extreme shape AND corroborating
+        # geometry differences are incompatible even with the checkbox.
+        photos = [view(1.5, 2, 20, .9), view(4.1, 9, 60, .55)]
+        for confirmed in (False, True):
+            with self.subTest(operator_confirmed=confirmed):
+                result = verify_same_board(photos, operator_confirmed=confirmed)
+                self.assertEqual(result["status"], "MULTIPLE_BOARDS_SUSPECTED")
+                self.assertTrue(result["block_reconciliation"])
+                self.assertEqual(result["conflicting_views"], [1, 2])
+                self.assertFalse(result["same_board"])
+
+    def test_noisy_or_moderate_two_view_geometry_does_not_hard_split(self):
+        for ambiguous in (
+            view(3.0, 3, 20, .9),
+            view(4.1, 9, 60, .55),
+        ):
+            with self.subTest(aspect=ambiguous["physical_fingerprint"]["board_aspect"]):
+                # Medium quality is not strong enough for an automatic split.
+                ambiguous["physical_fingerprint"]["geometry_quality"] = "medium"
+                result = verify_same_board([view(), ambiguous], operator_confirmed=True)
+                self.assertEqual(result["status"], "OPERATOR_CONFIRMED_SAME_BOARD")
+                self.assertFalse(result["block_reconciliation"])
+
+    def test_distinct_boards_same_classifier_label_cannot_be_auto_merged(self):
+        # Recreates staging's false-positive class of error: two physical
+        # boards both look like logic/controllers and generic outlines agree.
+        first = view(aspect=1.6, holes=2, landmarks=25, rect=.85)
+        second = view(aspect=1.62, holes=2, landmarks=28, rect=.84)
+        for photo in (first, second):
+            photo["board_type"] = "Dense Logic / Controller Board"
+            photo["object_gate"] = {"mode": "board"}
+        response = verify_same_board([first, second])
+        self.assertEqual(response["status"], "IDENTITY_UNCERTAIN", response)
+        self.assertTrue(response["block_reconciliation"])
+        self.assertIsNone(response["same_board"])
+        self.assertFalse(response["positive_geometry_evidence"])
+
+    def test_three_to_six_generic_compatible_views_never_auto_merge(self):
+        # Many matching class labels or generic outlines still do not prove
+        # that every photograph depicts one physical circuit board.
+        for count in (3, 4, 5, 6):
+            with self.subTest(photo_count=count):
+                photos = [view(aspect=1.5, holes=2, landmarks=20, rect=.9)
+                          for _ in range(count)]
+                for photo in photos:
+                    photo["board_type"] = "Dense Logic / Controller Board"
+                    photo["object_gate"] = {"mode": "board"}
+                result = verify_same_board(photos)
+                self.assertEqual(result["status"], "IDENTITY_UNCERTAIN")
+                self.assertTrue(result["block_reconciliation"])
+                self.assertIsNone(result["same_board"])
+                self.assertFalse(result["positive_geometry_evidence"])
+                confirmed = verify_same_board(photos, operator_confirmed=True)
+                self.assertEqual(confirmed["status"], "OPERATOR_CONFIRMED_SAME_BOARD")
+
+    def test_confirmed_pair_is_operator_only_not_ai_verified(self):
+        first, second = view(), view()
+        for photo in (first, second):
+            photo["object_gate"] = {"mode": "board"}
+        response = verify_same_board([first, second], operator_confirmed=True)
+        self.assertEqual(response["status"], "OPERATOR_CONFIRMED_SAME_BOARD")
+        self.assertEqual(response["confidence"], 60)
+        self.assertTrue(response["operator_confirmed"])
+
     def test_operator_cannot_override_separate_boards_in_one_frame(self):
         photos = [view(), view()]
         photos[0]["board_blueprint"] = {"frame_identity_gate": {"block_analysis": True, "confidence": 92}}

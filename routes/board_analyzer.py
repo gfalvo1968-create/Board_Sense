@@ -1,4 +1,5 @@
 from pathlib import Path
+from time import perf_counter
 from routes.recovery_grade_guard import apply_grade_review
 from routes.analysis_image import board_analysis_image
 import numpy as np
@@ -71,10 +72,10 @@ def _non_board_result(object_gate,photo_quality,fingerprint):
   recommendation="Treat this as a speaker/audio driver, not a PCB. Check intact resale first; for scrap, separate accessible copper voice-coil/lead wire, the metal frame/basket, terminals, and the magnet assembly. Do not claim neodymium or other magnet chemistry from a photo alone."
   recovery_signals=["speaker / audio driver confirmed","copper voice-coil and lead-wire candidate","steel or other metal frame/basket candidate","magnet assembly present; chemistry unverified"]
  else:
-  recommendation="Keep the item intact, identify the component family, and accumulate similar modules before assigning recovery value." if mode=="component" else "Retake the photo or use Spike Glass for a closer component view before assigning a board grade."
+  recommendation=("Review both sides of this PCB-like object. Board identity, component family, grade, and economics remain unverified." if mode=="pcb_review" else ("Keep the item intact, identify the component family, and accumulate similar modules before assigning recovery value." if mode=="component" else "Retake the photo or use Spike Glass for a closer component view before assigning a board grade."))
   recovery_signals=["component-level inspection recommended" if mode=="component" else "insufficient board evidence"]
  spike={"status":"object_gate","confidence":confidence,"top_match":{"label":label,"evidence":object_gate.get("evidence",[]),"action":recommendation}}
- result={"grade":"N/A","confidence":confidence,"score":0,"board_type":label,"board_type_reason":reason,"object_gate":object_gate,"physical_fingerprint":fingerprint,"reasoning_crosscheck":{"status":"not_board" if mode=="component" else "insufficient_evidence","message":"Object Gate stopped the board classifiers because this image does not have enough evidence to be treated as a whole PCB."},"photo_quality":photo_quality,"spike_glass":spike,"board_blueprint":{"available":False,"message":"Board Blueprint is reserved for confirmed whole-board PCB scans. Use component mode for this item.","component_index":[]},"pay_dirt_ready":False,"recommendation":recommendation,"recovery_signals":recovery_signals,"grade_notes":"Whole-board grading intentionally skipped by Object Gate.","reference_intelligence":{"matches":[],"hypotheses":[],"top_hypothesis":None},"component_intelligence":{},"features":{},"visual":{},"power":{},"signals":{},"insight":{"summary":reason,"recommendation":recommendation},"model":"Board Sense v4.3 + SPIKE Speaker Guard v0.1 + Physical Fingerprint v0.3"}
+ result={"grade":"N/A","confidence":confidence,"score":0,"board_type":label,"board_type_reason":reason,"object_gate":object_gate,"physical_fingerprint":fingerprint,"reasoning_crosscheck":{"status":"not_board" if mode=="component" else ("pcb_review" if mode=="pcb_review" else "insufficient_evidence"),"message":"Object Gate stopped the board classifiers because this image does not have enough evidence to be treated as a whole PCB."},"photo_quality":photo_quality,"spike_glass":spike,"board_blueprint":{"available":False,"message":"Board Blueprint is reserved for confirmed whole-board PCB scans. Use component mode for this item.","component_index":[]},"pay_dirt_ready":False,"recommendation":recommendation,"recovery_signals":recovery_signals,"grade_notes":"Whole-board grading intentionally skipped by Object Gate.","reference_intelligence":{"matches":[],"hypotheses":[],"top_hypothesis":None},"component_intelligence":{},"features":{},"visual":{},"power":{},"signals":{},"insight":{"summary":reason,"recommendation":recommendation},"model":"Board Sense v4.3 + SPIKE Speaker Guard v0.1 + Physical Fingerprint v0.3"}
  if is_speaker:
   result["recovery_lab"]=build_recovery_plan(spike,result)
   result["recovery_lab"]["decision_options"]=["SELL WHOLE","MECHANICALLY DISASSEMBLE","SORT COPPER / FERROUS","REVIEW SPEAKER LAB"]
@@ -91,10 +92,21 @@ def analyze_board(image_path):
   return result
 
 def _analyze_board(image_path,blueprint_dir=None):
- photo_quality=assess_photo_quality(image_path);fingerprint=extract_board_fingerprint(image_path);object_gate=classify_object(image_path)
+ # Staging diagnostic checkpoints: timings only, no file names or user data.
+ def measured(label, fn):
+  start=perf_counter()
+  try:return fn()
+  finally:print(f"[SPIKE Stage] {label}: {perf_counter()-start:.2f}s",flush=True)
+ photo_quality=measured("photo_quality",lambda:assess_photo_quality(image_path))
+ fingerprint=measured("fingerprint",lambda:extract_board_fingerprint(image_path))
+ object_gate=measured("object_gate",lambda:classify_object(image_path))
  if object_gate.get("mode")!="board":return _non_board_result(object_gate,photo_quality,fingerprint)
 
- features=detect_board_features(image_path);visual=detect_visual_features(image_path);motherboard=detect_motherboard(image_path);power=detect_power_board(image_path);components=discriminate_components(image_path)
+ features=measured("board_features",lambda:detect_board_features(image_path))
+ visual=measured("visual_features",lambda:detect_visual_features(image_path))
+ motherboard=measured("motherboard",lambda:detect_motherboard(image_path))
+ power=measured("power_board",lambda:detect_power_board(image_path))
+ components=measured("components",lambda:discriminate_components(image_path))
  keypad=detect_keypad(image_path)
  features["keypad_contact_array"]=keypad["supported"]
 
@@ -132,7 +144,7 @@ def _analyze_board(image_path,blueprint_dir=None):
  if not photo_quality.get("usable",False):confidence=max(20,min(confidence,50))
 
  blueprint_dir=Path(blueprint_dir) if blueprint_dir is not None else Path(image_path).resolve().parent.parent/"Blueprints"
- blueprint=generate_blueprint(image_path,components.get("regions",[]),blueprint_dir)
+ blueprint=measured("blueprint",lambda:generate_blueprint(image_path,components.get("regions",[]),blueprint_dir))
  if blueprint.get("available"):blueprint["image_url"]="/blueprints/"+blueprint["image_filename"]
 
  result={"grade":grade_result["grade"],"confidence":confidence,"score":score,"board_type":board_type["type"],"board_type_reason":board_type["reason"],"object_gate":object_gate,"physical_fingerprint":fingerprint,"reasoning_crosscheck":reasoning_crosscheck,"photo_quality":photo_quality,"spike_glass":spike_glass,"board_blueprint":blueprint,"pay_dirt_ready":grade_result["pay_dirt_ready"],"recommendation":grade_result["recommendation"],"recovery_signals":grade_result["recovery_signals"],"grade_notes":grade_result["grade_notes"],"reference_intelligence":reference_intelligence,"component_intelligence":components,"features":features,"visual":visual,"motherboard":motherboard,"power":power,"signals":{"motherboard":features.get("motherboard",False),"ram":features.get("ram",False),"power_board":features.get("power_board",False),"gold_fingers":features.get("gold_fingers",False),"gold_edge_color_cue":visual.get("gold_edge_color_cue",False),"gold_finger_geometry":visual.get("gold_finger_geometry",False),"repeated_edge_contacts":visual.get("repeated_edge_contacts",False),"large_ic_chips":features.get("large_ic_chips",False),"dense_component_board":features.get("dense_component_board",False),"processor":features.get("processor",False),"component_count":features.get("component_count",0),"component_density":features.get("component_density",0.0),"possible_ram":visual.get("possible_ram",False),"gold_finger_edge":visual.get("gold_finger_edge",False),"raw_large_ic_signal":visual_ic_signal,"ic_signal_confirmed":component_ic_support,"component_ic_count":component_ic_count,"visual_ic_count":visual_ic_count,"possible_motherboard":motherboard.get("possible_motherboard",False),"confirmed_slot_bank":motherboard.get("confirmed_slot_bank",False),"parallel_slot_bank":motherboard.get("parallel_slot_bank",False),"motherboard_score":motherboard.get("motherboard_score",motherboard.get("score",0)),"large_board":motherboard.get("large_board",False),"possible_power_board":power.get("possible_power_board",False),"power_stage_present":power.get("power_stage_present",False),"mixed_power_control_candidate":power.get("mixed_power_control_candidate",False),"large_round_components":power.get("large_round_components",0),"large_component_regions":power.get("large_component_regions",0),"large_power_package_like":power.get("large_power_package_like",components.get("large_power_package_like",0)),"power_score":power.get("power_score",0),"raw_power_score":power.get("raw_power_score",0),"logic_penalty":power.get("logic_penalty",0)},"model":"Board Sense v4.4 + SPIKE Vision v1.6 + Density Fusion v0.1 + Strict Edge Contact Geometry v0.2 + Reference Reasoner v5 + Board Blueprint v1.1 + Board Working Image v0.1 + PCB Region Guard v0.2 + Power Topology v0.3 + Modification Detector v0.2 + Motherboard Detector v0.6 + Physical Fingerprint v0.3"}

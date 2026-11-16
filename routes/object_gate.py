@@ -117,6 +117,38 @@ def _localized_pcb_evidence(hsv, edges, components, scale_x=1.0, scale_y=1.0):
     return best
 
 
+def _dark_board_local_edge_ratio(gray, edges):
+    """Candidate circuit texture inside a dark object on a light background.
+
+    This is only supporting evidence. A dark sheet or piece of fabric must
+    never qualify without independent electronic construction signals.
+    """
+    h, w = gray.shape[:2]
+    border = np.concatenate((gray[:max(2, h//20), :].ravel(),
+                             gray[-max(2, h//20):, :].ravel(),
+                             gray[:, :max(2, w//20)].ravel(),
+                             gray[:, -max(2, w//20):].ravel()))
+    background = float(np.median(border))
+    if background < 155:
+        return {"supported": False, "edge_ratio": 0.0, "surface_ratio": 0.0}
+    threshold = int(min(125, background - 45))
+    mask = np.uint8(gray < threshold) * 255
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((11, 11), np.uint8))
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return {"supported": False, "edge_ratio": 0.0, "surface_ratio": 0.0}
+    contour = max(contours, key=cv2.contourArea)
+    surface_ratio = cv2.contourArea(contour) / max(1, h*w)
+    if not .10 <= surface_ratio <= .80:
+        return {"supported": False, "edge_ratio": 0.0, "surface_ratio": round(surface_ratio, 4)}
+    isolated = np.zeros_like(gray)
+    cv2.drawContours(isolated, [contour], -1, 255, -1)
+    local_edge_ratio = cv2.countNonZero(cv2.bitwise_and(edges, isolated)) / max(1, cv2.countNonZero(isolated))
+    return {"supported": bool(local_edge_ratio >= .045),
+            "edge_ratio": round(local_edge_ratio, 4),
+            "surface_ratio": round(surface_ratio, 4)}
+
+
 def _speaker_signature(gray, board_score, foreground_ratio):
     """Conservative loudspeaker geometry check.
 
@@ -261,6 +293,33 @@ def classify_object(image_path):
         if color_ratio>=0.22: board_score+=12
         elif color_ratio>=0.10: board_score+=7
 
+        # Borderline black laptop PCB: require multiple independent structural
+        # signals, rather than lowering the universal PCB threshold. A dark
+        # solder mask is only context, never enough to classify a blank panel.
+        # Mounted components or solder/trace evidence must corroborate edges.
+        dark_laptop_support = (
+            color_ratio >= .10
+            and foreground_ratio >= .12
+            and edge_ratio >= .025
+            and (
+                major >= 2
+                or solder_side >= 50
+                or (contact >= 4 and solder >= 4)
+            )
+        )
+        if dark_laptop_support:
+            board_score += 8
+
+        dark_surface = _dark_board_local_edge_ratio(gray, edges)
+        # Strong local circuit detail helps only when the component detector
+        # independently sees electronic construction; the global threshold
+        # and non-PCB/speaker veto remain intact.
+        if dark_surface["supported"] and (
+            major >= 1 or solder_side >= 40 or
+            solder >= 4 or contact >= 4
+        ):
+            board_score += 16
+
         # Rescue visibly board-scale circuitry even if mask/substrate color is odd.
         structural_rescue = foreground_ratio>=0.16 and edge_ratio>=0.045 and (major>=2 or solder_side>=55)
         if structural_rescue: board_score+=12
@@ -298,6 +357,7 @@ def classify_object(image_path):
                                   "ic_like":ic,"capacitor_like":cap,"contact_pad_like":contact,
                                   "solder_joint_like":solder,"solder_side_likelihood":solder_side,"power_block_like":block}})
         result["metrics"]["localized_pcb_evidence"] = localized
+        result["metrics"]["dark_surface_local_evidence"] = dark_surface
 
         # Speaker guard runs before PCB/component routing, but only on a strong
         # large-scale circular signature. It deliberately makes no magnet-chemistry claim.
@@ -320,6 +380,33 @@ def classify_object(image_path):
             if localized["supported"]: ev.append("Circuit detail on an isolated PCB surface supports routing independently of background size")
             result["evidence"]=ev or ["Multiple PCB construction signals agree"]
             result["message"]="Board evidence is strong enough to continue into Board Sense grading."
+            return result
+
+        # Non-grading review route for the reverse side of dark, irregular PCBs.
+        # This does NOT confirm board identity: neither colored substrate nor
+        # internal edges establishes components, pads, or recoverable material.
+        # Keep object gate's original >=58 verified-board threshold unchanged.
+        review_candidate = (
+            dark_surface["supported"]
+            and dark_surface["edge_ratio"] >= .065
+            and .10 <= dark_surface["surface_ratio"] <= .45
+            and foreground_ratio >= .12
+            and rectangularity >= .50
+            and board_score >= 40
+            and speaker_score < 82
+            and component_score < 58
+        )
+        if review_candidate:
+            result.update({
+                "mode": "pcb_review",
+                "label": "PCB-like object / manual verification required",
+                "confidence": min(49, max(30, int(board_score))),
+                "evidence": [
+                    "Dark board-scale surface with localized internal edge patterns",
+                    "Electronic components, solder joints, and board identity NOT confirmed",
+                ],
+                "message": "Possible PCB construction detected, but insufficient independent evidence for automated grading. Inspect both sides or use the verified multi-photo case.",
+            })
             return result
 
         if camera_score>=65:

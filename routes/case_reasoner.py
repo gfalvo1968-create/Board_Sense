@@ -65,6 +65,47 @@ def reconcile_case(results, operator_same_board_confirmation=False):
   label="Multiple Boards / Case Split Required" if multiple else "Same-Board Identity Uncertain"
   advice="Separate the photos into one case per physical board and analyze again." if multiple else "Confirm every photo shows the same board or add clearer full-board views."
   return{"status":"case_identity_failed","board_type":label,"grade":"UNRESOLVED","confidence":0,"score":0,"recommendation":advice,"same_board_verification":identity,"three_answers":{"identity":{"question":"What is it?","answer":label,"case_identity_status":identity.get("status")},"recovery":{"question":"What recovery value is physically supported?","grade":"WITHHELD"},"economics":{"question":"What should we do with it?","winner":None}},"model":"SPIKE Multi-Photo Case Reasoner v0.19 + "+identity["version"]}
+ # Operator testimony helps route the case for inspection, but it is not
+ # independent visual registration. Never merge components, feature scores,
+ # board families, grades, or harvest observations from unverified photos.
+ if identity.get("status") == "OPERATOR_CONFIRMED_SAME_BOARD":
+  return {
+   "status": "case_identity_failed",
+   "board_type": "Operator-Confirmed / Physical Identity Unverified",
+   "grade": "UNRESOLVED",
+   "confidence": 0,
+   "score": 0,
+   "pay_dirt_ready": False,
+   "requires_manual_board_verification": True,
+   "recommendation": "The operator reports these photos show one physical board, but SPIKE has not independently matched them. Inspect each view separately; do not combine evidence or price this case.",
+   "same_board_verification": identity,
+   "recovery_economics": {
+    "status": "board_verification_required",
+    "winner": None,
+    "needs_values": True,
+    "message": "Combined economics withheld because independent same-board identity is not established.",
+   },
+   "three_answers": {
+    "identity": {
+     "question": "What is it?",
+     "answer": "Physical same-board identity unverified",
+     "case_identity_status": identity.get("status"),
+    },
+    "recovery": {
+     "question": "What recovery value is physically supported?",
+     "grade": "WITHHELD",
+     "score": 0,
+     "pay_dirt_ready": False,
+    },
+    "economics": {
+     "question": "What should we do with it?",
+     "winner": None,
+     "needs_values": True,
+    },
+    "separation_rule": "Per-view classifications remain separate until independent same-board matching.",
+   },
+   "model": "SPIKE Multi-Photo Identity Quarantine v0.1 + " + identity["version"],
+  }
  hard=[]
  for i,r in enumerate(results):
   s=strong_structural_family(r)
@@ -101,6 +142,27 @@ def reconcile_case(results, operator_same_board_confirmation=False):
  condition=condition_harvest_check(combined,observations);combined["condition_and_harvest"]=condition;combined["cross_view_harvest"]=cross;combined["equipment_subtype"]=infer_equipment_subtype(combined);combined=apply_recovery_grade_guard(combined);econ=_economics_inputs(combined);combined["recovery_economics"]=compare_paths(condition_factor=condition.get("remaining_value_factor",1.0),**econ);combined["same_board_verification"]=identity;combined["case_analysis"]={"mode":"same_board_multi_photo","views_analyzed":len(results),"independent_evidence_patterns":len(signatures),"view_summaries":view_summaries,"identity_gate":identity,"cross_view_harvest":cross,"mixed_power_control_evidence":mixed,"suppressed_unconfirmed_edge_votes":suppressed_edge_votes,"edge_identity_guard":{"active":True,"rule":"Gold-like color near an image edge is an inspection cue only. Expansion/gold-finger identity requires strict repeated edge-contact geometry."},"duplicate_evidence_guard":{"active":True,"rule":"Repeated equivalent views corroborate but do not multiply authority at full weight."},"message":"Case identity is checked before evidence reconciliation. Strict edge geometry gates expansion identity; raw physical power-stage evidence is preserved; recovery value remains independently graded."}
  best=max(float(r.get("confidence",0) or 0) for r in results);combined["confidence"]=min(98,max(float(combined.get("confidence",0) or 0),best))
  if identity.get("status") in ("IDENTITY_UNCERTAIN", "OPERATOR_CONFIRMED_SAME_BOARD"):combined["confidence"]=min(combined["confidence"],65);combined["recommendation"]=identity.get("identity_next_step") or "Add a clear full-board photo."
+ # A user-confirmed PCB-like reverse face is not proof of a completed
+ # board classification. Keep observed feature evidence without final grade,
+ # Pay Dirt, or an economics recommendation for the merged case.
+ if identity.get("status") == "OPERATOR_CONFIRMED_SAME_BOARD":
+  provisional=combined.get("grade","UNRESOLVED")
+  combined["grade"]="MANUAL REVIEW"
+  combined["pay_dirt_ready"]=False
+  combined["pay_dirt_reason"]="User confirmation has not been independently corroborated by a physical same-board match."
+  combined["confidence"]=min(float(combined.get("confidence",0) or 0),60)
+  combined["grade_assessment"]={
+   "status":"MANUAL_REVIEW_REQUIRED",
+   "provisional_grade":provisional,
+   "observed_feature_score":combined.get("score",0),
+   "final_buyer_grade_verified":False,
+   "reason":"Same-board identity was supplied by the operator, not independently verified across images. The combined case cannot receive an automated buyer grade.",
+   "model":"SPIKE Multi-Photo Review Guard v0.1"
+  }
+  combined["grade_notes"]=combined["grade_assessment"]["reason"]
+  combined["recommendation"]="User-confirmed case: independently verify the physical board identity, condition, and components before assigning a combined buyer grade."
+  combined["recovery_economics"]={"status":"board_verification_required","winner":None,"needs_values":True,"message":"Economics withheld until same-board identity and buyer category are independently verified."}
+  combined["requires_manual_board_verification"]=True
  if combined.get("grade")=="MANUAL REVIEW":
   combined["insight"]={"summary":combined["grade_notes"],"recommendation":combined["recommendation"],"next_steps":["Confirm buyer category by manual inspection."]}
  combined["three_answers"]=_three_answers(combined,identity,condition,combined["recovery_economics"])
