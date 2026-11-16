@@ -14,6 +14,7 @@ from routes.pair_reasoner import reconcile_pair
 from routes.pair_decision_guard import guard_pair
 from routes.spike_evidence_packet import build_evidence_packet
 from routes.case_reasoner import reconcile_case
+from routes.photo_overlap_diagnostics import examine_photo_overlap
 from routes.inspection_target import parse_inspection_target, apply_inspection_target
 from routes.free_usage_gate import check_free_board_allowance, record_free_board_use, free_gate_payload
 from recovery_lab.core.time_value import compare_paths
@@ -275,6 +276,10 @@ async def analyze_board_case_route(
             result["view_number"] = i
             result["spike_evidence"] = ({"identity_basis": "USER_SELECTED_COMPONENT", "whole_board_valuation": False} if item_kind == "processor" else build_evidence_packet(result))
             results.append(result)
+        # Diagnostic only: visual landmark overlap is not verified physical
+        # identity. Keep the validated temporary images scoped to this block.
+        photo_overlap = (await run_in_threadpool(examine_photo_overlap, paths)
+                         if item_kind != "processor" else None)
     if item_kind == "processor":
         from routes.processor_case import processor_case
         return _attach_usage({"status": "success", "mode": "component_inspection", "photo_count": len(results), "views": results, "combined": processor_case(results)}, usage)
@@ -285,6 +290,7 @@ async def analyze_board_case_route(
         return _attach_usage({
             "status": "success",
             "mode": "multi_photo_identity_blocked",
+            "photo_overlap_diagnostics": photo_overlap,
             "photo_count": len(results),
             "views": results,
             "combined": combined,
@@ -332,6 +338,7 @@ async def analyze_board_case_route(
     payload = {
         "status": "success",
         "mode": "same_board_multi_photo",
+        "photo_overlap_diagnostics": photo_overlap,
         "photo_count": len(results),
         "views": results,
         "combined": combined,
