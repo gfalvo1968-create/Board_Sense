@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import List, Optional
 import uvicorn
 import shutil
-from time import perf_counter
 from ecosystem import get_ecosystem
 from routes.board_analyzer import analyze_board
 from routes.pair_reasoner import reconcile_pair
@@ -125,29 +124,22 @@ def _attach_usage(result: dict, usage):
 @app.post("/analyze")
 async def analyze_board_route(request: Request, file: UploadFile = File(...), inspection_target: Optional[str] = Form(None)):
     # Staging instrumentation: no filename, IP address, or image content in logs.
-    start = perf_counter()
-    print("[SPIKE Request] accepted upload", flush=True)
     blocked = await run_in_threadpool(_gate_or_block, request)
-    print(f"[SPIKE Request] allowance check {perf_counter()-start:.2f}s", flush=True)
     if blocked is not None:
         return blocked
     with validated_board_images([file], IMAGE_DIR) as paths:
-        print(f"[SPIKE Request] validation {perf_counter()-start:.2f}s", flush=True)
         usage, blocked = await run_in_threadpool(_claim_or_block, request, "single_board")
-        print(f"[SPIKE Request] usage claim {perf_counter()-start:.2f}s", flush=True)
         if blocked is not None:
             return blocked
         file_path = paths[0]
         # CPU-heavy image analysis must not block the async event loop.
         result = await run_in_threadpool(analyze_board, str(file_path))
-        print(f"[SPIKE Request] analyzed {perf_counter()-start:.2f}s", flush=True)
         target_packet = parse_inspection_target(inspection_target)
         if target_packet:
             result = apply_inspection_target(result, target_packet, str(file_path))
         result["status"] = "success"
         result["board"] = file.filename
         result["spike_evidence"] = build_evidence_packet(result)
-    print(f"[SPIKE Request] completed {perf_counter()-start:.2f}s", flush=True)
     return _attach_usage(result, usage)
 
 
