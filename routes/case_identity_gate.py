@@ -70,6 +70,30 @@ def verify_same_board(results, operator_confirmed=False):
             "reasons": ["At least two views are needed for a multi-photo identity check."],
         }
 
+    # Exact duplicate uploads cannot be counted as independent board views.
+    # Fail closed even when the operator checks same-board confirmation.
+    duplicate_pairs = []
+    for view in results:
+        integrity = view.get("photo_integrity") or {}
+        for pair in integrity.get("exact_duplicate_pairs") or []:
+            if isinstance(pair, (list, tuple)) and len(pair) == 2:
+                sorted_pair = sorted(pair)
+                if sorted_pair not in duplicate_pairs:
+                    duplicate_pairs.append(sorted_pair)
+    if duplicate_pairs:
+        return {
+            "version": version,
+            "status": "DUPLICATE_PHOTOS_IN_CASE",
+            "same_board": None,
+            "confidence": 0,
+            "block_reconciliation": True,
+            "whole_view_count": 0,
+            "duplicate_photo_pairs": duplicate_pairs,
+            "identity_next_step": "One photograph was uploaded more than once. Replace the repeated image with a genuinely different view of that same physical board.",
+            "reasons": ["Identical image uploads cannot be treated as independent board evidence."],
+            "rule": "Exact duplicate photos cannot be merged, graded, or rescued by operator confirmation.",
+        }
+
     # Single-frame safety gate comes first. A photo that may contain two physical
     # boards must never be merged into a one-board case, even if other views match.
     frame_blocks = []
