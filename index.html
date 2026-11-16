@@ -224,6 +224,20 @@ img.preview{
         <p id="connectionStatus" role="status" aria-live="polite">Connection not tested.</p>
     </section>
 
+    <section class="panel" id="stagingCasePanel" style="display:none;">
+        <h2>🧪 Two-Sided Board Case (Staging Only)</h2>
+        <p>Upload two views of one physical board. An uncertain PCB-like view cannot automatically establish a buyer grade.</p>
+        <p><label for="caseFrontPhoto">Photo 1: component side</label>
+        <input type="file" id="caseFrontPhoto" accept="image/*"></p>
+        <p><label for="caseBackPhoto">Photo 2: reverse side</label>
+        <input type="file" id="caseBackPhoto" accept="image/*"></p>
+        <p><label><input type="checkbox" id="caseSameBoardConfirm">
+        I personally confirm these photographs show the same physical board.</label></p>
+        <button type="button" id="analyzeCaseBtn">Verify Two-Sided Case</button>
+        <p id="caseUploadStatus" role="status" aria-live="polite">Two-sided test not started.</p>
+        <div id="caseReport" class="result-box" style="white-space:pre-wrap;overflow-wrap:anywhere;">No case result yet.</div>
+    </section>
+
     <section class="panel">
         <h2>🔍 Board Investigation Report</h2>
 
@@ -362,6 +376,12 @@ if (enterBtn) {
             }
         });
     }
+    if (location.hostname === "boardsensestaging-staging.up.railway.app") {
+        const casePanel = $("stagingCasePanel");
+        if (casePanel) casePanel.style.display = "block";
+        const caseBtn = $("analyzeCaseBtn");
+        if (caseBtn) caseBtn.addEventListener("click", analyzeTwoSidedCase);
+    }
     const analyzeBtn = $("analyzeBtn");
 
     if (analyzeBtn) {
@@ -402,6 +422,71 @@ async function prepareStagingBoardUpload(file) {
         return new File([jpeg], file.name.replace(/\.[^.]+$/, "") + "-staging.jpg", {type:"image/jpeg"});
     } finally {
         source.close();
+    }
+}
+
+async function analyzeTwoSidedCase() {
+    const first = $("caseFrontPhoto")?.files?.[0];
+    const second = $("caseBackPhoto")?.files?.[0];
+    const status = $("caseUploadStatus");
+    const report = $("caseReport");
+    const button = $("analyzeCaseBtn");
+    if (!first || !second) {
+        status.textContent = "Choose both photographs before starting.";
+        return;
+    }
+    if (button.disabled) return;
+    button.disabled = true;
+    try {
+        status.textContent = "Checking staging availability...";
+        const health = await fetch("/health", {cache:"no-store"});
+        if (!health.ok) throw new Error("Staging API unavailable: HTTP " + health.status);
+        const available = await fetch("/free-usage", {cache:"no-store"});
+        if (!available.ok) throw new Error("Scan allowance check: HTTP " + available.status);
+        const allowance = (await available.json()).free_usage || {};
+        if (allowance.allowed === false) throw new Error("Daily staging scan allowance reached.");
+        status.textContent = "Preparing both images for upload...";
+        const a = await prepareStagingBoardUpload(first);
+        const b = await prepareStagingBoardUpload(second);
+        const form = new FormData();
+        form.append("files", a);
+        form.append("files", b);
+        form.append("operator_same_board_confirmation", $("caseSameBoardConfirm").checked ? "true" : "false");
+        form.append("item_kind", "auto");
+        status.textContent = "Submitting two-sided case (" +
+            Math.round((a.size+b.size)/1024) + " KB total)...";
+        const response = await fetch("/analyze-case", {method:"POST",body:form});
+        const payload = await response.json();
+        if (!response.ok || payload.status !== "success") {
+            throw new Error(payload.message || payload.detail || "Case analysis failed (HTTP " + response.status + ").");
+        }
+        const merged = payload.combined || {};
+        const identity = merged.same_board_verification || {};
+        const views = Array.isArray(payload.views) ? payload.views : [];
+        const grade = merged.grade ?? "WITHHELD";
+        const economics = merged.recovery_economics || {};
+        const fields = [
+            "Case: " + (payload.mode === "multi_photo_identity_blocked" ? "BLOCKED / REVIEW REQUIRED" : "REPORT RETURNED"),
+            "Same-board verification: " + (identity.status || "Not verified"),
+            "Automatic same-board confirmation: " + (identity.status === "PROBABLY_SAME_BOARD" ? "Probable, not certain" : "Not established"),
+            "Board identity: " + (merged.board_type || "Unresolved"),
+            "Recovery grade: " + grade,
+            "Confidence: " + (merged.confidence ?? "Not reported") + "%",
+            "Combined observed-feature score: " + (merged.score ?? 0),
+            "Economics: " + (economics.message || "Not verified"),
+            "Next step: " + (merged.recommendation || identity.identity_next_step || payload.case_warning || "Manual review"),
+            "Photo 1: " + (views[0]?.board_type || "Not reported") + " (" + (views[0]?.confidence ?? "?") + "%)",
+            "Photo 2: " + (views[1]?.board_type || "Not reported") + " (" + (views[1]?.confidence ?? "?") + "%)",
+            "Safety note: User confirmation is not AI verification. No final buyer grade without supported evidence."
+        ];
+        report.textContent = fields.join("\n");
+        status.textContent = payload.mode === "multi_photo_identity_blocked" ?
+            "Case held for identity review." : "Two-sided case returned; review the evidence below.";
+    } catch (error) {
+        report.textContent = "Two-sided analysis could not complete: " + (error?.message || String(error));
+        status.textContent = "Two-sided analysis was not completed.";
+    } finally {
+        button.disabled = false;
     }
 }
 
