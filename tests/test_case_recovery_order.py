@@ -69,6 +69,27 @@ class CaseRecoveryOrderTests(unittest.TestCase):
             self.assertEqual(case["score"], 5)
             self.assertEqual(case["confidence"], 90)
 
+    def test_distinct_logic_boards_never_get_unverified_combined_medium_grade(self):
+        first = board_view(3, 6, confidence=60)
+        second = board_view(9, 24, confidence=78)
+        for r in (first, second):
+            r["object_gate"] = {"mode": "board"}
+        # Identical generic board outline and same classifier family are not
+        # proof of one physical item, as demonstrated by the field test.
+        unconfirmed = reconcile_case([first, second])
+        self.assertEqual(unconfirmed["status"], "case_identity_failed")
+        self.assertEqual(unconfirmed["grade"], "UNRESOLVED")
+        self.assertEqual(unconfirmed["score"], 0)
+        self.assertIsNone(unconfirmed["three_answers"]["economics"]["winner"])
+        confirmed = reconcile_case([first, second], operator_same_board_confirmation=True)
+        self.assertEqual(confirmed["same_board_verification"]["status"], "OPERATOR_CONFIRMED_SAME_BOARD")
+        self.assertEqual(confirmed["grade"], "MANUAL REVIEW")
+        self.assertFalse(confirmed["pay_dirt_ready"])
+        self.assertLessEqual(confirmed["confidence"], 60)
+        self.assertEqual(confirmed["recovery_economics"]["status"], "board_verification_required")
+        self.assertIsNone(confirmed["three_answers"]["economics"]["winner"])
+        self.assertTrue(confirmed["requires_manual_board_verification"])
+
     def test_user_confirmed_pcb_like_reverse_cannot_assign_case_grade(self):
         populated = board_view(9, 24)
         populated["object_gate"] = {"mode": "board"}
