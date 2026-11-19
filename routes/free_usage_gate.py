@@ -37,9 +37,9 @@ class GateDecision:
     reason: str
 
     def as_dict(self) -> dict:
+        """Public quota status only. Keep the pseudonymous visitor hash server-side."""
         return {
             "allowed": self.allowed,
-            "visitor_id": self.visitor_id,
             "used_today": self.used_today,
             "limit": self.limit,
             "remaining": self.remaining,
