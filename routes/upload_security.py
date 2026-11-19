@@ -23,6 +23,47 @@ UPLOAD_BODY_LIMITS = {
 }
 
 
+# Scans contain uploaded-photo derivatives and anonymous usage state. Never cache
+# any image-analysis API response, including validation and quota errors.
+PRIVATE_RESPONSE_PATHS = frozenset({
+    "/upload", "/analyze", "/analyze-pair", "/analyze-spike-pair",
+    "/analyze-case", "/free-usage",
+})
+
+
+class PrivateResponseNoStoreMiddleware:
+    """Stamp private analysis responses at the ASGI layer, even on error paths."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        path = scope.get("path", "").rstrip("/")
+        if scope.get("type") != "http" or path not in PRIVATE_RESPONSE_PATHS:
+            return await self.app(scope, receive, send)
+
+        async def guarded_send(message):
+            if message["type"] == "http.response.start":
+                headers = [
+                    (key, value) for key, value in message.get("headers", [])
+                    if key.lower() not in {
+                        b"cache-control", b"pragma", b"expires", b"x-content-type-options",
+                        b"referrer-policy",
+                    }
+                ]
+                headers.extend([
+                    (b"cache-control", b"private, no-store, max-age=0"),
+                    (b"pragma", b"no-cache"),
+                    (b"expires", b"0"),
+                    (b"x-content-type-options", b"nosniff"),
+                    (b"referrer-policy", b"no-referrer"),
+                ])
+                message = {**message, "headers": headers}
+            await send(message)
+
+        return await self.app(scope, receive, guarded_send)
+
+
 class _BodyTooLarge(Exception):
     pass
 
