@@ -9,6 +9,10 @@ on:
       - 'routes/recovery_grade_guard.py'
       - 'tests/test_object_gate_framing.py'
       - 'tests/test_grade_review.py'
+      - 'routes/board_blueprint.py'
+      - 'routes/board_analyzer.py'
+      - 'main.py'
+      - 'tests/test_generated_artifact_privacy.py'
       - '.github/workflows/pcb-guard-tests.yml'
 jobs:
   tests:
