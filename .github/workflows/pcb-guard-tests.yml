@@ -17,6 +17,7 @@ on:
       - 'routes/upload_security.py'
       - 'tests/test_private_api_responses.py'
       - 'tests/test_generated_artifact_privacy.py'
+      - 'scripts/staging_http_security_check.py'
       - '.github/workflows/pcb-guard-tests.yml'
 jobs:
   tests:
@@ -39,3 +40,5 @@ jobs:
           node --check /tmp/board-sense-dashboard.js
       - name: Run PCB recognition and grade regressions
         run: python -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Anonymous staging HTTP security checks (read-only)
+        run: python scripts/staging_http_security_check.py
