@@ -12,6 +12,10 @@ on:
       - 'routes/board_blueprint.py'
       - 'routes/board_analyzer.py'
       - 'main.py'
+      - 'index.html'
+      - 'routes/free_usage_gate.py'
+      - 'routes/upload_security.py'
+      - 'tests/test_private_api_responses.py'
       - 'tests/test_generated_artifact_privacy.py'
       - '.github/workflows/pcb-guard-tests.yml'
 jobs:
@@ -24,5 +28,14 @@ jobs:
           python-version: '3.13'
       - name: Install project dependencies
         run: python -m pip install -r requirements-dev.txt
+      - name: Verify in-page JavaScript syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          html = Path("index.html").read_text(encoding="utf-8")
+          inline = html.split("<script>", 1)[1].split("</script>", 1)[0]
+          Path("/tmp/board-sense-dashboard.js").write_text(inline, encoding="utf-8")
+          PY
+          node --check /tmp/board-sense-dashboard.js
       - name: Run PCB recognition and grade regressions
         run: python -m unittest discover -s tests -p 'test_*.py' -v
