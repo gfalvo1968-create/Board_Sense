@@ -21,7 +21,7 @@ from routes.grade import router as grade_router
 from routes.irm_core import router as irm_router
 from routes.market_bridge import router as market_router
 from routes.reference_loader import load_reference_data
-from routes.upload_security import UploadBodyLimitMiddleware, validated_board_images
+from routes.upload_security import UploadBodyLimitMiddleware, PrivateResponseNoStoreMiddleware, validated_board_images
 from routes.origin_security import OriginProtectionMiddleware
 
 app = FastAPI(title="Board Sense")
@@ -34,6 +34,8 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+# Outermost: include no-store on success, validation failures, and quota/origin denials.
+app.add_middleware(PrivateResponseNoStoreMiddleware)
 
 
 @app.on_event("startup")
