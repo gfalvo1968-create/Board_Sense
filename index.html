@@ -219,6 +219,8 @@ img.preview{
         <button id="analyzeBtn">
             Analyze Board
         </button>
+
+        <p id="uploadStatus" role="status" aria-live="polite">Choose a board photo to begin.</p>
     </section>
 
     <section class="panel">
@@ -226,10 +228,17 @@ img.preview{
 
         <div id="predictionBox">
 
-            Waiting for scan...
+            Select one board photo above, then tap Analyze Board.
 
         </div>
 
+    </section>
+
+    <section class="panel">
+        <h2>🗺️ Private Board Blueprint</h2>
+        <p id="blueprintStatus" role="status" aria-live="polite">A marked-up preview appears here when the scan confirms a whole-board candidate and identifies usable regions.</p>
+        <img id="blueprintPreview" class="preview" alt="Annotated image of the scanned circuit board, with numbered component regions" hidden style="display:none;" decoding="async">
+        <p>Generated images are shown in this report only, not published through a separate photo link.</p>
     </section>
 
     <section class="panel">
@@ -291,15 +300,12 @@ img.preview{
 function $(id){
     return document.getElementById(id);
 }
-    const devConsole = document.getElementById("dev-console");
-
 function devLog(message) {
+    const devConsole = $("dev-console");
     if (!devConsole) return;
-
     const time = new Date().toLocaleTimeString();
-
-    devConsole.innerHTML += "<br>[" + time + "] " + message;
-
+    devConsole.textContent += "\n[" + time + "] " + message;
+    devConsole.style.whiteSpace = "pre-line";
     devConsole.scrollTop = devConsole.scrollHeight;
 }
 
@@ -363,79 +369,176 @@ if (enterBtn) {
 });
 
 
+// ---------- Private annotated blueprint ----------
+function clearBlueprint(message) {
+    const preview = $("blueprintPreview");
+    const info = $("blueprintStatus");
+    if (preview) {
+        // Remove earlier scan data before accepting a new report or an error.
+        preview.removeAttribute("src");
+        preview.hidden = true;
+        preview.style.display = "none";
+        preview.onload = null;
+        preview.onerror = null;
+    }
+    if (info) info.textContent = message || "No blueprint preview for this scan.";
+}
+
+function showBlueprint(data, mode) {
+    const blueprint = data && data.board_blueprint || {};
+    if (mode !== "board" || !blueprint.available) {
+        clearBlueprint(mode === "pcb_review"
+            ? "This PCB-like photo needs manual verification before a blueprint can be shown."
+            : (blueprint.message || "No verified whole-board blueprint is available for this photo."));
+        return;
+    }
+    const image = $("blueprintPreview");
+    const info = $("blueprintStatus");
+    const url = blueprint.image_url;
+    // Never put an arbitrary remote URL or HTML in the image element.
+    if (!image || blueprint.delivery_mode !== "inline_no_store" ||
+        typeof url !== "string" || url.length > 6000000 ||
+        !url.startsWith("data:image/jpeg;base64,")) {
+        clearBlueprint("Blueprint preview unavailable; the report text remains valid.");
+        return;
+    }
+    image.onerror = function () {
+        clearBlueprint("Could not display the private blueprint. Try a clearer photo.");
+    };
+    image.onload = function () {
+        if (info) info.textContent = "Annotated blueprint for this scan. Region labels are inspection candidates, not metal assays.";
+    };
+    image.src = url;
+    image.hidden = false;
+    image.style.display = "block";
+    if (info) info.textContent = "Loading the private blueprint preview...";
+}
+
+// ---------- Evidence-led Recovery Intelligence ----------
+// No dollar values or metal yields come from a photograph.
+function renderRecoveryIntelligence(data, mode) {
+    const panel = $("recoveryBox");
+    if (!panel) return;
+    panel.replaceChildren();
+    function line(message, tag) {
+        const node = document.createElement(tag || "p");
+        node.textContent = message;
+        panel.appendChild(node);
+        return node;
+    }
+    if (!data) {
+        line("No recovery report for this scan. Run one board analysis first.");
+        return;
+    }
+    if (mode !== "board") {
+        line(mode === "pcb_review"
+            ? "Recovery routing withheld: this photo needs a clearer whole-board verification."
+            : "Whole-board recovery routing withheld: this object is not confirmed as a circuit board.");
+        line("No yield, buyer grade, or dollar estimate has been assigned.");
+        return;
+    }
+    const lab = data.recovery_lab || {};
+    const inspection = Array.isArray(lab.labs) ? lab.labs.slice(0, 6) : [];
+    const grade = typeof data.grade === "string" ? data.grade : "UNVERIFIED";
+    line("Board status: " + grade + ". Buyer acceptance and material assay are not verified.");
+    if (inspection.length) {
+        line("Recovery Labs to review (inspection cues only):", "strong");
+        const list = document.createElement("ul");
+        inspection.forEach(function (item) {
+            if (!item || typeof item.label !== "string") return;
+            const child = document.createElement("li");
+            child.textContent = item.label.slice(0, 90);
+            list.appendChild(child);
+        });
+        panel.appendChild(list);
+    } else {
+        line("No specific recovery lab was supported by this scan.");
+    }
+    const risk = lab.risk || {};
+    if (risk.level === "controlled_process") {
+        line("Safety: mechanical sorting may be appropriate. Chemical recovery needs qualified professional/refinery controls.");
+    } else {
+        line("Safety: sort and inspect without assuming any recoverable metal quantity.");
+    }
+    line("Economics: unpriced. Compare selling whole, selective separation, and downstream recovery only after entering actual offers, weight, labor, fuel and processing costs.");
+    const link = document.createElement("a");
+    link.href = "https://gfalvo1968-create.github.io/scrap_radar_family/scrap_radar.html#board-recovery";
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = "Open Scrap Radar for manual economics";
+    link.style.color = "#39ff14";
+    link.style.fontWeight = "bold";
+    panel.appendChild(link);
+    line("This opens Scrap Radar only. Automatic single-photo case transfer is not released yet.");
+}
+
 // ---------- Upload ----------
 
 async function uploadImage() {
-
     const input = $("boardImage");
+    const report = $("predictionBox");
+    const status = $("uploadStatus");
+    const button = $("analyzeBtn");
 
     if (!input || input.files.length === 0) {
-
-        $("predictionBox").innerHTML =
-            "Please choose an image first.";
-
+        report.textContent = "Please choose an image first.";
+        status.textContent = "No photo selected.";
+        clearBlueprint("Choose one board photo to see an annotated blueprint if available.");
+        renderRecoveryIntelligence(null, "not_ready");
         return;
-
     }
 
     const file = input.files[0];
-    if (file) {
-    devLog("Selected file: " + file.name);
-    devLog("File size: " + Math.round(file.size / 1024) + " KB");
-}
-
-    $("uploadStatus").innerHTML =
-        "Uploading " + file.name + "...";
-
     const formData = new FormData();
-
     formData.append("file", file);
-    devLog("Packaging image...");
-    devLog("Sending request to Harbor AI...");
+    devLog("Selected file: " + file.name);
+    status.textContent = "Uploading " + file.name + "...";
+    renderRecoveryIntelligence(null, "loading");
+    report.textContent = "Analyzing selected board photo...";
+    clearBlueprint("New scan started. Previous blueprint cleared.");
+    button.disabled = true;
 
     try {
-
-        const response = await fetch("https://boardsense.scrapradarfamily.com/analyze", {
-
-            method: "POST",
-
-            body: formData
-
-        });
-
+        // Same-origin routing keeps staging scans out of the production API.
+        const response = await fetch("/analyze", { method: "POST", body: formData });
         const data = await response.json();
-        devLog("Response received");
-        devLog("Grade: " + data.ai_grade);
-        devLog("Confidence: " + data.confidence + "%");
-        devLog("Estimated Value: $" + data.value_estimate);
-
-        $("predictionBox").innerHTML =
-            "<b>Grade:</b> " + data.ai_grade +
-            "<br><b>Confidence:</b> " + data.confidence +
-            "<br><b>Action:</b> " + data.action +
-            "<br><b>Estimated Value:</b> $" + data.value_estimate;
-
-        $("uploadStatus").innerHTML =
-            "Analysis complete.";
-
-        if (typeof renderSignals === "function") {
-
-            renderSignals(data.signals);
-
+        if (!response.ok) {
+            const detail = data.message || data.detail || data.reason || "The scanner did not accept this request.";
+            throw new Error("HTTP " + response.status + ": " + (typeof detail === "string" ? detail : JSON.stringify(detail)));
         }
 
+        const gate = data.object_gate || {};
+        const mode = gate.mode || "unknown";
+        const lines = [
+            "Object: " + (gate.label || data.board_type || "Not classified"),
+            "PCB check: " + (mode === "pcb_review" ? "PCB-like / MANUAL VERIFICATION REQUIRED" : (mode === "board" ? "Board candidate" : "Not confirmed as a PCB")),
+            "Confidence: " + (typeof data.confidence === "number" ? data.confidence + "%" : "Not reported")
+        ];
+        if (mode === "board") {
+            lines.push("Provisional grade: " + (data.grade || "Not assigned"));
+            lines.push("Board type: " + (data.board_type || "Not confirmed"));
+        } else {
+            lines.push("Buyer grade and recovery economics withheld pending verification.");
+        }
+        if (data.recommendation) lines.push("Recommendation: " + data.recommendation);
+        if (gate.message) lines.push("Evidence: " + gate.message);
+        report.textContent = lines.join("\n");
+        report.style.whiteSpace = "pre-line";
+        status.textContent = "Analysis completed for " + file.name + ".";
+        devLog("Analysis completed. Object gate: " + mode);
+        showBlueprint(data, mode);
+        renderRecoveryIntelligence(data, mode);
+
+        if (typeof renderSignals === "function") renderSignals(data.signals);
+    } catch (err) {
+        report.textContent = "Upload failed: " + (err && err.message ? err.message : String(err));
+        status.textContent = "Scan did not complete.";
+        clearBlueprint("No blueprint from this failed scan.");
+        renderRecoveryIntelligence(null, "failed");
+        devLog("Scan failed: " + err);
+    } finally {
+        button.disabled = false;
     }
-
-    catch (err) {
-
-        $("predictionBox").innerHTML =
-            "Upload failed.<br><br>" + err;
-
-        $("uploadStatus").innerHTML =
-            "Upload failed.";
-
-    }
-
 }
 
 </script>

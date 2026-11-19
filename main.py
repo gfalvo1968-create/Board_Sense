@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, Form, Request, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from typing import List, Optional
@@ -12,6 +13,7 @@ from routes.pair_reasoner import reconcile_pair
 from routes.pair_decision_guard import guard_pair
 from routes.spike_evidence_packet import build_evidence_packet
 from routes.case_reasoner import reconcile_case
+from routes.photo_overlap_diagnostics import examine_photo_overlap
 from routes.inspection_target import parse_inspection_target, apply_inspection_target
 from routes.free_usage_gate import check_free_board_allowance, record_free_board_use, free_gate_payload
 from recovery_lab.core.time_value import compare_paths
@@ -19,7 +21,7 @@ from routes.grade import router as grade_router
 from routes.irm_core import router as irm_router
 from routes.market_bridge import router as market_router
 from routes.reference_loader import load_reference_data
-from routes.upload_security import UploadBodyLimitMiddleware, validated_board_images
+from routes.upload_security import UploadBodyLimitMiddleware, PrivateResponseNoStoreMiddleware, validated_board_images
 from routes.origin_security import OriginProtectionMiddleware
 
 app = FastAPI(title="Board Sense")
@@ -32,6 +34,8 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+# Outermost: include no-store on success, validation failures, and quota/origin denials.
+app.add_middleware(PrivateResponseNoStoreMiddleware)
 
 
 @app.on_event("startup")
@@ -49,8 +53,6 @@ BLUEPRINT_DIR.mkdir(parents=True, exist_ok=True)
 MULTI_BOARD_CROP_DIR = IMAGE_DIR / "multi_board_crops"
 MULTI_BOARD_CROP_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/Static", StaticFiles(directory=STATIC_DIR), name="Static")
-app.mount("/blueprints", StaticFiles(directory=BLUEPRINT_DIR), name="blueprints")
-app.mount("/multi-board-crops", StaticFiles(directory=MULTI_BOARD_CROP_DIR), name="multi-board-crops")
 app.include_router(grade_router)
 app.include_router(irm_router)
 app.include_router(market_router)
@@ -121,15 +123,17 @@ def _attach_usage(result: dict, usage):
 
 @app.post("/analyze")
 async def analyze_board_route(request: Request, file: UploadFile = File(...), inspection_target: Optional[str] = Form(None)):
-    blocked = _gate_or_block(request)
-    if blocked:
+    # Staging instrumentation: no filename, IP address, or image content in logs.
+    blocked = await run_in_threadpool(_gate_or_block, request)
+    if blocked is not None:
         return blocked
     with validated_board_images([file], IMAGE_DIR) as paths:
-        usage, blocked = _claim_or_block(request, "single_board")
+        usage, blocked = await run_in_threadpool(_claim_or_block, request, "single_board")
         if blocked is not None:
             return blocked
         file_path = paths[0]
-        result = analyze_board(str(file_path))
+        # CPU-heavy image analysis must not block the async event loop.
+        result = await run_in_threadpool(analyze_board, str(file_path))
         target_packet = parse_inspection_target(inspection_target)
         if target_packet:
             result = apply_inspection_target(result, target_packet, str(file_path))
@@ -258,11 +262,23 @@ async def analyze_board_case_route(
                 from routes.processor_case import inspect_processor
                 result = inspect_processor(str(path))
             else:
-                result = analyze_board(str(path))
+                # Two-photo cases can be CPU-intensive; keep API health responsive.
+                result = await run_in_threadpool(analyze_board, str(path))
             result["board"] = upload.filename
             result["view_number"] = i
             result["spike_evidence"] = ({"identity_basis": "USER_SELECTED_COMPONENT", "whole_board_valuation": False} if item_kind == "processor" else build_evidence_packet(result))
             results.append(result)
+        # Diagnostic only: visual landmark overlap is not verified physical
+        # identity. Keep the validated temporary images scoped to this block.
+        photo_overlap = (await run_in_threadpool(examine_photo_overlap, paths)
+                         if item_kind != "processor" else None)
+        if photo_overlap:
+            # The core identity gate, not just the staging UI, must block
+            # repeated upload bytes even if operator confirmation is checked.
+            duplicates = photo_overlap.get("duplicate_photo_pairs") or []
+            if duplicates:
+                for result in results:
+                    result["photo_integrity"] = {"exact_duplicate_pairs": duplicates}
     if item_kind == "processor":
         from routes.processor_case import processor_case
         return _attach_usage({"status": "success", "mode": "component_inspection", "photo_count": len(results), "views": results, "combined": processor_case(results)}, usage)
@@ -273,6 +289,7 @@ async def analyze_board_case_route(
         return _attach_usage({
             "status": "success",
             "mode": "multi_photo_identity_blocked",
+            "photo_overlap_diagnostics": photo_overlap,
             "photo_count": len(results),
             "views": results,
             "combined": combined,
@@ -299,8 +316,18 @@ async def analyze_board_case_route(
         sell_basis = "INTACT BOARD BASELINE"
     else:
         sell_basis = "NOT PROVIDED"
-    combined["recovery_economics"] = compare_paths(condition_factor=factor, **econ)
-    combined["recovery_economics"]["sell_value_basis"] = sell_basis
+    if combined.get("requires_manual_board_verification"):
+        # Inputs may be collected, but an unresolved PCB-like face must never
+        # produce a sell/strip/recover winner in an automated combined case.
+        combined["recovery_economics"] = {
+            "status": "board_verification_required", "winner": None,
+            "needs_values": True,
+            "sell_value_basis": sell_basis,
+            "message": "No economics recommendation until the PCB-like view and buyer category are verified.",
+        }
+    else:
+        combined["recovery_economics"] = compare_paths(condition_factor=factor, **econ)
+        combined["recovery_economics"]["sell_value_basis"] = sell_basis
     combined["recovery_economics"]["condition_link"] = {
         "condition": condition.get("condition"),
         "remaining_value_factor": condition.get("remaining_value_factor", 1.0),
@@ -310,6 +337,7 @@ async def analyze_board_case_route(
     payload = {
         "status": "success",
         "mode": "same_board_multi_photo",
+        "photo_overlap_diagnostics": photo_overlap,
         "photo_count": len(results),
         "views": results,
         "combined": combined,

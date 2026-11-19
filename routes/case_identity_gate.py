@@ -70,6 +70,30 @@ def verify_same_board(results, operator_confirmed=False):
             "reasons": ["At least two views are needed for a multi-photo identity check."],
         }
 
+    # Exact duplicate uploads cannot be counted as independent board views.
+    # Fail closed even when the operator checks same-board confirmation.
+    duplicate_pairs = []
+    for view in results:
+        integrity = view.get("photo_integrity") or {}
+        for pair in integrity.get("exact_duplicate_pairs") or []:
+            if isinstance(pair, (list, tuple)) and len(pair) == 2:
+                sorted_pair = sorted(pair)
+                if sorted_pair not in duplicate_pairs:
+                    duplicate_pairs.append(sorted_pair)
+    if duplicate_pairs:
+        return {
+            "version": version,
+            "status": "DUPLICATE_PHOTOS_IN_CASE",
+            "same_board": None,
+            "confidence": 0,
+            "block_reconciliation": True,
+            "whole_view_count": 0,
+            "duplicate_photo_pairs": duplicate_pairs,
+            "identity_next_step": "One photograph was uploaded more than once. Replace the repeated image with a genuinely different view of that same physical board.",
+            "reasons": ["Identical image uploads cannot be treated as independent board evidence."],
+            "rule": "Exact duplicate photos cannot be merged, graded, or rescued by operator confirmation.",
+        }
+
     # Single-frame safety gate comes first. A photo that may contain two physical
     # boards must never be merged into a one-board case, even if other views match.
     frame_blocks = []
@@ -91,6 +115,47 @@ def verify_same_board(results, operator_confirmed=False):
             "identity_next_step": "Retake each flagged photo with exactly one physical board in the frame, then start the case again.",
             "reasons": ["At least one uploaded photo may contain more than one physical PCB or overlapping board regions."],
             "rule": "One physical board per photo is required before multi-photo same-board verification can begin.",
+        }
+
+    # A multi-photo upload may include a genuine low-detail reverse face
+    # classified as pcb_review. It is not independent proof of board identity.
+    # Conversely, a view identified as a loose component or unknown object
+    # is not permitted into whole-board reconciliation, even with an operator
+    # checkbox. Missing object_gate data is retained for legacy test fixtures.
+    unsupported_views = []
+    review_views = []
+    for i, view in enumerate(results, 1):
+        gate = view.get("object_gate") or {}
+        mode = str(gate.get("mode") or "").lower()
+        if mode in ("component", "unknown"):
+            unsupported_views.append({"view": i, "mode": mode, "label": gate.get("label")})
+        elif mode == "pcb_review":
+            review_views.append(i)
+    if unsupported_views:
+        return {
+            "version": version,
+            "status": "NON_BOARD_VIEW_REQUIRES_RETAKE",
+            "same_board": None,
+            "confidence": 0,
+            "block_reconciliation": True,
+            "whole_view_count": 0,
+            "unsupported_views": unsupported_views,
+            "identity_next_step": "Replace the unconfirmed non-board photo with a clearer view of the same physical PCB before continuing.",
+            "reasons": ["A whole-board case contains a view that has not passed PCB candidate screening."],
+            "rule": "Operator confirmation never converts a non-board or unknown object into PCB evidence.",
+        }
+    if review_views and not operator_confirmed:
+        return {
+            "version": version,
+            "status": "PCB_REVIEW_VIEWS_REQUIRE_CONFIRMATION",
+            "same_board": None,
+            "confidence": 44,
+            "block_reconciliation": True,
+            "whole_view_count": 0,
+            "pcb_review_views": review_views,
+            "identity_next_step": "Verify the photographed items are the same physical board and explicitly confirm, or replace the uncertain reverse-side photo.",
+            "reasons": ["PCB-like views are candidates for inspection, not independently confirmed board identity."],
+            "rule": "A PCB-like reverse side cannot silently raise same-board confidence or contribute recovery grades.",
         }
 
     families = [_family(r) for r in results]
@@ -128,6 +193,36 @@ def verify_same_board(results, operator_confirmed=False):
             c = fingerprint_conflict(fps[i], fps[j])
             if c:
                 physical.append({"views": [i + 1, j + 1], **c})
+
+    # Two strong, independent whole-board shape contradictions must not be
+    # overruled by an operator checkbox. This is deliberately much stricter
+    # than one disagreement from a noisy reverse view: both outlines must be
+    # high quality, aspect mismatch extreme, and two other geometry cues must
+    # disagree. A single ambiguous photo still receives review rather than a
+    # definite different-board judgement.
+    if n == 2 and len(whole_views) == 2:
+        pair = next((p for p in physical if p.get("views") == [1, 2]), None)
+        both_good = all(f.get("geometry_quality") == "good" for f in fps)
+        extreme = bool(
+            pair and pair.get("conflict")
+            and float(pair.get("aspect_mismatch", 0) or 0) >= 2.60
+            and int(pair.get("supporting_mismatches", 0) or 0) >= 2
+        )
+        if both_good and extreme:
+            return {
+                "version": version,
+                "status": "MULTIPLE_BOARDS_SUSPECTED",
+                "same_board": False,
+                "confidence": 90,
+                "block_reconciliation": True,
+                "whole_view_count": 2,
+                "whole_view_indices": [1, 2],
+                "physical_pair_checks": physical,
+                "conflicting_views": [1, 2],
+                "identity_next_step": "Two whole-board photos show strongly incompatible outlines. Start separate cases or provide clearer evidence before any merge.",
+                "reasons": ["Both high-quality whole-board fingerprints disagree in extreme aspect and at least two corroborating geometry measures."],
+                "rule": "A user checkbox cannot override multiple strong physical contradictions between high-quality whole-board photos.",
+            }
 
     conflicts = [p for p in physical if p.get("conflict")]
     compatible = [p for p in physical if not p.get("conflict")]
@@ -208,12 +303,40 @@ def verify_same_board(results, operator_confirmed=False):
     if physical_outlier and not strong_split:
         reasons.append("The conflict does not establish two independently coherent board groups; identity needs review.")
 
+    # Generic outline compatibility and shared classifier labels can never
+    # prove physical identity, even with 3-6 photos. fingerprint_conflict()
+    # only detects some contradictions; it does not register unique trace,
+    # marking, or component landmarks. Until a positive physical-matching
+    # method is validated, reject EVERY unconfirmed multi-photo merge.
+    # User-confirmed cases remain quarantined by case_reasoner and must not
+    # merge evidence or produce grades.
+    if not operator_confirmed:
+        return {
+            "version": version,
+            "status": "IDENTITY_UNCERTAIN",
+            "same_board": None,
+            "confidence": 0,
+            "block_reconciliation": True,
+            "whole_view_count": len(whole_views),
+            "whole_view_indices": whole_views,
+            "physical_pair_checks": physical,
+            "conflict_graph": conflict_graph,
+            "positive_geometry_evidence": False,
+            "identity_next_step": "Confirm these are two views of the same physical board, or analyze each board in a separate case.",
+            "reasons": [
+                "Board family and absence of a strong geometry contradiction do not establish physical same-board identity.",
+                "No independently registered matching landmarks were verified across all uploaded images.",
+            ],
+            "rule": "Unverified photos cannot be merged or graded based on compatible generic shapes, labels, or number of uploaded views.",
+        }
+
     if operator_confirmed and not strong_split:
         return {
             "version": version,
             "status": "OPERATOR_CONFIRMED_SAME_BOARD",
             "same_board": True,
             "operator_confirmed": True,
+            "pcb_review_views": review_views,
             "confidence": 60,
             "block_reconciliation": False,
             "whole_view_count": len(whole_views),

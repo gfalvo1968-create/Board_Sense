@@ -1,6 +1,7 @@
 """Board Blueprint v1.1: PCB-bound regions plus single-frame identity protection."""
 from pathlib import Path
 import math
+import base64
 import cv2
 from routes.board_motherboard import detect_motherboard
 from routes.frame_identity_gate import inspect_frame
@@ -59,10 +60,21 @@ def generate_blueprint(image_path,component_regions,output_dir):
   return{"available":False,"message":"Blueprint withheld: more than one physical board or overlapping PCB regions may be present in this photo. Retake with exactly one board in frame.","component_index":[],"frame_identity_gate":frame_gate,"mode":"Board Blueprint v1.1 + "+frame_version}
  mask=board_region_mask(image)
  if not cv2.countNonZero(mask):return {'available':False,'message':'Blueprint withheld: PCB outline could not be isolated from the photo background. Retake against a plain contrasting surface.','component_index':[],'board_region_guard':{'active':True}}
- motherboard=detect_motherboard(str(image_path));all_regions=list(component_regions or [])+list(motherboard.get("structure_regions",[]));supported=[r for r in all_regions if region_on_board(mask,r)];output_dir=Path(output_dir);output_dir.mkdir(parents=True,exist_ok=True);output_name=f"{Path(image_path).stem}_blueprint.png";output_path=output_dir/output_name;h,w=image.shape[:2];area=w*h;thickness=max(2,int(max(w,h)/720));fs=max(.55,min(1.05,max(w,h)/1500));radius=max(15,int(max(w,h)/62));selected=_rank_regions(supported,area,w,h);index=[]
+ motherboard=detect_motherboard(str(image_path));all_regions=list(component_regions or [])+list(motherboard.get("structure_regions",[]));supported=[r for r in all_regions if region_on_board(mask,r)];h,w=image.shape[:2];area=w*h;thickness=max(2,int(max(w,h)/720));fs=max(.55,min(1.05,max(w,h)/1500));radius=max(15,int(max(w,h)/62));selected=_rank_regions(supported,area,w,h);index=[]
  for n,r in enumerate(selected,1):
   x=min(w-1,r["x"]);y=min(h-1,r["y"]);rw=min(r["w"],max(1,w-x));rh=min(r["h"],max(1,h-y));cx=min(w-radius-2,max(radius+2,x+rw//2));cy=min(h-radius-2,max(radius+2,y+rh//2));cv2.rectangle(image,(x,y),(x+rw-1,y+rh-1),(0,255,255),thickness);cv2.circle(image,(cx,cy),radius,(0,0,0),-1);cv2.circle(image,(cx,cy),radius,(0,255,255),thickness);text=str(n);(tw,th),_=cv2.getTextSize(text,cv2.FONT_HERSHEY_SIMPLEX,fs,thickness);cv2.putText(image,text,(cx-tw//2,cy+th//2),cv2.FONT_HERSHEY_SIMPLEX,fs,(0,255,255),thickness,cv2.LINE_AA);t=r.get("type","Detected region");item={"number":n,"label":LABELS.get(t,t),"detector_label":t,"confidence":r.get("confidence"),"importance":round(r.get("_blueprint_score",0),2),"box":{"x":x,"y":y,"w":rw,"h":rh}}
   if t in CONTEXT_NOTES:item["context_guard"]=CONTEXT_NOTES[t]
   if r.get("geometry_guard"):item["geometry_guard"]=r["geometry_guard"]
   index.append(item)
- cv2.imwrite(str(output_path),image);return{"available":True,"image_filename":output_name,"component_index":index,"marker_count":len(index),"candidate_region_count":len(all_regions),"mode":"Board Blueprint v1.1 + PCB Region Guard v0.1 + Density-Aware Marker Guard v0.1 + Context Guard v0.1 + Component Guard v0.6 + "+frame_version,"frame_identity_gate":frame_gate,"board_region_guard":{"active":True,"rejected_background_regions":len(all_regions)-len(supported),"rule":"Markers require a supported PCB outline; the photo border is not a board edge."},"context_guard":{"active":True,"rule":"Generic geometry stays generic until equipment-specific evidence independently earns a subtype label.","motherboard_structure_score":motherboard.get("motherboard_structure_score",0)},"component_guard":{"active":True,"rule":"Board-edge connector labels require explicit repeated, aligned connector-body proof across a meaningful PCB-perimeter run."},"density_guard":{"active":True,"rule":"Dense logic boards may show multiple independent IC markers; one representative marker no longer suppresses the rest of the population."},"note":"Numbered boxes are constrained to the supported PCB region. Package and connector labels remain inspection candidates; composition and metal content are not visually assayed."}
+ # Keep annotated user photos out of publicly served artifact folders.
+ # Returning inline image bytes means no persistent blueprint file or public fetch URL.
+ max_side=1200
+ if max(image.shape[:2])>max_side:
+  factor=max_side/float(max(image.shape[:2]))
+  new_w=max(1,round(image.shape[1]*factor))
+  new_h=max(1,round(image.shape[0]*factor))
+  image=cv2.resize(image,(new_w,new_h),interpolation=cv2.INTER_AREA)
+ encoded_ok,encoded=cv2.imencode(".jpg",image,[int(cv2.IMWRITE_JPEG_QUALITY),82])
+ if not encoded_ok:return{"available":False,"message":"Blueprint image could not be encoded.","component_index":[]}
+ inline_image="data:image/jpeg;base64,"+base64.b64encode(encoded.tobytes()).decode("ascii")
+ return{"available":True,"image_url":inline_image,"delivery_mode":"inline_no_store","component_index":index,"marker_count":len(index),"candidate_region_count":len(all_regions),"mode":"Board Blueprint v1.1 + PCB Region Guard v0.1 + Density-Aware Marker Guard v0.1 + Context Guard v0.1 + Component Guard v0.6 + "+frame_version,"frame_identity_gate":frame_gate,"board_region_guard":{"active":True,"rejected_background_regions":len(all_regions)-len(supported),"rule":"Markers require a supported PCB outline; the photo border is not a board edge."},"context_guard":{"active":True,"rule":"Generic geometry stays generic until equipment-specific evidence independently earns a subtype label.","motherboard_structure_score":motherboard.get("motherboard_structure_score",0)},"component_guard":{"active":True,"rule":"Board-edge connector labels require explicit repeated, aligned connector-body proof across a meaningful PCB-perimeter run."},"density_guard":{"active":True,"rule":"Dense logic boards may show multiple independent IC markers; one representative marker no longer suppresses the rest of the population."},"note":"Numbered boxes are constrained to the supported PCB region. Package and connector labels remain inspection candidates; composition and metal content are not visually assayed."}

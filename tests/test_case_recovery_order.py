@@ -1,6 +1,7 @@
 from copy import deepcopy
 from itertools import permutations
 import unittest
+from unittest.mock import patch
 
 from routes.case_reasoner import reconcile_case
 
@@ -29,6 +30,25 @@ def board_view(score, count, label="Dense Logic / Controller Board", confidence=
         "model": "Board Sense v4.4 + Board Blueprint v1.1",
     }
 
+    
+def reconcile_with_test_only_verified_identity(views):
+    """Exercise recovery mechanics AFTER an explicitly mocked identity pass.
+
+    This mock is not physical image registration. Production must establish
+    an independently supported identity before granting automated grades.
+    """
+    identity = {
+        "version": "TEST FIXTURE: independently verified identity only",
+        "status": "PROBABLY_SAME_BOARD",
+        "same_board": True,
+        "confidence": 94,
+        "block_reconciliation": False,
+        "whole_view_count": len(views),
+        "identity_next_step": "No additional identity check required in this unit test.",
+    }
+    with patch("routes.case_reasoner.verify_same_board", return_value=identity):
+        return reconcile_case(views)
+
 
 class CaseRecoveryOrderTests(unittest.TestCase):
     def test_equal_confidence_keeps_recovery_score_in_both_photo_orders(self):
@@ -42,7 +62,7 @@ class CaseRecoveryOrderTests(unittest.TestCase):
             original = deepcopy(views)
             for order in permutations(views):
                 with self.subTest(label=label, scores=[r["score"] for r in order]):
-                    case = reconcile_case(list(order))
+                    case = reconcile_with_test_only_verified_identity(list(order))
                     self.assertEqual(case["score"], 9)
                     expected_grade = "LOW" if label == "Edge-Connector Board" else "MEDIUM"
                     self.assertEqual(case["grade"], expected_grade)
@@ -57,7 +77,9 @@ class CaseRecoveryOrderTests(unittest.TestCase):
         weaker = board_view(5, 8)
         stronger = board_view(9, 24)
         for order in permutations([weaker, stronger, deepcopy(stronger)]):
-            case = reconcile_case(list(order))
+            # Isolate duplicate-score logic; identity is explicitly mocked
+            # as independently verified in this recovery-only unit test.
+            case = reconcile_with_test_only_verified_identity(list(order))
             self.assertEqual(case["score"], 9)
             self.assertEqual(case["case_analysis"]["independent_evidence_patterns"], 1)
             self.assertTrue(case["case_analysis"]["duplicate_evidence_guard"]["active"])
@@ -65,9 +87,70 @@ class CaseRecoveryOrderTests(unittest.TestCase):
     def test_higher_confidence_still_outranks_a_higher_recovery_score(self):
         views = [board_view(5, 8, confidence=90), board_view(9, 24)]
         for order in permutations(views):
-            case = reconcile_case(list(order))
+            case = reconcile_with_test_only_verified_identity(list(order))
             self.assertEqual(case["score"], 5)
             self.assertEqual(case["confidence"], 90)
+
+    def test_identical_uploaded_photo_cannot_double_count_score_or_grade(self):
+        first = board_view(9, 24)
+        second = deepcopy(first)
+        first["photo_integrity"] = {"exact_duplicate_pairs": [[1, 2]]}
+        for operator in (False, True):
+            with self.subTest(operator_confirmed=operator):
+                result = reconcile_case([first, second],
+                    operator_same_board_confirmation=operator)
+                self.assertEqual(result["status"], "case_identity_failed")
+                self.assertEqual(result["same_board_verification"]["status"],
+                                 "DUPLICATE_PHOTOS_IN_CASE")
+                self.assertEqual(result["grade"], "UNRESOLVED")
+                self.assertEqual(result["score"], 0)
+                self.assertIsNone(result["three_answers"]["economics"]["winner"])
+
+    def test_distinct_logic_boards_never_get_unverified_combined_medium_grade(self):
+        first = board_view(3, 6, confidence=60)
+        second = board_view(9, 24, confidence=78)
+        for r in (first, second):
+            r["object_gate"] = {"mode": "board"}
+        # Identical generic board outline and same classifier family are not
+        # proof of one physical item, as demonstrated by the field test.
+        unconfirmed = reconcile_case([first, second])
+        self.assertEqual(unconfirmed["status"], "case_identity_failed")
+        self.assertEqual(unconfirmed["grade"], "UNRESOLVED")
+        self.assertEqual(unconfirmed["score"], 0)
+        self.assertIsNone(unconfirmed["three_answers"]["economics"]["winner"])
+        confirmed = reconcile_case([first, second], operator_same_board_confirmation=True)
+        self.assertEqual(confirmed["same_board_verification"]["status"], "OPERATOR_CONFIRMED_SAME_BOARD")
+        self.assertEqual(confirmed["status"], "case_identity_failed")
+        self.assertEqual(confirmed["grade"], "UNRESOLVED")
+        self.assertEqual(confirmed["score"], 0)
+        self.assertFalse(confirmed["pay_dirt_ready"])
+        self.assertEqual(confirmed["confidence"], 0)
+        self.assertEqual(confirmed["recovery_economics"]["status"], "board_verification_required")
+        self.assertIsNone(confirmed["three_answers"]["economics"]["winner"])
+        self.assertTrue(confirmed["requires_manual_board_verification"])
+
+    def test_user_confirmed_pcb_like_reverse_cannot_assign_case_grade(self):
+        populated = board_view(9, 24)
+        populated["object_gate"] = {"mode": "board"}
+        reverse = board_view(0, 0, label="PCB-like object / manual verification required", confidence=44)
+        reverse["object_gate"] = {"mode": "pcb_review"}
+        reverse["grade"] = "N/A"
+        reverse["signals"] = {}
+        for order in permutations([populated, reverse]):
+            with self.subTest(order=[v["board_type"] for v in order]):
+                blocked = reconcile_case(list(order))
+                self.assertEqual(blocked["status"], "case_identity_failed")
+                self.assertEqual(blocked["grade"], "UNRESOLVED")
+                result = reconcile_case(list(order), operator_same_board_confirmation=True)
+                self.assertEqual(result["status"], "case_identity_failed")
+                self.assertEqual(result["board_type"], "Operator-Confirmed / Physical Identity Unverified")
+                self.assertEqual(result["grade"], "UNRESOLVED")
+                self.assertEqual(result["score"], 0)
+                self.assertEqual(result["confidence"], 0)
+                self.assertFalse(result["pay_dirt_ready"])
+                self.assertIsNone(result["recovery_economics"]["winner"])
+                self.assertTrue(result["requires_manual_board_verification"])
+                self.assertEqual(result["three_answers"]["recovery"]["grade"], "WITHHELD")
 
     def test_recovery_tie_cannot_override_separate_boards_in_one_frame(self):
         views = [board_view(5, 8), board_view(9, 24)]
