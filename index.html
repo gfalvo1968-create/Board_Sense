@@ -235,6 +235,13 @@ img.preview{
     </section>
 
     <section class="panel">
+        <h2>🗺️ Private Board Blueprint</h2>
+        <p id="blueprintStatus" role="status" aria-live="polite">A marked-up preview appears here when the scan confirms a whole-board candidate and identifies usable regions.</p>
+        <img id="blueprintPreview" class="preview" alt="Annotated image of the scanned circuit board, with numbered component regions" hidden style="display:none;" decoding="async">
+        <p>Generated images are shown in this report only, not published through a separate photo link.</p>
+    </section>
+
+    <section class="panel">
         <h2>🥇 Recovery Intelligence</h2>
 
         <div id="recoveryBox">
@@ -362,6 +369,51 @@ if (enterBtn) {
 });
 
 
+// ---------- Private annotated blueprint ----------
+function clearBlueprint(message) {
+    const preview = $("blueprintPreview");
+    const info = $("blueprintStatus");
+    if (preview) {
+        // Remove earlier scan data before accepting a new report or an error.
+        preview.removeAttribute("src");
+        preview.hidden = true;
+        preview.style.display = "none";
+        preview.onload = null;
+        preview.onerror = null;
+    }
+    if (info) info.textContent = message || "No blueprint preview for this scan.";
+}
+
+function showBlueprint(data, mode) {
+    const blueprint = data && data.board_blueprint || {};
+    if (mode !== "board" || !blueprint.available) {
+        clearBlueprint(mode === "pcb_review"
+            ? "This PCB-like photo needs manual verification before a blueprint can be shown."
+            : (blueprint.message || "No verified whole-board blueprint is available for this photo."));
+        return;
+    }
+    const image = $("blueprintPreview");
+    const info = $("blueprintStatus");
+    const url = blueprint.image_url;
+    // Never put an arbitrary remote URL or HTML in the image element.
+    if (!image || blueprint.delivery_mode !== "inline_no_store" ||
+        typeof url !== "string" || url.length > 6000000 ||
+        !/^data:image\\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(url)) {
+        clearBlueprint("Blueprint preview unavailable; the report text remains valid.");
+        return;
+    }
+    image.onerror = function () {
+        clearBlueprint("Could not display the private blueprint. Try a clearer photo.");
+    };
+    image.onload = function () {
+        if (info) info.textContent = "Annotated blueprint for this scan. Region labels are inspection candidates, not metal assays.";
+    };
+    image.src = url;
+    image.hidden = false;
+    image.style.display = "block";
+    if (info) info.textContent = "Loading the private blueprint preview...";
+}
+
 // ---------- Upload ----------
 
 async function uploadImage() {
@@ -373,6 +425,7 @@ async function uploadImage() {
     if (!input || input.files.length === 0) {
         report.textContent = "Please choose an image first.";
         status.textContent = "No photo selected.";
+        clearBlueprint("Choose one board photo to see an annotated blueprint if available.");
         return;
     }
 
@@ -382,6 +435,7 @@ async function uploadImage() {
     devLog("Selected file: " + file.name);
     status.textContent = "Uploading " + file.name + "...";
     report.textContent = "Analyzing selected board photo...";
+    clearBlueprint("New scan started. Previous blueprint cleared.");
     button.disabled = true;
 
     try {
@@ -412,11 +466,13 @@ async function uploadImage() {
         report.style.whiteSpace = "pre-line";
         status.textContent = "Analysis completed for " + file.name + ".";
         devLog("Analysis completed. Object gate: " + mode);
+        showBlueprint(data, mode);
 
         if (typeof renderSignals === "function") renderSignals(data.signals);
     } catch (err) {
         report.textContent = "Upload failed: " + (err && err.message ? err.message : String(err));
         status.textContent = "Scan did not complete.";
+        clearBlueprint("No blueprint from this failed scan.");
         devLog("Scan failed: " + err);
     } finally {
         button.disabled = false;
