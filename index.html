@@ -414,6 +414,64 @@ function showBlueprint(data, mode) {
     if (info) info.textContent = "Loading the private blueprint preview...";
 }
 
+// ---------- Evidence-led Recovery Intelligence ----------
+// No dollar values or metal yields come from a photograph.
+function renderRecoveryIntelligence(data, mode) {
+    const panel = $("recoveryBox");
+    if (!panel) return;
+    panel.replaceChildren();
+    function line(message, tag) {
+        const node = document.createElement(tag || "p");
+        node.textContent = message;
+        panel.appendChild(node);
+        return node;
+    }
+    if (!data) {
+        line("No recovery report for this scan. Run one board analysis first.");
+        return;
+    }
+    if (mode !== "board") {
+        line(mode === "pcb_review"
+            ? "Recovery routing withheld: this photo needs a clearer whole-board verification."
+            : "Whole-board recovery routing withheld: this object is not confirmed as a circuit board.");
+        line("No yield, buyer grade, or dollar estimate has been assigned.");
+        return;
+    }
+    const lab = data.recovery_lab || {};
+    const inspection = Array.isArray(lab.labs) ? lab.labs.slice(0, 6) : [];
+    const grade = typeof data.grade === "string" ? data.grade : "UNVERIFIED";
+    line("Board status: " + grade + ". Buyer acceptance and material assay are not verified.");
+    if (inspection.length) {
+        line("Recovery Labs to review (inspection cues only):", "strong");
+        const list = document.createElement("ul");
+        inspection.forEach(function (item) {
+            if (!item || typeof item.label !== "string") return;
+            const child = document.createElement("li");
+            child.textContent = item.label.slice(0, 90);
+            list.appendChild(child);
+        });
+        panel.appendChild(list);
+    } else {
+        line("No specific recovery lab was supported by this scan.");
+    }
+    const risk = lab.risk || {};
+    if (risk.level === "controlled_process") {
+        line("Safety: mechanical sorting may be appropriate. Chemical recovery needs qualified professional/refinery controls.");
+    } else {
+        line("Safety: sort and inspect without assuming any recoverable metal quantity.");
+    }
+    line("Economics: unpriced. Compare selling whole, selective separation, and downstream recovery only after entering actual offers, weight, labor, fuel and processing costs.");
+    const link = document.createElement("a");
+    link.href = "https://gfalvo1968-create.github.io/scrap_radar_family/scrap_radar.html#board-recovery";
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = "Open Scrap Radar for manual economics";
+    link.style.color = "#39ff14";
+    link.style.fontWeight = "bold";
+    panel.appendChild(link);
+    line("This opens Scrap Radar only. Automatic single-photo case transfer is not released yet.");
+}
+
 // ---------- Upload ----------
 
 async function uploadImage() {
@@ -426,6 +484,7 @@ async function uploadImage() {
         report.textContent = "Please choose an image first.";
         status.textContent = "No photo selected.";
         clearBlueprint("Choose one board photo to see an annotated blueprint if available.");
+        renderRecoveryIntelligence(null, "not_ready");
         return;
     }
 
@@ -434,6 +493,7 @@ async function uploadImage() {
     formData.append("file", file);
     devLog("Selected file: " + file.name);
     status.textContent = "Uploading " + file.name + "...";
+    renderRecoveryIntelligence(null, "loading");
     report.textContent = "Analyzing selected board photo...";
     clearBlueprint("New scan started. Previous blueprint cleared.");
     button.disabled = true;
@@ -467,12 +527,14 @@ async function uploadImage() {
         status.textContent = "Analysis completed for " + file.name + ".";
         devLog("Analysis completed. Object gate: " + mode);
         showBlueprint(data, mode);
+        renderRecoveryIntelligence(data, mode);
 
         if (typeof renderSignals === "function") renderSignals(data.signals);
     } catch (err) {
         report.textContent = "Upload failed: " + (err && err.message ? err.message : String(err));
         status.textContent = "Scan did not complete.";
         clearBlueprint("No blueprint from this failed scan.");
+        renderRecoveryIntelligence(null, "failed");
         devLog("Scan failed: " + err);
     } finally {
         button.disabled = false;
