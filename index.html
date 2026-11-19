@@ -219,6 +219,8 @@ img.preview{
         <button id="analyzeBtn">
             Analyze Board
         </button>
+
+        <p id="uploadStatus" role="status" aria-live="polite">Choose a board photo to begin.</p>
     </section>
 
     <section class="panel">
@@ -226,7 +228,7 @@ img.preview{
 
         <div id="predictionBox">
 
-            Waiting for scan...
+            Select one board photo above, then tap Analyze Board.
 
         </div>
 
@@ -291,15 +293,12 @@ img.preview{
 function $(id){
     return document.getElementById(id);
 }
-    const devConsole = document.getElementById("dev-console");
-
 function devLog(message) {
+    const devConsole = $("dev-console");
     if (!devConsole) return;
-
     const time = new Date().toLocaleTimeString();
-
-    devConsole.innerHTML += "<br>[" + time + "] " + message;
-
+    devConsole.textContent += "\n[" + time + "] " + message;
+    devConsole.style.whiteSpace = "pre-line";
     devConsole.scrollTop = devConsole.scrollHeight;
 }
 
@@ -366,76 +365,62 @@ if (enterBtn) {
 // ---------- Upload ----------
 
 async function uploadImage() {
-
     const input = $("boardImage");
+    const report = $("predictionBox");
+    const status = $("uploadStatus");
+    const button = $("analyzeBtn");
 
     if (!input || input.files.length === 0) {
-
-        $("predictionBox").innerHTML =
-            "Please choose an image first.";
-
+        report.textContent = "Please choose an image first.";
+        status.textContent = "No photo selected.";
         return;
-
     }
 
     const file = input.files[0];
-    if (file) {
-    devLog("Selected file: " + file.name);
-    devLog("File size: " + Math.round(file.size / 1024) + " KB");
-}
-
-    $("uploadStatus").innerHTML =
-        "Uploading " + file.name + "...";
-
     const formData = new FormData();
-
     formData.append("file", file);
-    devLog("Packaging image...");
-    devLog("Sending request to Harbor AI...");
+    devLog("Selected file: " + file.name);
+    status.textContent = "Uploading " + file.name + "...";
+    report.textContent = "Analyzing selected board photo...";
+    button.disabled = true;
 
     try {
-
-        const response = await fetch("https://boardsense.scrapradarfamily.com/analyze", {
-
-            method: "POST",
-
-            body: formData
-
-        });
-
+        // Same-origin routing keeps staging scans out of the production API.
+        const response = await fetch("/analyze", { method: "POST", body: formData });
         const data = await response.json();
-        devLog("Response received");
-        devLog("Grade: " + data.ai_grade);
-        devLog("Confidence: " + data.confidence + "%");
-        devLog("Estimated Value: $" + data.value_estimate);
-
-        $("predictionBox").innerHTML =
-            "<b>Grade:</b> " + data.ai_grade +
-            "<br><b>Confidence:</b> " + data.confidence +
-            "<br><b>Action:</b> " + data.action +
-            "<br><b>Estimated Value:</b> $" + data.value_estimate;
-
-        $("uploadStatus").innerHTML =
-            "Analysis complete.";
-
-        if (typeof renderSignals === "function") {
-
-            renderSignals(data.signals);
-
+        if (!response.ok) {
+            const detail = data.message || data.detail || data.reason || "The scanner did not accept this request.";
+            throw new Error("HTTP " + response.status + ": " + (typeof detail === "string" ? detail : JSON.stringify(detail)));
         }
 
+        const gate = data.object_gate || {};
+        const mode = gate.mode || "unknown";
+        const lines = [
+            "Object: " + (gate.label || data.board_type || "Not classified"),
+            "PCB check: " + (mode === "pcb_review" ? "PCB-like / MANUAL VERIFICATION REQUIRED" : (mode === "board" ? "Board candidate" : "Not confirmed as a PCB")),
+            "Confidence: " + (typeof data.confidence === "number" ? data.confidence + "%" : "Not reported")
+        ];
+        if (mode === "board") {
+            lines.push("Provisional grade: " + (data.grade || "Not assigned"));
+            lines.push("Board type: " + (data.board_type || "Not confirmed"));
+        } else {
+            lines.push("Buyer grade and recovery economics withheld pending verification.");
+        }
+        if (data.recommendation) lines.push("Recommendation: " + data.recommendation);
+        if (gate.message) lines.push("Evidence: " + gate.message);
+        report.textContent = lines.join("\n");
+        report.style.whiteSpace = "pre-line";
+        status.textContent = "Analysis completed for " + file.name + ".";
+        devLog("Analysis completed. Object gate: " + mode);
+
+        if (typeof renderSignals === "function") renderSignals(data.signals);
+    } catch (err) {
+        report.textContent = "Upload failed: " + (err && err.message ? err.message : String(err));
+        status.textContent = "Scan did not complete.";
+        devLog("Scan failed: " + err);
+    } finally {
+        button.disabled = false;
     }
-
-    catch (err) {
-
-        $("predictionBox").innerHTML =
-            "Upload failed.<br><br>" + err;
-
-        $("uploadStatus").innerHTML =
-            "Upload failed.";
-
-    }
-
 }
 
 </script>
