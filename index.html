@@ -398,7 +398,7 @@ function showBlueprint(data, mode) {
     // Never put an arbitrary remote URL or HTML in the image element.
     if (!image || blueprint.delivery_mode !== "inline_no_store" ||
         typeof url !== "string" || url.length > 6000000 ||
-        !/^data:image\\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(url)) {
+        !url.startsWith("data:image/jpeg;base64,")) {
         clearBlueprint("Blueprint preview unavailable; the report text remains valid.");
         return;
     }
