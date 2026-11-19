@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const vm = require("node:vm");
 
 const html = fs.readFileSync("index.html", "utf8");
-const script = html.split("<script>", 1)[1].split("</script>", 1)[0];
+const script = html.split("<script>")[1].split("</script>")[0];
 const elements = new Map();
 class Element {
   constructor(tag = "div") {
