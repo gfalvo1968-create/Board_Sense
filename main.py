@@ -6,16 +6,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from typing import List, Optional
 import uvicorn
+import os
 import shutil
 from ecosystem import get_ecosystem
 from routes.board_analyzer import analyze_board
+from routes.multi_board_independent import analyze_independent_boards
 from routes.pair_reasoner import reconcile_pair
 from routes.pair_decision_guard import guard_pair
 from routes.spike_evidence_packet import build_evidence_packet
 from routes.case_reasoner import reconcile_case
 from routes.photo_overlap_diagnostics import examine_photo_overlap
 from routes.inspection_target import parse_inspection_target, apply_inspection_target
-from routes.free_usage_gate import check_free_board_allowance, record_free_board_use, free_gate_payload
+from routes.free_usage_gate import check_free_board_allowance, record_free_board_use, free_gate_payload, _is_authorized_tester
 from recovery_lab.core.time_value import compare_paths
 from routes.grade import router as grade_router
 from routes.irm_core import router as irm_router
@@ -118,6 +120,36 @@ def _claim_or_block(request: Request, mode: str):
 
 def _attach_usage(result: dict, usage):
     result["free_usage"] = usage.as_dict()
+    return result
+
+
+def _multi_board_tester_preview_enabled():
+    """Preview never enabled in public production, regardless of flags."""
+    return (
+        os.getenv("BOARD_SENSE_MULTI_BOARD_PREVIEW", "").lower() == "enabled"
+        and os.getenv("BOARD_SENSE_ENV", "").lower() != "production"
+        and os.getenv("RAILWAY_ENVIRONMENT_NAME", "").lower() != "production"
+    )
+
+
+@app.get("/multi-board-capabilities")
+def multi_board_capabilities():
+    """Public capability status, no credentials, images or quota state."""
+    return {"status": "ok", "tester_preview_enabled": _multi_board_tester_preview_enabled()}
+
+
+@app.post("/analyze-multi")
+async def analyze_multi_board_tester_route(request: Request, file: UploadFile = File(...)):
+    """Staging-only, authorized tester preview. No public quota or purchase bypass."""
+    if not _multi_board_tester_preview_enabled():
+        raise HTTPException(status_code=404, detail="Separate-board preview is unavailable.")
+    if not _is_authorized_tester(request):
+        raise HTTPException(status_code=403, detail="Authorized tester access required.")
+    with validated_board_images([file], IMAGE_DIR) as paths:
+        result = await run_in_threadpool(analyze_independent_boards, str(paths[0]))
+    result["status_message"] = (
+        "Independent provisional board reports only. No combined buyer grade or priced recovery."
+    )
     return result
 
 
