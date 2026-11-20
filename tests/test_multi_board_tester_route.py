@@ -115,6 +115,58 @@ class MultiBoardTesterRouteTests(unittest.TestCase):
         analyze.assert_called_once()
         self.assertEqual(response.headers["cache-control"], "private, no-store, max-age=0")
 
+    def test_public_free_one_board_credit_cannot_yield_two_board_reports(self):
+        with (
+            patch.object(main, "_gate_or_block", return_value=None),
+            patch.object(main, "inspect_frame", return_value={
+                "status": "MULTIPLE_BOARDS_OR_OVERLAP_SUSPECTED",
+                "block_analysis": True,
+            }),
+            patch.object(main, "_claim_or_block", side_effect=AssertionError("Rejected photo must not consume allowance")) as claim,
+            patch.object(main, "analyze_board", side_effect=AssertionError("Never issue a blended grade")) as analyze,
+            TestClient(main.app) as client,
+        ):
+            response = client.post("/analyze", files={"file": (
+                "boards.png", photo_bytes(), "image/png"
+            )})
+        self.assertEqual(response.status_code, 200, response.text)
+        data = response.json()
+        self.assertEqual(data["status"], "multi_board_requires_separate_scans")
+        self.assertIs(data["credit_consumed"], False)
+        self.assertIsNone(data["grade"])
+        self.assertEqual(data["reports"], [])
+        self.assertIn("one physical board", data["message"].lower())
+        self.assertEqual(response.headers["cache-control"], "private, no-store, max-age=0")
+        claim.assert_not_called()
+        analyze.assert_not_called()
+
+    def test_public_one_board_still_uses_existing_atomic_claim(self):
+        from routes.free_usage_gate import GateDecision
+        allowance = GateDecision(
+            True, "private-hash-not-returned", 1, 1, 0, "2026-11-20", "recorded"
+        )
+        with (
+            patch.object(main, "_gate_or_block", return_value=None),
+            patch.object(main, "inspect_frame", return_value={
+                "status": "SINGLE_BOARD_NOT_CONTRADICTED",
+                "block_analysis": False,
+            }),
+            patch.object(main, "_claim_or_block", return_value=(allowance, None)) as claim,
+            patch.object(main, "analyze_board", return_value={
+                "object_gate": {"mode": "board"}, "grade": "MEDIUM", "confidence": 67
+            }) as analyze,
+            patch.object(main, "build_evidence_packet", return_value={}),
+            TestClient(main.app) as client,
+        ):
+            response = client.post("/analyze", files={"file": (
+                "board.png", photo_bytes(), "image/png"
+            )})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["grade"], "MEDIUM")
+        self.assertEqual(response.json()["free_usage"]["used_today"], 1)
+        claim.assert_called_once()
+        analyze.assert_called_once()
+
     def test_invalid_upload_does_not_invoke_analyzer(self):
         with patch.object(main, "analyze_single_or_independent_boards") as analyzer:
             response = self.post(
