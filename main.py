@@ -10,7 +10,7 @@ import os
 import shutil
 from ecosystem import get_ecosystem
 from routes.board_analyzer import analyze_board
-from routes.multi_board_independent import analyze_independent_boards
+from routes.multi_board_independent import analyze_single_or_independent_boards
 from routes.pair_reasoner import reconcile_pair
 from routes.pair_decision_guard import guard_pair
 from routes.spike_evidence_packet import build_evidence_packet
@@ -140,15 +140,20 @@ def multi_board_capabilities():
 
 @app.post("/analyze-multi")
 async def analyze_multi_board_tester_route(request: Request, file: UploadFile = File(...)):
-    """Staging-only, authorized tester preview. No public quota or purchase bypass."""
+    """Behind-the-scenes staging-only test of the ordinary Scan Board workflow.
+
+    Not a customer bulk-scanning option. Requires authorized tester key;
+    public one-board/day quota is never exchanged for multiple grades.
+    """
     if not _multi_board_tester_preview_enabled():
-        raise HTTPException(status_code=404, detail="Separate-board preview is unavailable.")
+        raise HTTPException(status_code=404, detail="Private scan preview is unavailable.")
     if not _is_authorized_tester(request):
         raise HTTPException(status_code=403, detail="Authorized tester access required.")
     with validated_board_images([file], IMAGE_DIR) as paths:
-        result = await run_in_threadpool(analyze_independent_boards, str(paths[0]))
+        result = await run_in_threadpool(analyze_single_or_independent_boards, str(paths[0]))
     result["status_message"] = (
-        "Independent provisional board reports only. No combined buyer grade or priced recovery."
+        "Normal scan automatically separates proven multiple boards; otherwise "
+        "returns one board or Manual Review. No combined multi-board grade."
     )
     return result
 
