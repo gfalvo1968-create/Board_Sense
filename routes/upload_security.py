@@ -17,6 +17,7 @@ ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP", "BMP", "TIFF"}
 UPLOAD_BODY_LIMITS = {
     "/upload": 12 * 1024 * 1024,
     "/analyze": 12 * 1024 * 1024,
+    "/analyze-multi": 12 * 1024 * 1024,
     "/analyze-pair": 24 * 1024 * 1024,
     "/analyze-spike-pair": 24 * 1024 * 1024,
     "/analyze-case": 64 * 1024 * 1024,
@@ -27,7 +28,7 @@ UPLOAD_BODY_LIMITS = {
 # any image-analysis API response, including validation and quota errors.
 PRIVATE_RESPONSE_PATHS = frozenset({
     "/upload", "/analyze", "/analyze-pair", "/analyze-spike-pair",
-    "/analyze-case", "/free-usage",
+    "/analyze-case", "/analyze-multi", "/free-usage",
 })
 
 
