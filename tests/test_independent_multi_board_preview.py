@@ -8,6 +8,7 @@ import numpy as np
 
 from routes.multi_board_independent import (
     inspect_independent_regions, analyze_independent_boards,
+    analyze_single_or_independent_boards,
 )
 
 
@@ -35,6 +36,55 @@ class SeparateBoardPreviewTests(unittest.TestCase):
             path = Path(directory) / "photo.png"
             cv2.imwrite(str(path), image)
             return fn(path)
+
+    def test_ordinary_scan_uses_single_report_for_one_board(self):
+        calls = []
+        def analyze(path):
+            calls.append(str(path))
+            return {"object_gate": {"mode": "board"}, "grade": "MEDIUM",
+                    "confidence": 67, "board_type": "Single controller PCB"}
+        result = self.run_photo(frame(count=1),
+                                lambda path: analyze_single_or_independent_boards(path, analyzer=analyze))
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["scan_path"], "standard_one_board")
+        self.assertEqual(result["grade"], "MEDIUM")
+        self.assertNotIn("reports", result)
+        self.assertEqual(len(calls), 1)
+        self.assertTrue(all(not Path(path).exists() for path in calls))
+
+    def test_ordinary_scan_automatically_routes_two_boards_to_separate_reports(self):
+        calls = []
+        def analyze(path):
+            calls.append(path)
+            return {"object_gate": {"mode": "board"}, "confidence": 82,
+                    "grade": "LOW" if len(calls) == 1 else "HIGH",
+                    "board_type": "Independent PCB", "board_blueprint": {"available": False}}
+        result = self.run_photo(frame(count=2),
+                                lambda path: analyze_single_or_independent_boards(path, analyzer=analyze))
+        self.assertEqual(result["status"], "separate_reports", result)
+        self.assertEqual([r["provisional_grade"] for r in result["reports"]], ["LOW", "HIGH"])
+        self.assertEqual(result["board_count"], 2)
+        self.assertNotIn("grade", result)
+        self.assertIsNone(result["combined_grade"])
+        self.assertEqual(len(calls), 2)
+
+    def test_uncertain_multi_frame_never_falls_back_to_one_combined_grade(self):
+        from unittest.mock import patch
+        calls = []
+        def analyze(path):
+            calls.append(path)
+            return {"grade": "HIGH", "object_gate": {"mode": "board"}, "confidence": 99}
+        with patch("routes.multi_board_independent.analyze_independent_boards", return_value={
+            "status": "manual_review_required", "mode": "separate_board_preview",
+            "message": "The boards cannot be separated.", "reports": [], "board_count": 0,
+            "combined_grade": None, "combined_recovery_economics": None,
+        }):
+            result = self.run_photo(frame(count=2),
+                                    lambda path: analyze_single_or_independent_boards(path, analyzer=analyze))
+        self.assertEqual(result["status"], "manual_review_required")
+        self.assertEqual(result["reports"], [])
+        self.assertIsNone(result["combined_grade"])
+        self.assertEqual(len(calls), 0, "Never run single-board grading after a multi-board split fails")
 
     def test_two_boards_are_two_independent_grades_no_combined_fields(self):
         seen = []
