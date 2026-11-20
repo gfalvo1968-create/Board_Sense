@@ -416,8 +416,8 @@ function showIndependentReports(result, filename) {
         card.appendChild(heading);
         const info = document.createElement("p");
         info.textContent = "Board type: " + (part.board_type || "UNVERIFIED") +
-            "\\nConfidence: " + (typeof part.confidence === "number" ? part.confidence + "%" : "Unknown") +
-            "\\nProvisional grade: " + (part.provisional_grade || "MANUAL REVIEW");
+            "\nConfidence: " + (typeof part.confidence === "number" ? part.confidence + "%" : "Unknown") +
+            "\nProvisional grade: " + (part.provisional_grade || "MANUAL REVIEW");
         info.style.whiteSpace = "pre-line";
         card.appendChild(info);
         const reminder = document.createElement("p");
