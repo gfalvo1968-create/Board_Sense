@@ -11,6 +11,7 @@ import shutil
 from ecosystem import get_ecosystem
 from routes.board_analyzer import analyze_board
 from routes.multi_board_independent import analyze_single_or_independent_boards
+from routes.frame_identity_gate import inspect_frame
 from routes.pair_reasoner import reconcile_pair
 from routes.pair_decision_guard import guard_pair
 from routes.spike_evidence_packet import build_evidence_packet
@@ -165,6 +166,25 @@ async def analyze_board_route(request: Request, file: UploadFile = File(...), in
     if blocked is not None:
         return blocked
     with validated_board_images([file], IMAGE_DIR) as paths:
+        # A public free scan represents ONE physical board, not one photo.
+        # In the staging preview, reject proven multiple boards BEFORE claiming
+        # any daily allowance. Do not use the tester-only split pathway here.
+        if _multi_board_tester_preview_enabled():
+            frame = await run_in_threadpool(inspect_frame, str(paths[0]))
+            if frame.get("status") == "MULTIPLE_BOARDS_OR_OVERLAP_SUSPECTED":
+                return {
+                    "status": "multi_board_requires_separate_scans",
+                    "board_count": None,
+                    "grade": None,
+                    "reports": [],
+                    "message": (
+                        "SPIKE detected more than one board in this photograph. "
+                        "One free analysis covers one physical board. "
+                        "Please photograph one board at a time. "
+                        "This rejected photo has not used your free analysis."
+                    ),
+                    "credit_consumed": False,
+                }
         usage, blocked = await run_in_threadpool(_claim_or_block, request, "single_board")
         if blocked is not None:
             return blocked
