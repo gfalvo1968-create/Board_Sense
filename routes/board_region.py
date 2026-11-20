@@ -46,6 +46,79 @@ def _dark_board_on_light_surface(image, gray, k):
     return mask
 
 
+def _fragmented_green_board_support(image, hsv):
+    """Conservatively reconnect green PCB surface hidden by tall power hardware.
+
+    Warm, textured surroundings can dominate the broad solder-mask hue
+    histogram, while a relay/capacitor population fragments the true green
+    surface. This fallback only supplies an approximate *support region* for
+    downstream inspection markers. It does not prove a physical board outline,
+    part identity, same-board identity, buyer grade, or metal content.
+    """
+    h, w = image.shape[:2]
+    area = max(1, h * w)
+    empty = np.zeros((h, w), dtype=np.uint8)
+
+    # Avoid the yellow/brown cloth hues that can dominate broad [18, 105]
+    # searches. This fallback is deliberately narrower than the primary path;
+    # warm-lit PCB handling remains available in the existing primary path.
+    green = cv2.inRange(hsv, np.array([36, 65, 24]),
+                       np.array([100, 255, 255]))
+    margin = max(6, int(min(h, w) * .04))
+    border_count = (
+        cv2.countNonZero(green[:margin, :])
+        + cv2.countNonZero(green[-margin:, :])
+        + cv2.countNonZero(green[margin:-margin, :margin])
+        + cv2.countNonZero(green[margin:-margin, -margin:])
+    )
+    border_area = 2 * margin * w + 2 * margin * max(0, h - 2 * margin)
+    if border_count / max(1, border_area) > .02:
+        return empty
+
+    kernel = max(3, (min(h, w) // 200) | 1)
+    green = cv2.morphologyEx(green, cv2.MORPH_OPEN,
+                            np.ones((kernel, kernel), np.uint8))
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(green, 8)
+    minimum_island = max(90, int(area * .00004))
+    islands = [i for i in range(1, count)
+               if stats[i, cv2.CC_STAT_AREA] >= minimum_island]
+    if not 3 <= len(islands) <= 180:
+        return empty
+
+    island_sizes = [int(stats[i, cv2.CC_STAT_AREA]) for i in islands]
+    total_green = sum(island_sizes)
+    # Insist on one dominant populated surface, rather than bridging scattered
+    # green objects or several separate boards into one synthetic outline.
+    if total_green < area * .025 or max(island_sizes) < total_green * .55:
+        return empty
+
+    lookup = np.zeros(count, dtype=np.uint8)
+    lookup[islands] = 255
+    supported_pixels = lookup[labels]
+    ys, xs = np.nonzero(supported_pixels)
+    hull = cv2.convexHull(np.column_stack((xs, ys)).astype(np.int32))
+    x, y, bw, bh = cv2.boundingRect(hull)
+    if x < margin or y < margin or x + bw >= w - margin or y + bh >= h - margin:
+        return empty
+    hull_area = cv2.contourArea(hull)
+    if not (.12 <= hull_area / area <= .84):
+        return empty
+    if total_green / max(1, hull_area) < .14:
+        return empty
+
+    mask = np.zeros((h, w), dtype=np.uint8)
+    cv2.drawContours(mask, [hull], -1, 255, -1)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(cv2.GaussianBlur(gray, (5, 5), 0), 55, 150)
+    erosion = max(9, (min(h, w) // 70) | 1)
+    interior = cv2.erode(mask, np.ones((erosion, erosion), np.uint8))
+    evidence = cv2.countNonZero(cv2.bitwise_and(edges, interior)) / max(
+        1, cv2.countNonZero(interior))
+    if evidence < .045:
+        return empty
+    return mask
+
+
 def board_region_mask(image):
     h, w = image.shape[:2]
     area = max(1, h * w)
@@ -88,6 +161,9 @@ def board_region_mask(image):
     border = np.concatenate([gray[:bh, :].ravel(), gray[-bh:, :].ravel(),
                              gray[:, :bw].ravel(), gray[:, -bw:].ravel()])
     if np.std(border) > 24:
+        supported = _fragmented_green_board_support(image, hsv)
+        if cv2.countNonZero(supported):
+            return supported
         return _dark_board_on_light_surface(image, gray, k)
     diff = cv2.absdiff(gray, np.full_like(gray, int(np.median(border))))
     _, foreground = cv2.threshold(diff, 22, 255, cv2.THRESH_BINARY)
