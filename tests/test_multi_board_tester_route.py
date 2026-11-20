@@ -58,7 +58,7 @@ class MultiBoardTesterRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_missing_and_wrong_tester_keys_cannot_use_multi_board_quota(self):
-        with patch.object(main, "analyze_independent_boards") as analyzer:
+        with patch.object(main, "analyze_single_or_independent_boards") as analyzer:
             for headers in ({}, {"x-board-sense-tester-key": "wrong"}):
                 response = self.post(headers=headers)
                 self.assertEqual(response.status_code, 403)
@@ -84,7 +84,7 @@ class MultiBoardTesterRouteTests(unittest.TestCase):
             self.assertTrue(Path(path).is_file())
             return reply
         with TemporaryDirectory() as directory, patch.object(main, "IMAGE_DIR", Path(directory)), \
-             patch.object(main, "analyze_independent_boards", side_effect=analyze), \
+             patch.object(main, "analyze_single_or_independent_boards", side_effect=analyze), \
              patch.object(main, "_claim_or_block", side_effect=AssertionError("Never debit one preview for multiple boards.")):
             response = self.post(headers={"x-board-sense-tester-key": "private-in-test-only"})
             self.assertEqual(response.status_code, 200, response.text)
@@ -97,8 +97,26 @@ class MultiBoardTesterRouteTests(unittest.TestCase):
         self.assertEqual(response.headers["cache-control"], "private, no-store, max-age=0")
         self.assertNotIn("private-in-test-only", response.text)
 
+    def test_authorized_one_board_uses_standard_shape_not_multi_card(self):
+        normal = {
+            "status": "success",
+            "scan_path": "standard_one_board",
+            "grade": "MANUAL REVIEW",
+            "confidence": 45,
+            "board_type": "General PCB",
+            "object_gate": {"mode": "board"},
+        }
+        with patch.object(main, "analyze_single_or_independent_boards", return_value=normal) as analyze:
+            response = self.post(headers={"x-board-sense-tester-key": "private-in-test-only"})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["scan_path"], "standard_one_board")
+        self.assertEqual(response.json()["grade"], "MANUAL REVIEW")
+        self.assertNotIn("reports", response.json())
+        analyze.assert_called_once()
+        self.assertEqual(response.headers["cache-control"], "private, no-store, max-age=0")
+
     def test_invalid_upload_does_not_invoke_analyzer(self):
-        with patch.object(main, "analyze_independent_boards") as analyzer:
+        with patch.object(main, "analyze_single_or_independent_boards") as analyzer:
             response = self.post(
                 headers={"x-board-sense-tester-key": "private-in-test-only"},
                 data=b"not-a-png",
