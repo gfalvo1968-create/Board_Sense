@@ -223,6 +223,18 @@ img.preview{
         <p id="uploadStatus" role="status" aria-live="polite">Choose a board photo to begin.</p>
     </section>
 
+    <section class="panel" id="multiBoardPanel" hidden style="display:none;">
+        <h2>🧪 Separate Boards (Private Tester Preview)</h2>
+        <p>One photo containing two or more separate boards. Each supported board gets its own provisional grade or Manual Review. Never one combined grade.</p>
+        <label for="multiBoardImage">Photo containing separate boards</label>
+        <input type="file" id="multiBoardImage" accept="image/*">
+        <label for="multiBoardTesterKey">Private tester access key (not your ChatGPT password)</label>
+        <input type="password" id="multiBoardTesterKey" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Tester key">
+        <button id="multiBoardAnalyzeBtn" type="button">Analyze Boards Separately</button>
+        <p id="multiBoardStatus" role="status" aria-live="polite">Test access only. No public billing or quota changes.</p>
+        <div id="multiBoardReports" aria-live="polite"></div>
+    </section>
+
     <section class="panel">
         <h2>🔍 Board Investigation Report</h2>
 
@@ -352,6 +364,10 @@ if (enterBtn) {
         };
 
     }
+    initializeMultiBoardTester();
+    const multiBtn = $("multiBoardAnalyzeBtn");
+    if (multiBtn) multiBtn.addEventListener("click", analyzeMultiBoardImage);
+
     const analyzeBtn = $("analyzeBtn");
 
     if (analyzeBtn) {
@@ -368,6 +384,100 @@ if (enterBtn) {
 
 });
 
+
+// ---------- Staging-only independent multi-board preview ----------
+// The tester key is sent only in an HTTPS request header, never a URL,
+// localStorage, server log, or console message. Public mode stays hidden.
+async function initializeMultiBoardTester() {
+    try {
+        const response = await fetch("/multi-board-capabilities", {cache: "no-store"});
+        if (!response.ok) return;
+        const flags = await response.json();
+        if (flags.tester_preview_enabled !== true) return;
+        const panel = $("multiBoardPanel");
+        if (panel) {
+            panel.hidden = false;
+            panel.style.display = "block";
+        }
+    } catch (_ignored) {
+        // A failure to read capability flags never exposes tester controls.
+    }
+}
+
+async function analyzeMultiBoardImage() {
+    const input = $("multiBoardImage");
+    const key = $("multiBoardTesterKey");
+    const btn = $("multiBoardAnalyzeBtn");
+    const status = $("multiBoardStatus");
+    const container = $("multiBoardReports");
+    if (!input || !status || !container || !btn || !key) return;
+    container.replaceChildren();
+    if (!input.files || !input.files.length) {
+        status.textContent = "Choose a photograph showing separate boards.";
+        return;
+    }
+    const testerKey = key.value.trim();
+    if (!testerKey) {
+        status.textContent = "Enter the private tester access key.";
+        return;
+    }
+    const payload = new FormData();
+    payload.append("file", input.files[0]);
+    key.value = "";
+    btn.disabled = true;
+    status.textContent = "Inspecting each board separately. No combined grade will be generated.";
+    try {
+        const response = await fetch("/analyze-multi", {
+            method: "POST",
+            headers: {"x-board-sense-tester-key": testerKey},
+            body: payload,
+            cache: "no-store"
+        });
+        const result = await response.json();
+        if (!response.ok) {
+            const reason = typeof result.detail === "string" ? result.detail : "Analysis was not accepted.";
+            throw new Error(reason);
+        }
+        if (result.status !== "separate_reports" || !Array.isArray(result.reports)) {
+            status.textContent = (result.message || "Individual boards could not be separated safely.") +
+                " Please use individual photos for any uncertain boards.";
+            return;
+        }
+        status.textContent = result.reports.length + " independent board report(s). Provisional grades, not verified buyer prices.";
+        result.reports.forEach(function (part) {
+            const card = document.createElement("section");
+            card.className = "result-box";
+            const heading = document.createElement("h3");
+            heading.textContent = "Board " + String(part.board_index || "?");
+            card.appendChild(heading);
+            const summary = document.createElement("p");
+            summary.textContent = "Type: " + (part.board_type || "Unknown") +
+                "\nConfidence: " + String(part.confidence == null ? "Not reported" : part.confidence) + "%" +
+                "\nIndependent grade: " + (part.provisional_grade || "MANUAL REVIEW");
+            summary.style.whiteSpace = "pre-line";
+            card.appendChild(summary);
+            const caveat = document.createElement("p");
+            caveat.textContent = "Economics: unpriced. Grade requires buyer confirmation.";
+            card.appendChild(caveat);
+            const blue = part.board_blueprint || {};
+            if (blue.available && blue.delivery_mode === "inline_no_store" &&
+                typeof blue.image_url === "string" && blue.image_url.length <= 6000000 &&
+                blue.image_url.startsWith("data:image/jpeg;base64,")) {
+                const pic = document.createElement("img");
+                pic.alt = "Private annotated blueprint for Board " + String(part.board_index || "?");
+                pic.className = "preview";
+                pic.loading = "lazy";
+                pic.src = blue.image_url;
+                card.appendChild(pic);
+            }
+            container.appendChild(card);
+        });
+    } catch (error) {
+        status.textContent = "Multi-board preview stopped: " + (error && error.message ? error.message : "Request failed.");
+    } finally {
+        btn.disabled = false;
+    }
+}
 
 // ---------- Private annotated blueprint ----------
 function clearBlueprint(message) {
