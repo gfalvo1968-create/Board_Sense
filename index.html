@@ -591,6 +591,13 @@ async function uploadImage() {
             const detail = data.message || data.detail || data.reason || "The scanner did not accept this request.";
             throw new Error("HTTP " + response.status + ": " + (typeof detail === "string" ? detail : JSON.stringify(detail)));
         }
+        if (data.status === "multi_board_requires_separate_scans") {
+            report.textContent = data.message || "More than one board found. Please photograph one board at a time.";
+            status.textContent = "No free board credit used for this rejected photo.";
+            clearBlueprint("No combined board blueprint or grade.");
+            $("recoveryBox").textContent = "No grade or recovery value issued for mixed-board photos.";
+            return;
+        }
         if (data.status === "separate_reports") {
             showIndependentReports(data, file.name);
             return;
