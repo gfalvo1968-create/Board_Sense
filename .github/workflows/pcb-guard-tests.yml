@@ -10,6 +10,8 @@ on:
       - 'tests/test_object_gate_framing.py'
       - 'tests/test_grade_review.py'
       - 'routes/board_blueprint.py'
+      - 'routes/multi_board_independent.py'
+      - 'tests/test_independent_multi_board_preview.py'
       - 'routes/board_analyzer.py'
       - 'main.py'
       - 'index.html'
