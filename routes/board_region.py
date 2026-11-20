@@ -82,7 +82,10 @@ def _fragmented_green_board_support(image, hsv):
     minimum_island = max(90, int(area * .00004))
     islands = [i for i in range(1, count)
                if stats[i, cv2.CC_STAT_AREA] >= minimum_island]
-    if not 3 <= len(islands) <= 180:
+    # Some legitimate populated PCB faces expose only one or two connected
+    # green islands. Interior population evidence below still vetoes plain
+    # green panels, and the primary object/identity gates remain independent.
+    if not 1 <= len(islands) <= 180:
         return empty
 
     island_sizes = [int(stats[i, cv2.CC_STAT_AREA]) for i in islands]
@@ -174,7 +177,12 @@ def board_region_mask(image):
     mask = np.zeros((h, w), dtype=np.uint8)
     if candidates:
         cv2.drawContours(mask, [max(candidates, key=cv2.contourArea)], -1, 255, -1)
-    return mask
+        return mask
+
+    # A plain/light border may cause generic foreground thresholding to fail
+    # even though a populated PCB still has well-supported green patches.
+    # Apply the guarded green-surface fallback here too, never the whole frame.
+    return _fragmented_green_board_support(image, hsv)
 
 
 def region_on_board(mask, region, minimum_coverage=.65):
