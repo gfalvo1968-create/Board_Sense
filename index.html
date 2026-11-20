@@ -221,6 +221,14 @@ img.preview{
         </button>
 
         <p id="uploadStatus" role="status" aria-live="polite">Choose a board photo to begin.</p>
+        <details id="testerAccess" hidden style="display:none; margin-top:12px;">
+            <summary style="cursor:pointer;">🔐 Private tester access</summary>
+            <p>Staging only. Regular Scan Board automatically checks for separate boards.</p>
+            <label for="singleScanTesterKey">Tester access key</label>
+            <input type="password" id="singleScanTesterKey" autocomplete="off"
+                   autocapitalize="off" spellcheck="false" placeholder="Paste full tester key">
+            <p style="font-size:.9em;">Use the normal Analyze Board button. The key stays in this tab only and is not saved.</p>
+        </details>
     </section>
 
     <section class="panel">
@@ -352,6 +360,7 @@ if (enterBtn) {
         };
 
     }
+    initializePrivateScanTester();
     const analyzeBtn = $("analyzeBtn");
 
     if (analyzeBtn) {
@@ -368,6 +377,67 @@ if (enterBtn) {
 
 });
 
+
+// ---------- Staging-only automatic board separation (normal Scan Board) ----------
+// Customer-facing scanning never advertises batch processing. An authorized
+// tester can enable the behavior in this tab, without a separate upload UI.
+let privateAutoScanAvailable = false;
+async function initializePrivateScanTester() {
+    try {
+        const response = await fetch("/multi-board-capabilities", {cache: "no-store"});
+        if (!response.ok) return;
+        const flags = await response.json();
+        if (flags.tester_preview_enabled !== true) return;
+        privateAutoScanAvailable = true;
+        const access = $("testerAccess");
+        if (access) {
+            access.hidden = false;
+            access.style.display = "block";
+        }
+    } catch (_ignored) {
+        // On a failed capability check, the normal scanner remains available.
+    }
+}
+
+function showIndependentReports(result, filename) {
+    const report = $("predictionBox");
+    const status = $("uploadStatus");
+    const recovery = $("recoveryBox");
+    if (!report || !status || !recovery) return;
+    report.replaceChildren();
+    const items = Array.isArray(result.reports) ? result.reports : [];
+    status.textContent = "SPIKE detected " + items.length + " separate board(s) in " +
+        filename + ". Each is assessed independently.";
+    items.forEach(function (part) {
+        const card = document.createElement("section");
+        card.className = "result-box";
+        const heading = document.createElement("h3");
+        heading.textContent = "Board " + String(part.board_index || "?");
+        card.appendChild(heading);
+        const info = document.createElement("p");
+        info.textContent = "Board type: " + (part.board_type || "UNVERIFIED") +
+            "\nConfidence: " + (typeof part.confidence === "number" ? part.confidence + "%" : "Unknown") +
+            "\nProvisional grade: " + (part.provisional_grade || "MANUAL REVIEW");
+        info.style.whiteSpace = "pre-line";
+        card.appendChild(info);
+        const reminder = document.createElement("p");
+        reminder.textContent = "Buyer acceptance and metal recovery amounts are unverified.";
+        card.appendChild(reminder);
+        const blueprint = part.board_blueprint || {};
+        if (blueprint.available && blueprint.delivery_mode === "inline_no_store" &&
+            typeof blueprint.image_url === "string" && blueprint.image_url.length <= 6000000 &&
+            blueprint.image_url.startsWith("data:image/jpeg;base64,")) {
+            const preview = document.createElement("img");
+            preview.className = "preview";
+            preview.alt = "Private annotated preview for Board " + String(part.board_index || "?");
+            preview.src = blueprint.image_url;
+            card.appendChild(preview);
+        }
+        report.appendChild(card);
+    });
+    clearBlueprint("Each supported board's private blueprint appears in its own report above.");
+    recovery.textContent = "No combined recovery report or value: inspect each physical board independently.";
+}
 
 // ---------- Private annotated blueprint ----------
 function clearBlueprint(message) {
@@ -499,12 +569,45 @@ async function uploadImage() {
     button.disabled = true;
 
     try {
-        // Same-origin routing keeps staging scans out of the production API.
-        const response = await fetch("/analyze", { method: "POST", body: formData });
+        // Same Scan Board button for everyone. An opt-in, staging-only tester
+        // request silently checks for accidental multiple boards. Public and
+        // unauthenticated scanning always uses the existing quota-limited route.
+        const privateKeyField = $("singleScanTesterKey");
+        const privateKey = privateAutoScanAvailable && privateKeyField
+            ? privateKeyField.value.trim() : "";
+        const useTester = privateAutoScanAvailable && privateKey.length > 0;
+        const endpoint = useTester ? "/analyze-multi" : "/analyze";
+        const response = await fetch(endpoint, {
+            method: "POST",
+            body: formData,
+            headers: useTester ? {"x-board-sense-tester-key": privateKey} : {},
+            cache: "no-store"
+        });
         const data = await response.json();
         if (!response.ok) {
+            if (useTester && response.status === 403) {
+                throw new Error("Private tester key not accepted. Recopy the entire key; no scan was processed.");
+            }
             const detail = data.message || data.detail || data.reason || "The scanner did not accept this request.";
             throw new Error("HTTP " + response.status + ": " + (typeof detail === "string" ? detail : JSON.stringify(detail)));
+        }
+        if (data.status === "multi_board_requires_separate_scans") {
+            report.textContent = data.message || "More than one board found. Please photograph one board at a time.";
+            status.textContent = "No free board credit used for this rejected photo.";
+            clearBlueprint("No combined board blueprint or grade.");
+            $("recoveryBox").textContent = "No grade or recovery value issued for mixed-board photos.";
+            return;
+        }
+        if (data.status === "separate_reports") {
+            showIndependentReports(data, file.name);
+            return;
+        }
+        if (data.status === "manual_review_required") {
+            report.textContent = data.message || "Photo requires manual review. No combined grade was assigned.";
+            status.textContent = "SPIKE needs a clearer view to keep board identities separate.";
+            clearBlueprint("No combined blueprint was created.");
+            $("recoveryBox").textContent = "Recovery grades and values withheld until board identities are clear.";
+            return;
         }
 
         const gate = data.object_gate || {};

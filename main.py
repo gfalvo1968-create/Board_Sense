@@ -6,16 +6,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from typing import List, Optional
 import uvicorn
+import os
 import shutil
 from ecosystem import get_ecosystem
 from routes.board_analyzer import analyze_board
+from routes.multi_board_independent import analyze_single_or_independent_boards
+from routes.frame_identity_gate import inspect_frame
 from routes.pair_reasoner import reconcile_pair
 from routes.pair_decision_guard import guard_pair
 from routes.spike_evidence_packet import build_evidence_packet
 from routes.case_reasoner import reconcile_case
 from routes.photo_overlap_diagnostics import examine_photo_overlap
 from routes.inspection_target import parse_inspection_target, apply_inspection_target
-from routes.free_usage_gate import check_free_board_allowance, record_free_board_use, free_gate_payload
+from routes.free_usage_gate import check_free_board_allowance, record_free_board_use, free_gate_payload, _is_authorized_tester
 from recovery_lab.core.time_value import compare_paths
 from routes.grade import router as grade_router
 from routes.irm_core import router as irm_router
@@ -121,6 +124,41 @@ def _attach_usage(result: dict, usage):
     return result
 
 
+def _multi_board_tester_preview_enabled():
+    """Preview never enabled in public production, regardless of flags."""
+    return (
+        os.getenv("BOARD_SENSE_MULTI_BOARD_PREVIEW", "").lower() == "enabled"
+        and os.getenv("BOARD_SENSE_ENV", "").lower() != "production"
+        and os.getenv("RAILWAY_ENVIRONMENT_NAME", "").lower() != "production"
+    )
+
+
+@app.get("/multi-board-capabilities")
+def multi_board_capabilities():
+    """Public capability status, no credentials, images or quota state."""
+    return {"status": "ok", "tester_preview_enabled": _multi_board_tester_preview_enabled()}
+
+
+@app.post("/analyze-multi")
+async def analyze_multi_board_tester_route(request: Request, file: UploadFile = File(...)):
+    """Behind-the-scenes staging-only test of the ordinary Scan Board workflow.
+
+    Not a customer bulk-scanning option. Requires authorized tester key;
+    public one-board/day quota is never exchanged for multiple grades.
+    """
+    if not _multi_board_tester_preview_enabled():
+        raise HTTPException(status_code=404, detail="Private scan preview is unavailable.")
+    if not _is_authorized_tester(request):
+        raise HTTPException(status_code=403, detail="Authorized tester access required.")
+    with validated_board_images([file], IMAGE_DIR) as paths:
+        result = await run_in_threadpool(analyze_single_or_independent_boards, str(paths[0]))
+    result["status_message"] = (
+        "Normal scan automatically separates proven multiple boards; otherwise "
+        "returns one board or Manual Review. No combined multi-board grade."
+    )
+    return result
+
+
 @app.post("/analyze")
 async def analyze_board_route(request: Request, file: UploadFile = File(...), inspection_target: Optional[str] = Form(None)):
     # Staging instrumentation: no filename, IP address, or image content in logs.
@@ -128,6 +166,25 @@ async def analyze_board_route(request: Request, file: UploadFile = File(...), in
     if blocked is not None:
         return blocked
     with validated_board_images([file], IMAGE_DIR) as paths:
+        # A public free scan represents ONE physical board, not one photo.
+        # In the staging preview, reject proven multiple boards BEFORE claiming
+        # any daily allowance. Do not use the tester-only split pathway here.
+        if _multi_board_tester_preview_enabled():
+            frame = await run_in_threadpool(inspect_frame, str(paths[0]))
+            if frame.get("status") == "MULTIPLE_BOARDS_OR_OVERLAP_SUSPECTED":
+                return {
+                    "status": "multi_board_requires_separate_scans",
+                    "board_count": None,
+                    "grade": None,
+                    "reports": [],
+                    "message": (
+                        "SPIKE detected more than one board in this photograph. "
+                        "One free analysis covers one physical board. "
+                        "Please photograph one board at a time. "
+                        "This rejected photo has not used your free analysis."
+                    ),
+                    "credit_consumed": False,
+                }
         usage, blocked = await run_in_threadpool(_claim_or_block, request, "single_board")
         if blocked is not None:
             return blocked
