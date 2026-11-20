@@ -63,6 +63,31 @@ class WarmTexturedPCBSupportTests(unittest.TestCase):
             self.assertNotEqual(int(mask[int(mask.shape[0] * .8),
                                          int(mask.shape[1] * .5)]), 0)
 
+    def test_obscured_relay_board_against_plain_light_paper(self):
+        image = fragmented_power_board()
+        # Preserve the real synthetic populated board while replacing the
+        # warm textile border with uniform off-white paper.
+        paper = np.full_like(image, 214)
+        paper[130:1051, 180:731] = image[130:1051, 180:731]
+        for view in (paper, cv2.rotate(paper, cv2.ROTATE_90_CLOCKWISE)):
+            mask = board_region_mask(view)
+            self.assertGreater(cv2.countNonZero(mask), mask.size * .10)
+            self.assertEqual(int(mask[20, 20]), 0)
+
+    def test_single_populated_green_surface_on_neutral_paper(self):
+        image = np.full((1000, 850, 3), 212, np.uint8)
+        cv2.rectangle(image, (185, 115), (665, 905), (33, 118, 40), -1)
+        for row in range(7):
+            for col in range(5):
+                x, y = 225 + col * 85, 170 + row * 98
+                cv2.rectangle(image, (x, y), (x + 48, y + 55),
+                              (28, 30, 31), -1)
+                cv2.line(image, (x + 9, y + 62), (x + 42, y + 62),
+                         (220, 225, 228), 2)
+        mask = board_region_mask(image)
+        self.assertGreater(cv2.countNonZero(mask), mask.size * .15)
+        self.assertEqual(int(mask[35, 35]), 0)
+
     def test_plain_green_panel_has_no_population_support(self):
         image = warm_background()
         cv2.rectangle(image, (180, 130), (730, 1050),
