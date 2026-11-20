@@ -147,3 +147,23 @@ def analyze_independent_boards(image_path, analyzer=analyze_board):
         "rule": "One physical board per independent provisional grade or manual-review report. Never combine board grades or components.",
         "limitations": "Experimental inspection only; individual board completeness and buyer grade require human verification.",
     }
+
+
+def analyze_single_or_independent_boards(image_path, analyzer=analyze_board):
+    """One normal Scan Board request: silently route verified multi-board frames.
+
+    Staging-only caller owns tester authorization. For a normal single board,
+    return the existing single-board shape unchanged. For proven multiple
+    bodies, return independent reports (or a safe manual-review stop).
+    Never reinterpret a known multi-board frame as one combined board.
+    """
+    with board_analysis_image(image_path) as normalized:
+        gate = inspect_frame(str(normalized))
+        if gate.get("status") == "MULTIPLE_BOARDS_OR_OVERLAP_SUSPECTED":
+            return analyze_independent_boards(str(normalized), analyzer=analyzer)
+        if gate.get("status") in ("FRAME_UNREADABLE", "FRAME_GATE_UNCERTAIN"):
+            return _blocked("Photo identity could not be checked safely. Use a clearer photograph.", gate)
+        result = analyzer(str(normalized))
+        result["status"] = "success"
+        result["scan_path"] = "standard_one_board"
+        return result
