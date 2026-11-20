@@ -12,6 +12,7 @@ on:
       - 'routes/board_blueprint.py'
       - 'routes/multi_board_independent.py'
       - 'tests/test_independent_multi_board_preview.py'
+      - 'tests/test_multi_board_tester_route.py'
       - 'routes/board_analyzer.py'
       - 'main.py'
       - 'index.html'
