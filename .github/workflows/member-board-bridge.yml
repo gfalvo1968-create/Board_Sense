@@ -1,0 +1,28 @@
+name: Draft member bridge safety tests
+
+on:
+  pull_request:
+    paths:
+      - routes/member_board_bridge.py
+      - tests/test_member_board_bridge.py
+      - .github/workflows/member-board-bridge.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  member-bridge-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run isolated bridge safety tests (no network calls)
+        env:
+          PYTHONPATH: .
+        run: python -m unittest discover -v -s tests -p 'test_member_board_bridge.py'
