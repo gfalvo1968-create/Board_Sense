@@ -16,9 +16,9 @@ import main
 from routes import free_usage_gate as gate, grade, irm_core
 
 
-def photo():
+def photo(color="green"):
     out = BytesIO()
-    Image.new("RGB", (3, 3), "green").save(out, "PNG")
+    Image.new("RGB", (3, 3), color).save(out, "PNG")
     return ("board.png", out.getvalue(), "image/png")
 
 
@@ -60,9 +60,9 @@ class AnalysisReservationTests(unittest.TestCase):
     def test_all_analysis_routes_reserve_before_any_view(self):
         cases = [("/analyze", [("file", photo())], 1),
                  ("/upload", [("file", photo())], 1),
-                 ("/analyze-spike-pair", [("context", photo()), ("closeup", photo())], 2),
-                 ("/analyze-pair", [("side_a", photo()), ("side_b", photo())], 2),
-                 ("/analyze-case", [("files", photo()), ("files", photo())], 2)]
+                 ("/analyze-spike-pair", [("context", photo()), ("closeup", photo("blue"))], 2),
+                 ("/analyze-pair", [("side_a", photo()), ("side_b", photo("blue"))], 2),
+                 ("/analyze-case", [("files", photo()), ("files", photo("blue"))], 2)]
         self.stack.enter_context(patch.object(main, "reconcile_case", return_value={}))
         self.stack.enter_context(patch.object(main, "reconcile_pair", return_value={}))
         self.stack.enter_context(patch.object(main, "guard_pair", return_value={}))
@@ -88,7 +88,7 @@ class AnalysisReservationTests(unittest.TestCase):
 
     def test_processor_context_withholds_board_analysis_and_valuation(self):
         with patch.object(main, "reconcile_case") as reconcile:
-            r = self.post("/analyze-case", [("files", photo()), ("files", photo())], {"item_kind": "processor", "full_recovery_value": "999"})
+            r = self.post("/analyze-case", [("files", photo()), ("files", photo("blue"))], {"item_kind": "processor", "full_recovery_value": "999"})
         self.assertEqual(r.status_code, 200, r.text)
         p = r.json()
         self.assertEqual(p["photo_count"], 2)
@@ -125,7 +125,7 @@ class AnalysisReservationTests(unittest.TestCase):
             "status": "MULTIPLE_BOARDS_DETECTED", "block_reconciliation": True}}
         self.stack.enter_context(patch.object(main, "reconcile_case", return_value=blocked))
         economics = self.stack.enter_context(patch.object(main, "compare_paths"))
-        r = self.post("/analyze-case", [("files", photo()), ("files", photo())], {"operator_same_board_confirmation": "true"})
+        r = self.post("/analyze-case", [("files", photo()), ("files", photo("blue"))], {"operator_same_board_confirmation": "true"})
         self.assertEqual(r.status_code, 200)
         payload = r.json()
         self.assertEqual(payload["mode"], "multi_photo_identity_blocked")

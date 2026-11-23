@@ -84,6 +84,17 @@ def _file_digest(path):
     return digest.digest()
 
 
+def exact_duplicate_photo_pairs(paths):
+    """Find byte-identical views BEFORE recording a public free case.
+
+    File digests stay private, and view indices are 1-based. The check neither
+    runs a model nor grants physical-board identity to nonidentical photos.
+    """
+    from itertools import combinations
+    digests = [_file_digest(path) for path in paths[:6]]
+    return [[i + 1, j + 1] for i, j in combinations(range(len(digests)), 2)
+            if digests[i] == digests[j]]
+
 def examine_photo_overlap(paths):
     """Return optional per-pair diagnostic evidence, never proof of identity.
 
