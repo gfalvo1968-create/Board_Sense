@@ -13,7 +13,7 @@ from routes.pair_reasoner import reconcile_pair
 from routes.pair_decision_guard import guard_pair
 from routes.spike_evidence_packet import build_evidence_packet
 from routes.case_reasoner import reconcile_case
-from routes.photo_overlap_diagnostics import examine_photo_overlap
+from routes.photo_overlap_diagnostics import examine_photo_overlap, exact_duplicate_photo_pairs
 from routes.inspection_target import parse_inspection_target, apply_inspection_target
 from routes.free_usage_gate import check_free_board_allowance, record_free_board_use, free_gate_payload
 from recovery_lab.core.time_value import compare_paths
@@ -254,6 +254,15 @@ async def analyze_board_case_route(
         return {"status": "error", "message": "Choose between 2 and 6 photos of the same board."}
     results = []
     with validated_board_images(files, IMAGE_DIR) as paths:
+        # A byte-identical upload is not an independent view of a board.
+        # Reject before spending the visitor's only free daily case.
+        duplicates = exact_duplicate_photo_pairs(paths)
+        if duplicates:
+            return JSONResponse(status_code=422, content={
+                "status": "duplicate_photos_in_case",
+                "message": "Identical photos were uploaded more than once. Add distinct views of one physical board. No free case was used.",
+                "duplicate_photo_pairs": duplicates,
+            })
         usage, blocked = _claim_or_block(request, "multi_photo_one_board")
         if blocked is not None:
             return blocked
