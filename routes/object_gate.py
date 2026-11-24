@@ -273,6 +273,15 @@ def classify_object(image_path):
         contact=int(comps.get("contact_pad_like",0)); block=int(comps.get("transformer_relay_like",0))
         solder=int(comps.get("solder_joint_like",0)); solder_side=int(comps.get("solder_side_likelihood",0))
         major=ic+cap+block
+        # Power candidates are supplementary construction evidence, not
+        # confirmed component identities. Do not count them as major ICs.
+        power_packages=int(comps.get("large_power_package_like",0))
+        windings=int(comps.get("magnetic_winding_like",0))
+        power_review_support=(
+            power_packages>=1 and windings>=1
+            and foreground_ratio>=.12 and rectangularity>=.50
+            and edge_ratio>=.025 and color_ratio>=.10
+        )
 
         # Structural PCB evidence. Color helps, but no color is mandatory.
         board_score=0
@@ -396,6 +405,23 @@ def classify_object(image_path):
             and speaker_score < 82
             and component_score < 58
         )
+        result["metrics"]["power_construction_review"] = {
+            "supported": bool(power_review_support),
+            "power_package_candidates": power_packages,
+            "winding_candidates": windings,
+        }
+        if (power_review_support and board_score>=40 and speaker_score<82
+                and camera_score<65 and component_score<58):
+            result.update({
+                "mode":"pcb_review",
+                "label":"Possible populated power PCB / manual verification required",
+                "confidence":min(49,max(30,int(board_score))),
+                "evidence":["Board-scale geometry and circuit texture",
+                            "Power-package and winding candidates require confirmation"],
+                "message":"Possible power PCB. Inspect both sides; automatic grading remains withheld until PCB identity is confirmed.",
+            })
+            return result
+
         if review_candidate:
             result.update({
                 "mode": "pcb_review",
