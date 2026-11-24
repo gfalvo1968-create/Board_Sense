@@ -22,7 +22,12 @@ def _confirmed_gold_finger_geometry(gold_mask,width,height):
         if len(items)<5:continue
         centers=sorted([(x+w/2,y+h/2,w,h) for x,y,w,h in items],key=lambda p:p[0] if side in("top","bottom") else p[1]);axis=np.array([p[0] if side in("top","bottom") else p[1] for p in centers],dtype=float);spacing=np.diff(axis)
         if len(spacing)<4 or np.mean(spacing)<=0:continue
-        spacing_cv=float(np.std(spacing)/max(np.mean(spacing),1e-6));sizes=np.array([min(p[2],p[3]) for p in centers],dtype=float);size_cv=float(np.std(sizes)/max(np.mean(sizes),1e-6));span=(axis.max()-axis.min())/max(width if side in("top","bottom") else height,1)
+         # Evaluate regular runs separately; connector key gaps are not contact pitch.
+        pitch=float(np.median(spacing));cuts=np.where(spacing>2.5*pitch)[0]+1
+        runs=np.split(axis,cuts);regular=[np.diff(run) for run in runs if len(run)>=5]
+        if not regular:continue
+        local_spacing=np.concatenate(regular)
+        spacing_cv=float(np.std(local_spacing)/max(np.mean(local_spacing),1e-6));sizes=np.array([min(p[2],p[3]) for p in centers],dtype=float);size_cv=float(np.std(sizes)/max(np.mean(sizes),1e-6));span=(axis.max()-axis.min())/max(width if side in("top","bottom") else height,1)
         if spacing_cv<=.55 and size_cv<=.45 and span>=.12:
             if len(items)>best["count"] or span>best["span"]:best={"confirmed":True,"side":side,"count":len(items),"span":round(float(span),3),"spacing_cv":round(spacing_cv,3),"size_cv":round(size_cv,3)}
     return best
