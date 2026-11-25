@@ -11,6 +11,10 @@ on:
       - 'tests/test_grade_review.py'
       - 'routes/board_blueprint.py'
       - 'routes/board_region.py'
+      - 'routes/multi_board_independent.py'
+      - 'tests/test_independent_multi_board_preview.py'
+      - 'tests/test_multi_board_tester_route.py'
+      - 'tests/test_auto_board_ui.js'
       - 'tests/test_warm_textured_pcb_support.py'
       - 'routes/board_analyzer.py'
       - 'main.py'
@@ -46,6 +50,7 @@ jobs:
           node --check single_board_handoff.js
           node tests/test_single_board_handoff.js
           node tests/test_recovery_intelligence_ui.js
+          node tests/test_auto_board_ui.js
       - name: Run PCB recognition and grade regressions
         run: python -m unittest discover -s tests -p 'test_*.py' -v
       - name: Anonymous staging HTTP security checks (read-only)

@@ -22,10 +22,57 @@ def _confirmed_gold_finger_geometry(gold_mask,width,height):
         if len(items)<5:continue
         centers=sorted([(x+w/2,y+h/2,w,h) for x,y,w,h in items],key=lambda p:p[0] if side in("top","bottom") else p[1]);axis=np.array([p[0] if side in("top","bottom") else p[1] for p in centers],dtype=float);spacing=np.diff(axis)
         if len(spacing)<4 or np.mean(spacing)<=0:continue
-        spacing_cv=float(np.std(spacing)/max(np.mean(spacing),1e-6));sizes=np.array([min(p[2],p[3]) for p in centers],dtype=float);size_cv=float(np.std(sizes)/max(np.mean(sizes),1e-6));span=(axis.max()-axis.min())/max(width if side in("top","bottom") else height,1)
+        # Evaluate regular runs separately; connector key gaps are not contact pitch.
+        pitch=float(np.median(spacing));cuts=np.where(spacing>2.5*pitch)[0]+1
+        runs=np.split(axis,cuts);regular=[np.diff(run) for run in runs if len(run)>=5]
+        if not regular:continue
+        local_spacing=np.concatenate(regular)
+        spacing_cv=float(np.std(local_spacing)/max(np.mean(local_spacing),1e-6));sizes=np.array([min(p[2],p[3]) for p in centers],dtype=float);size_cv=float(np.std(sizes)/max(np.mean(sizes),1e-6));span=(axis.max()-axis.min())/max(width if side in("top","bottom") else height,1)
         if spacing_cv<=.55 and size_cv<=.45 and span>=.12:
             if len(items)>best["count"] or span>best["span"]:best={"confirmed":True,"side":side,"count":len(items),"span":round(float(span),3),"spacing_cv":round(spacing_cv,3),"size_cv":round(size_cv,3)}
     return best
+
+def _localized_contact_geometry(hsv, gold_mask):
+    """Conservative second look at a single, isolated green/blue PCB surface.
+
+    Require a substantial rectangular substrate and nearby contacts. Return
+    inspection evidence only; the existing confirmed-contact gate is unchanged
+    until real-photo and non-PCB validation establish acceptable precision.
+    """
+    h,w=gold_mask.shape
+    surface=cv2.inRange(hsv,np.array([40,55,30],np.uint8),np.array([135,255,255],np.uint8))
+    k=max(3,(min(h,w)//80)|1)
+    surface=cv2.morphologyEx(surface,cv2.MORPH_CLOSE,np.ones((k,k),np.uint8),iterations=2)
+    contours,_=cv2.findContours(surface,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+    candidates=[]
+    for c in contours:
+        a=cv2.contourArea(c)
+        x,y,bw,bh=cv2.boundingRect(c)
+        if .08<=a/max(h*w,1)<=.92 and a/max(bw*bh,1)>=.55 and min(bw,bh)>=40:
+            candidates.append((c,x,y,bw,bh))
+    if len(candidates)!=1:
+        return None
+    c,x,y,bw,bh=candidates[0]
+    # Limit the search to the substrate and its immediate surroundings.
+    mask=np.zeros_like(surface)
+    cv2.drawContours(mask,[c],-1,255,-1)
+    pad=max(3,int(min(bw,bh)*.07))
+    near=cv2.dilate(mask,cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(2*pad+1,2*pad+1)))
+    x0,y0=max(0,x-pad),max(0,y-pad)
+    x1,y1=min(w,x+bw+pad),min(h,y+bh+pad)
+    local=cv2.bitwise_and(gold_mask,near)[y0:y1,x0:x1]
+    # Evaluate perimeter positions around the estimated substrate, rather than
+    # requiring fingers to touch the edge of the photograph.
+    best=None
+    for left,right,top,bottom in [(x0,x1,y0,y+bh),(x0,x1,y,y1),(x0,x+bw,y0,y1),(x,x1,y0,y1),(x,x+bw,y,y+bh)]:
+        crop=local[top-y0:bottom-y0,left-x0:right-x0]
+        ch,cw=crop.shape
+        if min(ch,cw)<40: continue
+        g=_confirmed_gold_finger_geometry(crop,cw,ch)
+        if g["confirmed"] and (best is None or g["count"]>best["count"]):
+            best=dict(g,substrate_bbox=[x,y,bw,bh],inspection_only=True)
+    return best
+
 
 def detect_visual_features(image_path):
     visual={"wide_skinny_board":False,"possible_ram":False,"gold_finger_edge":False,"gold_edge_color_cue":False,"gold_finger_geometry":False,"repeated_edge_contacts":False,"gold_contact_count":0,"gold_contact_side":None,"gold_contact_spacing_cv":None,"gold_contact_size_cv":None,"possible_large_ic_chips":False,"aspect_ratio":0.0,"gold_ratio":0.0,"dark_component_density":0.0,"large_dark_components":0}
@@ -36,6 +83,7 @@ def detect_visual_features(image_path):
         if ratio>=2.4:visual["wide_skinny_board"]=True;visual["possible_ram"]=True
         hsv=cv2.cvtColor(image,cv2.COLOR_BGR2HSV);gold_mask=cv2.inRange(hsv,np.array([10,70,80],dtype=np.uint8),np.array([38,255,255],dtype=np.uint8));edge_band=max(1,int(min(width,height)*.18));edge_mask=np.zeros((height,width),dtype=np.uint8);edge_mask[:edge_band,:]=255;edge_mask[-edge_band:,:]=255;edge_mask[:,:edge_band]=255;edge_mask[:,-edge_band:]=255;edge_gold=cv2.bitwise_and(gold_mask,edge_mask);edge_pixels=max(int(np.count_nonzero(edge_mask)),1);gold_ratio=np.count_nonzero(edge_gold)/edge_pixels;visual["gold_ratio"]=round(float(gold_ratio),4);visual["gold_edge_color_cue"]=bool(gold_ratio>=.025)
         geom=_confirmed_gold_finger_geometry(gold_mask,width,height);visual["gold_finger_geometry"]=bool(geom["confirmed"]);visual["repeated_edge_contacts"]=bool(geom["confirmed"]);visual["gold_finger_edge"]=bool(geom["confirmed"]);visual["gold_contact_count"]=int(geom["count"]);visual["gold_contact_side"]=geom["side"];visual["gold_contact_spacing_cv"]=geom["spacing_cv"];visual["gold_contact_size_cv"]=geom["size_cv"]
+        visual["localized_edge_contact_candidate"]=_localized_contact_geometry(hsv,gold_mask)
         gray=cv2.cvtColor(image,cv2.COLOR_BGR2GRAY);_,dark_mask=cv2.threshold(gray,72,255,cv2.THRESH_BINARY_INV);dark_mask=cv2.morphologyEx(dark_mask,cv2.MORPH_OPEN,np.ones((3,3),np.uint8));contours,_=cv2.findContours(dark_mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE);image_area=max(width*height,1);qualifying_components=0;qualifying_area=0.0
         for contour in contours:
             a=cv2.contourArea(contour)
