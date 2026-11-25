@@ -216,7 +216,16 @@ def discriminate_components(image_path):
                 if body_supported and not pins_supported and .002<=ar<=.065 and rect>=.88 and max(w,h)/max(1,min(w,h))<=1.65 and mean_face<150:
                     candidate={'type':'Unverified package-like region','x':int(x*inv),'y':int(y*inv),'w':max(1,int(w*inv)),'h':max(1,int(h*inv)),'confidence':50,'geometry_guard':'Enclosed package-like face; opposing pins are not confirmed. Hidden connections are possible, but this may be another rectangular feature. Excluded from IC counts, recovery points, and metal-yield claims.'}
                     if not any(_overlap(candidate,r)>.42 for r in regions):regions.append(candidate)
-                if mean_face>=100 or not body_supported or not pins_supported:continue
+                # Inspection-only trace: preserve rejected geometry without
+                # promoting it into component counts, side context or grade.
+                if mean_face>=100 or not body_supported or not pins_supported:
+                    rejected=diagnostic.setdefault('rejected_package_regions',[])
+                    if len(rejected)<80:
+                        rejected.append({'x':int(x*inv),'y':int(y*inv),'w':max(1,int(w*inv)),'h':max(1,int(h*inv)),
+                            'body_supported':bool(body_supported),'pins_supported':bool(pins_supported),
+                            'mean_face':round(mean_face,1),'rectangularity':round(rect,3),
+                            'reason':'body' if not body_supported else ('pins' if not pins_supported else 'brightness')})
+                    continue
                 region={'type':'IC-like package','x':int(x*inv),'y':int(y*inv),'w':max(1,int(w*inv)),'h':max(1,int(h*inv)),'confidence':min(90,int(65+rect*25)),'geometry_guard':'Enclosed dark package with repeated pin-like edges on opposing sides; part markings and composition still require inspection.'}
                 duplicate=next((r for r in regions if _overlap(region,r)>.42),None)
                 if duplicate:
