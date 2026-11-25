@@ -122,6 +122,40 @@ def _fragmented_green_board_support(image, hsv):
     return mask
 
 
+def _isolated_blue_surface(image, hsv):
+    """Alternative support region for a fragmented blue PCB on warm background.
+
+    Only considered when the original color region covers an unusually large
+    portion of the frame. This is not a physical identity or grade detector.
+    """
+    h,w=image.shape[:2]
+    area=h*w
+    empty=np.zeros((h,w),np.uint8)
+    blue=cv2.inRange(hsv,np.array([85,45,20]),np.array([135,255,255]))
+    k=max(3,(min(h,w)//85)|1)
+    blue=cv2.morphologyEx(blue,cv2.MORPH_CLOSE,np.ones((k,k),np.uint8),iterations=2)
+    n,labels,stats,_=cv2.connectedComponentsWithStats(blue)
+    ids=[i for i in range(1,n) if stats[i,cv2.CC_STAT_AREA]>=area*.001]
+    if not 2<=len(ids)<=20:
+        return empty
+    ys,xs=np.nonzero(np.isin(labels,ids))
+    hull=cv2.convexHull(np.column_stack((xs,ys)).astype(np.int32))
+    a=cv2.contourArea(hull)
+    rw,rh=cv2.minAreaRect(hull)[1]
+    x,y,bw,bh=cv2.boundingRect(hull)
+    margin=max(4,int(min(h,w)*.025))
+    if not (.12<=a/area<=.65 and a/max(1,rw*rh)>=.75 and len(xs)/max(1,a)>=.20):
+        return empty
+    if x<margin or y<margin or x+bw>w-margin or y+bh>h-margin:
+        return empty
+    mask=empty.copy()
+    cv2.drawContours(mask,[hull],-1,255,-1)
+    gray=cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
+    edges=cv2.Canny(cv2.GaussianBlur(gray,(5,5),0),55,150)
+    detail=cv2.countNonZero(cv2.bitwise_and(edges,mask))/max(1,cv2.countNonZero(mask))
+    return mask if detail>=.075 else empty
+
+
 def board_region_mask(image):
     h, w = image.shape[:2]
     area = max(1, h * w)
@@ -155,6 +189,10 @@ def board_region_mask(image):
     if candidates:
         mask = np.zeros((h, w), dtype=np.uint8)
         cv2.drawContours(mask, [max(candidates, key=cv2.contourArea)], -1, 255, -1)
+        if cv2.countNonZero(mask)/area >= .80:
+            blue = _isolated_blue_surface(image, hsv)
+            if cv2.countNonZero(blue):
+                return blue
         return mask
 
     # Non-green boards can still have a clear outline against a plain surface.
